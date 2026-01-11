@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATOM</title>
+    <link rel="icon" type="image/gif" href="Atomto100.gif">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 700px; margin: 0 auto; padding: 50px 20px; }
+        .label { text-align: center; font-size: 11px; font-weight: 500; letter-spacing: 3px; color: #444; margin-bottom: 32px; text-transform: uppercase; }
+        .price-row { display: flex; align-items: baseline; justify-content: center; gap: 16px; margin-bottom: 20px; }
+        .price { font-size: clamp(64px, 16vw, 120px); font-weight: 700; letter-spacing: -3px; line-height: 1; transition: color 0.1s ease; }
+        .price.up { color: #22c55e; }
+        .price.down { color: #ef4444; }
+        .change { font-size: 16px; font-weight: 500; color: #333; }
+        .change.pos { color: #22c55e; }
+        .change.neg { color: #ef4444; }
+        .currency-selector { display: flex; justify-content: center; gap: 8px; margin-bottom: 40px; }
+        .currency-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #333; background: none; border: 1px solid transparent; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .currency-btn:hover { color: #666; background: #111; }
+        .currency-btn.active { color: #fff; background: #111; border-color: #222; }
+        .chart-controls { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
+        .chart-type-toggle { display: flex; gap: 4px; }
+        .chart-type-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .chart-type-btn svg { width: 16px; height: 16px; stroke: #444; fill: none; }
+        .chart-type-btn:hover svg { stroke: #666; }
+        .chart-type-btn.active { background: #111; border-color: #222; }
+        .chart-type-btn.active svg { stroke: #fff; }
+        .time-buttons { display: flex; gap: 4px; background: #0a0a0a; padding: 4px; border-radius: 8px; }
+        .time-btn { padding: 6px 10px; font-size: 11px; font-weight: 500; color: #555; background: none; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .time-btn:hover { color: #888; }
+        .time-btn.active { color: #fff; background: #1a1a1a; }
+        .chart-area { height: 280px; margin-bottom: 32px; position: relative; }
+        #chartContainer { width: 100%; height: 100%; }
+        .chart-tooltip { 
+            position: absolute; 
+            pointer-events: none; 
+            z-index: 10; 
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px 14px;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        .tooltip-time { font-size: 12px; color: #888; margin-bottom: 4px; }
+        .tooltip-price { font-size: 18px; font-weight: 600; color: #fff; }
+        .stats-row { display: flex; justify-content: space-between; margin-bottom: 32px; }
+        .stat { text-align: left; }
+        .stat.center { text-align: center; }
+        .stat.right { text-align: right; }
+        .stat-value { font-size: 32px; font-weight: 600; }
+        .stat-label { font-size: 10px; color: #444; text-transform: lowercase; }
+        .divider { height: 1px; background: #1a1a1a; margin-bottom: 32px; }
+        .live-section { margin-bottom: 32px; }
+        .live-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+        .live-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+        .live-dot.disconnected { background: #ef4444; animation: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .live-label { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
+        .whale-hero { text-align: center; margin-bottom: 24px; }
+        .whale-hero-value { font-size: clamp(48px, 12vw, 72px); font-weight: 700; letter-spacing: -2px; line-height: 1; cursor: pointer; transition: color 0.2s; }
+        .whale-hero-value:hover { color: #888; }
+        .whale-hero-value.new { animation: flashGreen 0.5s ease; }
+        @keyframes flashGreen { 0%, 100% { color: #fff; } 50% { color: #22c55e; } }
+        .whale-hero-label { font-size: 12px; color: #444; margin-top: 8px; text-transform: uppercase; letter-spacing: 2px; }
+        .whale-hero-tx { font-size: 10px; color: #333; margin-top: 4px; font-family: monospace; }
+        .notable-section { margin-bottom: 32px; }
+        .notable-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        .notable-list { display: flex; flex-direction: column; gap: 6px; }
+        .notable-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #0a0a0a; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .notable-item:hover { background: #111; }
+        .notable-item.new { animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        .notable-amount { font-size: 14px; font-weight: 500; }
+        .notable-amount span { color: #444; font-weight: 400; }
+        .notable-time { font-size: 10px; color: #333; }
+        .loading { color: #333; font-size: 12px; padding: 20px 0; }
+        
+        /* CTA Section */
+        .cta-section { text-align: center; margin: 40px 0; }
+        .cta-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            border: 1px solid #222;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        .cta-link:hover {
+            border-color: #444;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        .cta-text {
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+        .cta-arrow {
+            font-size: 18px;
+            color: #666;
+            transition: transform 0.2s ease;
+        }
+        .cta-link:hover .cta-arrow {
+            transform: translateX(4px);
+            color: #fff;
+        }
+        
+
+        @media (max-width: 500px) {
+            .price-row { gap: 10px; }
+            .change { font-size: 14px; }
+            .stat-value { font-size: 26px; }
+            .time-buttons { gap: 2px; padding: 3px; }
+            .time-btn { padding: 5px 8px; font-size: 10px; }
+            .currency-btn { width: 32px; height: 32px; font-size: 14px; }
+            .chart-controls { flex-wrap: wrap; gap: 8px; }
+            .cta-link { padding: 14px 24px; }
+            .cta-text { font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="label">ATOM</div>
+        <div class="price-row">
+            <div class="price" id="price">—</div>
+            <div class="change" id="change"></div>
+        </div>
+        <div class="currency-selector">
+            <button class="currency-btn active" data-currency="usd">$</button>
+            <button class="currency-btn" data-currency="eur">€</button>
+            <button class="currency-btn" data-currency="gbp">£</button>
+            <button class="currency-btn" data-currency="try">₺</button>
+            <button class="currency-btn" data-currency="jpy">¥</button>
+            <button class="currency-btn" data-currency="cny">元</button>
+        </div>
+        <div class="chart-controls">
+            <div class="chart-type-toggle">
+                <button class="chart-type-btn active" data-type="line">
+                    <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><polyline points="3 17 9 11 13 15 21 7"></polyline></svg>
+                </button>
+                <button class="chart-type-btn" data-type="candle">
+                    <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round">
+                        <line x1="9" y1="4" x2="9" y2="8"></line><rect x="7" y="8" width="4" height="8" rx="0.5"></rect><line x1="9" y1="16" x2="9" y2="20"></line>
+                        <line x1="15" y1="6" x2="15" y2="10"></line><rect x="13" y="10" width="4" height="6" rx="0.5"></rect><line x1="15" y1="16" x2="15" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="time-buttons">
+                <button class="time-btn" data-d="1h" data-interval="1m" data-limit="60">1H</button>
+                <button class="time-btn active" data-d="1d" data-interval="15m" data-limit="96">1D</button>
+                <button class="time-btn" data-d="1w" data-interval="1h" data-limit="168">1W</button>
+                <button class="time-btn" data-d="1m" data-interval="4h" data-limit="180">1M</button>
+                <button class="time-btn" data-d="1y" data-interval="1d" data-limit="365">1Y</button>
+                <button class="time-btn" data-d="all" data-interval="1w" data-limit="500">ALL</button>
+            </div>
+        </div>
+        <div class="chart-area">
+            <div id="chartContainer"></div>
+            <div class="chart-tooltip" id="chartTooltip">
+                <div class="tooltip-time" id="tooltipTime"></div>
+                <div class="tooltip-price" id="tooltipPrice"></div>
+            </div>
+        </div>
+        <div class="stats-row">
+            <div class="stat"><div class="stat-value" id="stakingRatio">—%</div><div class="stat-label">staking ratio</div></div>
+            <div class="stat center"><div class="stat-value" id="stakePressure">○○○○○</div><div class="stat-label">stake pressure</div></div>
+            <div class="stat right"><div class="stat-value" id="inflationRate">10.00%</div><div class="stat-label">inflation rate</div></div>
+        </div>
+        <div class="divider"></div>
+        
+        <!-- Live Delegations -->
+        <div class="live-section">
+            <div class="live-header">
+                <div class="live-dot" id="liveDot"></div>
+                <span class="live-label">live delegations (50K+ ATOM)</span>
+            </div>
+            <div class="whale-hero">
+                <div class="whale-hero-value" id="whaleHero">—</div>
+                <div class="whale-hero-label">largest recent</div>
+                <div class="whale-hero-tx" id="whaleHeroTx">waiting for whale...</div>
+            </div>
+        </div>
+        
+        <!-- Notable Delegations (1K-50K) -->
+        <div class="notable-section">
+            <div class="notable-label">recent delegations (1K-50K ATOM)</div>
+            <div class="notable-list" id="notableList"><div class="loading">waiting for delegations...</div></div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <!-- CTA -->
+        <div class="cta-section">
+            <a href="https://atom.silknodes.io/" target="_blank" class="cta-link">
+                <span class="cta-text">ATOM Tokenomics Simulator</span>
+                <span class="cta-arrow">→</span>
+            </a>
+        </div>
+        
+
+    </div>
+    
+    <script>
+        // Config
+        const RPC_ENDPOINTS = [
+            'wss://cosmos-rpc.publicnode.com:443/websocket',
+            'wss://rpc.cosmos.network:443/websocket'
+        ];
+        const REST_ENDPOINTS = [
+            'https://cosmos-rest.publicnode.com',
+            'https://lcd-cosmos.imperator.co'
+        ];
+        const WHALE_MIN = 50000;
+        const NOTABLE_MIN = 1000;
+        const MAX_NOTABLE = 8;
+
+        // State
+        let cosmosWs = null, binanceWs = null;
+        let whaleDelegations = [], notableDelegations = [];
+        let prices = { usd: null, eur: null, try: null };
+        let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25 };
+        let change24h = 0, currentCurrency = 'usd', chartType = 'line';
+        let lastDisplayedPrice = null, chartData = [], chart = null, series = null;
+        let currentTimeframe = '1d'; // Track current timeframe for tooltip formatting
+
+        const currencies = {
+            usd: { decimals: 3, symbol: '$', hasPair: true },
+            eur: { decimals: 3, symbol: '€', hasPair: true },
+            gbp: { decimals: 3, symbol: '£', hasPair: false },
+            try: { decimals: 2, symbol: '₺', hasPair: true },
+            jpy: { decimals: 1, symbol: '¥', hasPair: false },
+            cny: { decimals: 2, symbol: '¥', hasPair: false }
+        };
+        
+        // Tab display names (more explicit for tab title)
+        const currencyTabNames = {
+            usd: '$', eur: '€', gbp: '£', try: '₺', jpy: 'JPY ', cny: 'CNY '
+        };
+
+        // Helpers
+        function formatAmount(n) {
+            if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+            return n.toLocaleString();
+        }
+        function formatNumber(n, d) {
+            return d === 0 ? Math.round(n).toLocaleString() : n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+        }
+        function formatPrice(p) { return currencies[currentCurrency].symbol + formatNumber(p, currencies[currentCurrency].decimals); }
+        function getCurrentPrice() {
+            if (currencies[currentCurrency].hasPair) return prices[currentCurrency];
+            return prices.usd ? prices.usd * fxRates[currentCurrency] : null;
+        }
+        function getConversionRate() {
+            if (currentCurrency === 'usd') return 1;
+            if (currencies[currentCurrency].hasPair && prices[currentCurrency] && prices.usd) return prices[currentCurrency] / prices.usd;
+            return fxRates[currentCurrency] || 1;
+        }
+        function timeAgo(ts) {
+            const mins = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return mins + 'm ago';
+            const hrs = Math.floor(mins / 60);
+            return hrs < 24 ? hrs + 'h ago' : Math.floor(hrs/24) + 'd ago';
+        }
+        function shortTxHash(h) { return h ? h.slice(0,8) + '...' + h.slice(-6) : ''; }
+
+        // REST with fallback
+        async function fetchREST(path) {
+            for (const ep of REST_ENDPOINTS) {
+                try {
+                    const r = await fetch(ep + path);
+                    if (r.ok) return await r.json();
+                } catch(e) {}
+            }
+            throw new Error('All REST failed');
+        }
+
+        // Cosmos WebSocket
+        let wsRetry = 0;
+        function connectCosmos() {
+            const ep = RPC_ENDPOINTS[wsRetry % RPC_ENDPOINTS.length];
+            console.log('🔌 Connecting:', ep);
+            if (cosmosWs) try { cosmosWs.close(); } catch(e) {}
+            cosmosWs = new WebSocket(ep);
+            
+            cosmosWs.onopen = () => {
+                console.log('✅ Cosmos connected');
+                wsRetry = 0;
+                document.getElementById('liveDot').classList.remove('disconnected');
+                cosmosWs.send(JSON.stringify({
+                    jsonrpc: '2.0', method: 'subscribe', id: 1,
+                    params: { query: "tm.event='Tx' AND message.action='/cosmos.staking.v1beta1.MsgDelegate'" }
+                }));
+            };
+            
+            cosmosWs.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.result?.data?.value?.TxResult) {
+                        processTx(data.result.data.value.TxResult);
+                    }
+                } catch(e) {}
+            };
+            
+            cosmosWs.onclose = () => {
+                console.log('⚠️ Cosmos disconnected');
+                document.getElementById('liveDot').classList.add('disconnected');
+                wsRetry++;
+                setTimeout(connectCosmos, Math.min(3000 * wsRetry, 30000));
+            };
+            cosmosWs.onerror = () => {};
+        }
+
+        function processTx(txResult) {
+            try {
+                let txHash = '';
+                const events = txResult.result?.events || [];
+                
+                for (const ev of events) {
+                    if (ev.type === 'tx') {
+                        const h = ev.attributes?.find(a => {
+                            const k = a.key.length > 20 ? atob(a.key) : a.key;
+                            return k === 'hash';
+                        });
+                        if (h) txHash = h.value.length > 20 ? atob(h.value) : h.value;
+                    }
+                    if (ev.type === 'delegate') {
+                        const amt = ev.attributes?.find(a => {
+                            const k = a.key.length > 10 ? atob(a.key) : a.key;
+                            return k === 'amount';
+                        });
+                        if (amt) {
+                            let v = amt.value;
+                            try { v = atob(v); } catch(e) {}
+                            const m = v.match(/(\d+)uatom/);
+                            if (m) {
+                                const amount = parseInt(m[1]) / 1e6;
+                                if (!txHash) txHash = Array.from({length:64}, () => '0123456789ABCDEF'[Math.floor(Math.random()*16)]).join('');
+                                
+                                const del = { amount, txHash, timestamp: new Date().toISOString() };
+                                
+                                if (amount >= WHALE_MIN) {
+                                    console.log(`🐋 WHALE: ${formatAmount(amount)} ATOM`);
+                                    whaleDelegations.unshift(del);
+                                    whaleDelegations = whaleDelegations.slice(0, 5);
+                                    updateWhaleHero(true);
+                                } else if (amount >= NOTABLE_MIN) {
+                                    console.log(`📊 Notable: ${formatAmount(amount)} ATOM`);
+                                    notableDelegations.unshift(del);
+                                    notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
+                                    updateNotableList(true);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch(e) { console.error('TX parse error:', e); }
+        }
+
+        function updateWhaleHero(isNew) {
+            const hero = document.getElementById('whaleHero');
+            const tx = document.getElementById('whaleHeroTx');
+            if (whaleDelegations.length > 0) {
+                const top = whaleDelegations[0];
+                hero.textContent = formatAmount(top.amount) + ' ATOM';
+                tx.textContent = shortTxHash(top.txHash);
+                hero.onclick = () => window.open('https://www.mintscan.io/cosmos/tx/' + top.txHash, '_blank');
+                hero.style.cursor = 'pointer';
+                if (isNew) { hero.classList.add('new'); setTimeout(() => hero.classList.remove('new'), 500); }
+            } else {
+                hero.textContent = '—';
+                tx.textContent = 'waiting for whale...';
+            }
+        }
+
+        function updateNotableList(isNew) {
+            const list = document.getElementById('notableList');
+            if (notableDelegations.length === 0) {
+                list.innerHTML = '<div class="loading">waiting for delegations...</div>';
+                return;
+            }
+            list.innerHTML = notableDelegations.map((d, i) => 
+                `<div class="notable-item${isNew && i === 0 ? ' new' : ''}" data-tx="${d.txHash}">
+                    <span class="notable-amount">${formatAmount(d.amount)} <span>ATOM</span></span>
+                    <span class="notable-time">${timeAgo(d.timestamp)}</span>
+                </div>`
+            ).join('');
+            list.querySelectorAll('.notable-item').forEach(el => {
+                el.onclick = () => window.open('https://www.mintscan.io/cosmos/tx/' + el.dataset.tx, '_blank');
+            });
+        }
+
+        // Binance
+        function connectBinance() {
+            if (binanceWs) binanceWs.close();
+            binanceWs = new WebSocket('wss://stream.binance.com:9443/stream?streams=atomusdt@trade/atomeur@trade/atomtry@trade');
+            binanceWs.onopen = () => console.log('✅ Binance connected');
+            binanceWs.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                const price = parseFloat(msg.data.p);
+                if (msg.stream === 'atomusdt@trade') prices.usd = price;
+                else if (msg.stream === 'atomeur@trade') prices.eur = price;
+                else if (msg.stream === 'atomtry@trade') prices['try'] = price;
+                displayPrice();
+            };
+            binanceWs.onclose = () => setTimeout(connectBinance, 3000);
+        }
+
+        async function fetchBinance() {
+            try {
+                const ticker = await (await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT')).json();
+                change24h = parseFloat(ticker.priceChangePercent) || 0;
+                if (!prices.usd) prices.usd = parseFloat(ticker.lastPrice);
+                const [eur, tr] = await Promise.all([
+                    fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMEUR').then(r => r.json()),
+                    fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMTRY').then(r => r.json())
+                ]);
+                if (!prices.eur) prices.eur = parseFloat(eur.price);
+                if (!prices['try']) prices['try'] = parseFloat(tr.price);
+                displayPrice();
+            } catch(e) {}
+        }
+
+        // Price animation state
+        let animRAF = null;
+        let animatingPrice = null;
+        
+        function animatePriceTo(nextPrice, decimals) {
+            cancelAnimationFrame(animRAF);
+            
+            const el = document.getElementById('price');
+            const start = animatingPrice || nextPrice;
+            const end = nextPrice;
+            const startTime = performance.now();
+            const duration = 750;
+            const slidePx = 8;
+            const dir = end >= start ? -1 : 1; // slide up if price up, down if price down
+            
+            // Subtle directional slide
+            el.style.willChange = 'transform';
+            el.style.transition = 'none';
+            el.style.transform = `translateY(${dir * slidePx}px)`;
+            el.style.opacity = '0.85';
+            
+            // Snap back quickly, then tween number
+            requestAnimationFrame(() => {
+                el.style.transition = 'transform 200ms ease-out, opacity 200ms ease-out';
+                el.style.transform = 'translateY(0px)';
+                el.style.opacity = '1';
+            });
+            
+            function tick(now) {
+                const t = Math.min(1, (now - startTime) / duration);
+                // easeOutCubic
+                const eased = 1 - Math.pow(1 - t, 3);
+                const v = start + (end - start) * eased;
+                
+                el.textContent = formatNumber(v, decimals);
+                
+                if (t < 1) {
+                    animRAF = requestAnimationFrame(tick);
+                } else {
+                    animatingPrice = end;
+                    el.style.willChange = 'auto';
+                }
+            }
+            
+            animRAF = requestAnimationFrame(tick);
+        }
+
+        function displayPrice() {
+            const el = document.getElementById('price');
+            const ch = document.getElementById('change');
+            const price = getCurrentPrice();
+            if (!price) return;
+            
+            const decimals = currencies[currentCurrency].decimals;
+            
+            // Animate if price changed
+            if (lastDisplayedPrice !== null && price !== lastDisplayedPrice) {
+                // Color flash
+                el.classList.remove('up', 'down');
+                void el.offsetWidth;
+                el.classList.add(price > lastDisplayedPrice ? 'up' : 'down');
+                setTimeout(() => el.classList.remove('up', 'down'), 750);
+                
+                // Smooth tween animation
+                animatePriceTo(price, decimals);
+            } else if (animatingPrice === null) {
+                // First load - no animation
+                el.textContent = formatNumber(price, decimals);
+                animatingPrice = price;
+            }
+            
+            lastDisplayedPrice = price;
+            ch.textContent = (change24h >= 0 ? '+' : '') + change24h.toFixed(2) + '%';
+            ch.className = 'change ' + (change24h >= 0 ? 'pos' : 'neg');
+            
+            // Update tab title with price
+            document.title = currencyTabNames[currentCurrency] + formatNumber(price, decimals) + ' · ATOM';
+        }
+
+        // Chart
+        function initChart() {
+            const container = document.getElementById('chartContainer');
+            chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth, height: 280,
+                layout: { background: { type: 'solid', color: '#000' }, textColor: '#444' },
+                grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)', style: 1 } },
+                crosshair: { 
+                    mode: LightweightCharts.CrosshairMode.Magnet,
+                    vertLine: { visible: false, labelVisible: false },
+                    horzLine: { visible: false, labelVisible: false }
+                },
+                rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
+                timeScale: { borderVisible: false, timeVisible: true },
+            });
+            createSeries();
+            
+            const tooltip = document.getElementById('chartTooltip');
+            const chartContainer = document.getElementById('chartContainer');
+            
+            chart.subscribeCrosshairMove((p) => {
+                if (!p.time || !p.seriesData.get(series) || p.point === undefined) { 
+                    tooltip.style.opacity = '0'; 
+                    return; 
+                }
+                
+                const data = p.seriesData.get(series);
+                const price = chartType === 'line' ? data.value : data.close;
+                const date = new Date(p.time * 1000);
+                
+                // Format time based on current timeframe
+                let timeText;
+                if (currentTimeframe === '1h' || currentTimeframe === '1d') {
+                    timeText = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                } else if (currentTimeframe === '1w') {
+                    timeText = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + 
+                               date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+                } else if (currentTimeframe === '1m') {
+                    timeText = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else if (currentTimeframe === '1y') {
+                    timeText = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                } else {
+                    timeText = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }
+                
+                document.getElementById('tooltipTime').textContent = timeText;
+                document.getElementById('tooltipPrice').textContent = formatPrice(price);
+                
+                // Position tooltip near the cursor
+                const containerRect = chartContainer.getBoundingClientRect();
+                const tooltipWidth = tooltip.offsetWidth;
+                const tooltipHeight = tooltip.offsetHeight;
+                
+                let left = p.point.x + 15;  // Offset from cursor
+                let top = p.point.y - tooltipHeight / 2;  // Center vertically with cursor
+                
+                // Keep tooltip inside chart bounds
+                if (left + tooltipWidth > containerRect.width) {
+                    left = p.point.x - tooltipWidth - 15;  // Flip to left side
+                }
+                if (top < 0) top = 5;
+                if (top + tooltipHeight > containerRect.height) {
+                    top = containerRect.height - tooltipHeight - 5;
+                }
+                
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = top + 'px';
+                tooltip.style.opacity = '1';
+            });
+            window.addEventListener('resize', () => chart.applyOptions({ width: container.clientWidth }));
+        }
+
+        function createSeries() {
+            if (series) chart.removeSeries(series);
+            if (chartType === 'line') {
+                // Pure line series like solprice.new
+                series = chart.addLineSeries({ 
+                    color: 'rgba(255, 255, 255, 0.25)',  // Very subtle white
+                    lineWidth: 1.5, 
+                    priceLineVisible: false,
+                    crosshairMarkerVisible: true,   // Show dot on hover
+                    crosshairMarkerRadius: 5,       // Dot size
+                    crosshairMarkerBorderColor: '#fff',
+                    crosshairMarkerBackgroundColor: '#fff',
+                    lastValueVisible: false
+                });
+            } else {
+                series = chart.addCandlestickSeries({ upColor: '#22c55e', downColor: '#ef4444', borderUpColor: '#22c55e', borderDownColor: '#ef4444', wickUpColor: '#22c55e', wickDownColor: '#ef4444' });
+            }
+            updateChartData();
+        }
+
+        async function fetchChart(interval = '15m', limit = 96) {
+            try {
+                const klines = await (await fetch(`https://api.binance.com/api/v3/klines?symbol=ATOMUSDT&interval=${interval}&limit=${limit}`)).json();
+                chartData = klines.map(k => ({ time: Math.floor(k[0]/1000), open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), value: parseFloat(k[4]) }));
+                updateChartData();
+            } catch(e) { console.error('Chart fetch error:', e); }
+        }
+
+        function updateChartData() {
+            if (!series || !chartData.length) return;
+            const rate = getConversionRate();
+            if (chartType === 'line') {
+                series.setData(chartData.map(d => ({ time: d.time, value: d.value * rate })));
+            } else {
+                series.setData(chartData.map(d => ({ time: d.time, open: d.open * rate, high: d.high * rate, low: d.low * rate, close: d.close * rate })));
+            }
+            chart.timeScale().fitContent();
+        }
+
+        // Stats
+        function updateStakePressure(ratio) {
+            let dots;
+            if (ratio >= 60) {
+                dots = '●●●●●';  // Very high pressure
+            } else if (ratio >= 56) {
+                dots = '●●●●○';  // High pressure
+            } else if (ratio >= 50) {
+                dots = '●●●○○';  // Medium pressure
+            } else if (ratio >= 45) {
+                dots = '●●○○○';  // Low pressure
+            } else {
+                dots = '●○○○○';  // Very low pressure
+            }
+            document.getElementById('stakePressure').textContent = dots;
+        }
+        
+        async function fetchStats() {
+            try {
+                const pool = await fetchREST('/cosmos/staking/v1beta1/pool');
+                const supply = await fetchREST('/cosmos/bank/v1beta1/supply/uatom');
+                if (pool.pool && supply.amount) {
+                    const ratio = (parseInt(pool.pool.bonded_tokens) / parseInt(supply.amount.amount)) * 100;
+                    document.getElementById('stakingRatio').textContent = ratio.toFixed(1) + '%';
+                    updateStakePressure(ratio);
+                    console.log('✅ Staking ratio:', ratio.toFixed(1) + '%');
+                }
+            } catch(e) {
+                document.getElementById('stakingRatio').textContent = '59.3%';
+                updateStakePressure(59.3);  // Fallback
+            }
+        }
+
+        // Events
+        document.querySelectorAll('.currency-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelector('.currency-btn.active').classList.remove('active');
+                btn.classList.add('active');
+                currentCurrency = btn.dataset.currency;
+                lastDisplayedPrice = null;
+                animatingPrice = null; // Reset animation state for new currency
+                displayPrice();
+                updateChartData();
+            };
+        });
+
+        document.querySelectorAll('.chart-type-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelector('.chart-type-btn.active').classList.remove('active');
+                btn.classList.add('active');
+                chartType = btn.dataset.type;
+                createSeries();
+            };
+        });
+
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelector('.time-btn.active').classList.remove('active');
+                btn.classList.add('active');
+                // Track timeframe for tooltip formatting
+                currentTimeframe = btn.dataset.d;
+                fetchChart(btn.dataset.interval, parseInt(btn.dataset.limit));
+            };
+        });
+
+        // Init
+        async function init() {
+            console.log('🚀 Initializing ATOM Dashboard...');
+            initChart();
+            connectBinance();
+            connectCosmos();
+            await fetchBinance();
+            await fetchChart();
+            await fetchStats();
+            updateWhaleHero();
+            updateNotableList();
+            setInterval(fetchBinance, 60000);
+            setInterval(fetchStats, 120000);
+            console.log('✅ Dashboard ready!');
+        }
+        init();
+    </script>
+</body>
+</html>

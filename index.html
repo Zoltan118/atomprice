@@ -98,7 +98,7 @@
         }
         .ticker-track {
             display: flex;
-            animation: tickerScroll 25s linear infinite;
+            animation: tickerScroll 5s linear infinite;
             animation-play-state: running;
         }
         .ticker-track:hover {
@@ -110,15 +110,23 @@
         }
         .ticker-item {
             flex-shrink: 0;
-            padding: 0 28px;
+            padding: 0 20px;
             font-size: 11px;
             font-weight: 400;
             color: #555;
             letter-spacing: 0.3px;
             white-space: nowrap;
+            transition: color 0.15s ease;
+        }
+        .ticker-item:hover {
+            color: #fff;
+        }
+        .ticker-item:hover .ticker-text {
+            color: #fff;
         }
         .ticker-text {
             color: #555;
+            transition: color 0.15s ease;
         }
         .ticker-fade-left,
         .ticker-fade-right {
@@ -283,8 +291,8 @@
         const NOTABLE_MIN = 1000;     // 1K-50K ATOM = notable (for list)
         const TICKER_MIN = 1;         // 1+ ATOM = ticker news
         const MAX_NOTABLE = 8;
-        const MAX_TICKER = 50;        // Keep last 50 for ticker (more history)
-        const CACHE_KEY = 'atomprice_cache_v2';
+        const MAX_TICKER = 200;       // Keep last 200 for ticker
+        const CACHE_KEY = 'atomprice_cache_v3';
         const CACHE_TTL_MS = 86400000;  // 24 hours!
 
         // State
@@ -320,13 +328,16 @@
                 const filterOld = (arr) => arr.filter(d => new Date(d.timestamp).getTime() > cutoff);
                 
                 const data = {
-                    whaleDelegations: filterOld(whaleDelegations).slice(0, 20),
-                    notableDelegations: filterOld(notableDelegations).slice(0, 30),
-                    tickerDelegations: filterOld(tickerDelegations).slice(0, 100),
+                    whaleDelegations: filterOld(whaleDelegations).slice(0, 50),
+                    notableDelegations: filterOld(notableDelegations).slice(0, 50),
+                    tickerDelegations: filterOld(tickerDelegations).slice(0, 200),
                     stakingRatio
                 };
                 localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-            } catch {}
+                console.log(`💾 Saved: ${data.tickerDelegations.length} delegations`);
+            } catch(e) {
+                console.error('❌ Cache save failed:', e);
+            }
         }
 
         function restoreFromCache() {
@@ -488,31 +499,19 @@
                 try {
                     const data = JSON.parse(e.data);
                     
-                    // VERBOSE DEBUG: Log everything
+                    // FULL DEBUG: Log raw data structure
                     if (data.result?.data?.value) {
                         const value = data.result.data.value;
-                        console.log('📨 WS DATA:', JSON.stringify(value).slice(0, 300));
                         
-                        // Try TxResult path
+                        // Log FULL structure to find hash location
+                        console.log('📨 FULL WS DATA:', JSON.stringify(value).slice(0, 1000));
+                        
                         if (value.TxResult) {
-                            console.log('✅ Found TxResult');
+                            // Pass the FULL TxResult object
                             processTx(value.TxResult);
                         }
-                        // Try other possible paths
-                        else if (value.tx_result) {
-                            console.log('✅ Found tx_result');
-                            processTx({ result: value.tx_result });
-                        }
-                        else {
-                            console.log('⚠️ Unknown data structure:', Object.keys(value));
-                        }
-                    } else if (data.result?.events) {
-                        // Direct events format
-                        console.log('📨 Direct events:', Object.keys(data.result));
-                        processTx(data.result);
                     } else if (data.id !== undefined) {
-                        // Subscription confirmation
-                        console.log('📨 Subscription confirmed, id:', data.id);
+                        console.log('📨 Subscription confirmed');
                     }
                 } catch(err) {
                     console.error('WS parse error:', err);
@@ -534,25 +533,35 @@
         function processTx(txResult) {
             try {
                 let txHash = '';
+                let height = txResult.height || '';
                 const events = txResult.result?.events || [];
                 
-                // Debug: log raw events
-                // console.log('📦 Raw events:', JSON.stringify(events).slice(0, 500));
-                
-                // Find tx hash first
-                for (const ev of events) {
-                    if (ev.type === 'tx') {
-                        const hashAttr = ev.attributes?.find(a => {
-                            const key = a.key.length > 20 ? atob(a.key) : a.key;
-                            return key === 'hash';
+                // The hash needs to be computed from tx bytes using SHA256
+                // Or we can try to find it in the events
+                if (txResult.tx) {
+                    // Compute SHA256 hash of the tx bytes
+                    try {
+                        const txBytes = atob(txResult.tx);
+                        // Use SubtleCrypto to hash
+                        const encoder = new TextEncoder();
+                        const data = Uint8Array.from(txBytes, c => c.charCodeAt(0));
+                        crypto.subtle.digest('SHA-256', data).then(hashBuffer => {
+                            const hashArray = Array.from(new Uint8Array(hashBuffer));
+                            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+                            console.log('🔑 Computed hash:', hashHex);
+                            // Update existing delegations with this hash
+                            if (window._pendingDelegation) {
+                                window._pendingDelegation.txHash = hashHex;
+                                finalizeDelegation(window._pendingDelegation);
+                                window._pendingDelegation = null;
+                            }
                         });
-                        if (hashAttr) {
-                            txHash = hashAttr.value.length > 20 ? atob(hashAttr.value) : hashAttr.value;
-                        }
+                    } catch(e) {
+                        console.log('Hash compute error:', e);
                     }
                 }
                 
-                // Find delegate events
+                // Find delegate events and amount
                 for (const ev of events) {
                     if (ev.type === 'delegate') {
                         let amount = 0;
@@ -561,77 +570,73 @@
                             let key = attr.key;
                             let value = attr.value;
                             
-                            // Try to decode base64
-                            try { 
-                                if (key && key.length > 10) key = atob(key); 
-                            } catch(e) {}
-                            try { 
-                                if (value && value.length > 10) value = atob(value); 
-                            } catch(e) {}
+                            // Decode base64 if needed
+                            try { if (key && key.length > 10) key = atob(key); } catch(e) {}
+                            try { if (value && value.length > 10) value = atob(value); } catch(e) {}
                             
                             if (key === 'amount') {
-                                // Parse amount - handle "123456uatom" format
                                 const match = value.match(/(\d+)uatom/i);
                                 if (match) {
-                                    amount = parseInt(match[1]) / 1e6;
+                                    amount = Number(match[1]) / 1000000;
                                 }
                             }
                         }
                         
                         if (amount > 0) {
-                            // Generate hash if not found
-                            if (!txHash) {
-                                txHash = Array.from({length: 64}, () => 
-                                    '0123456789ABCDEF'[Math.floor(Math.random() * 16)]
-                                ).join('');
-                            }
-                            
-                            // Check for duplicates (same hash already exists)
-                            const isDuplicate = tickerDelegations.some(d => d.txHash === txHash);
-                            if (isDuplicate) {
-                                console.log(`⏭️ Skipping duplicate: ${txHash.slice(0,8)}...`);
-                                return;
-                            }
-                            
+                            // Store pending delegation, hash will be computed async
                             const delegation = {
                                 amount,
-                                txHash,
+                                txHash: '', // Will be filled by hash computation
+                                height,
                                 timestamp: new Date().toISOString()
                             };
                             
-                            // Log ALL delegations
-                            console.log(`💰 NEW: ${amount.toFixed(2)} ATOM (${txHash.slice(0,8)}...)`);
-                            
-                            // Categorize by amount
-                            if (amount >= WHALE_MIN) {
-                                console.log(`🐋 WHALE: ${formatAmount(amount)} ATOM`);
-                                whaleDelegations.unshift(delegation);
-                                whaleDelegations = whaleDelegations.slice(0, 20);
-                                updateWhaleHero(true);
-                            }
-                            
-                            if (amount >= NOTABLE_MIN && amount < WHALE_MIN) {
-                                console.log(`📊 Notable: ${formatAmount(amount)} ATOM`);
-                                notableDelegations.unshift(delegation);
-                                notableDelegations = notableDelegations.slice(0, 30);
-                                updateNotableList(true);
-                            }
-                            
-                            // All delegations ≥1 ATOM go to ticker
-                            if (amount >= TICKER_MIN) {
-                                tickerDelegations.unshift(delegation);
-                                tickerDelegations = tickerDelegations.slice(0, 100);
-                                updateTicker();
-                                
-                                // Save to cache immediately
-                                lastWsUpdate = Date.now();
-                                saveCache();
+                            // If we have tx data, compute hash async
+                            if (txResult.tx) {
+                                window._pendingDelegation = delegation;
+                            } else {
+                                // No tx data, skip this one
+                                console.log('⚠️ No tx data for hash computation');
                             }
                         }
                     }
                 }
             } catch(err) {
                 console.error('TX parse error:', err);
+            }
+        }
+        
+        function finalizeDelegation(delegation) {
+            if (!delegation.txHash) return;
+            
+            // Check for duplicates
+            const isDuplicate = tickerDelegations.some(d => d.txHash === delegation.txHash);
+            if (isDuplicate) return;
+            
+            console.log(`💰 NEW: ${delegation.amount.toFixed(2)} ATOM (${delegation.txHash.slice(0,8)}...)`);
+            
+            // Categorize by amount
+            if (delegation.amount >= WHALE_MIN) {
+                whaleDelegations.unshift(delegation);
+                whaleDelegations = whaleDelegations.slice(0, 50);
+                updateWhaleHero(true);
+            }
+            
+            if (delegation.amount >= NOTABLE_MIN && delegation.amount < WHALE_MIN) {
+                notableDelegations.unshift(delegation);
+                notableDelegations = notableDelegations.slice(0, 50);
+                updateNotableList(true);
+            }
+            
+            // All delegations ≥1 ATOM go to ticker
+            if (delegation.amount >= TICKER_MIN) {
+                tickerDelegations.unshift(delegation);
+                tickerDelegations = tickerDelegations.slice(0, 200);
+                updateTicker();
+                
+                // Save to cache
+                lastWsUpdate = Date.now();
+                saveCache();
             }
         }
         
@@ -649,7 +654,10 @@
                 const top = whaleDelegations[0];
                 hero.textContent = formatAmount(top.amount) + ' ATOM';
                 tx.textContent = shortTxHash(top.txHash);
-                hero.onclick = () => window.open('https://www.mintscan.io/cosmos/tx/' + top.txHash, '_blank');
+                const url = top.height 
+                    ? `https://www.mintscan.io/cosmos/tx/${top.txHash}?height=${top.height}`
+                    : `https://www.mintscan.io/cosmos/tx/${top.txHash}`;
+                hero.onclick = () => window.open(url, '_blank');
                 hero.style.cursor = 'pointer';
                 if (isNew) { hero.classList.add('new'); setTimeout(() => hero.classList.remove('new'), 500); }
             } else {
@@ -665,13 +673,18 @@
                 return;
             }
             list.innerHTML = notableDelegations.map((d, i) => 
-                `<div class="notable-item${isNew && i === 0 ? ' new' : ''}" data-tx="${d.txHash}">
+                `<div class="notable-item${isNew && i === 0 ? ' new' : ''}" data-tx="${d.txHash}" data-height="${d.height || ''}">
                     <span class="notable-amount">${formatAmount(d.amount)} <span>ATOM</span></span>
                     <span class="notable-time">${timeAgo(d.timestamp)}</span>
                 </div>`
             ).join('');
             list.querySelectorAll('.notable-item').forEach(el => {
-                el.onclick = () => window.open('https://www.mintscan.io/cosmos/tx/' + el.dataset.tx, '_blank');
+                const hash = el.dataset.tx;
+                const height = el.dataset.height;
+                const url = height 
+                    ? `https://www.mintscan.io/cosmos/tx/${hash}?height=${height}`
+                    : `https://www.mintscan.io/cosmos/tx/${hash}`;
+                el.onclick = () => window.open(url, '_blank');
             });
         }
 
@@ -680,10 +693,9 @@
             
             // Community vibes messages - varied and meaningful!
             const getTickerMessage = (amount) => {
-                const amt = amount >= 1000 ? formatAmount(amount) : amount.toFixed(0);
+                const amt = formatAmount(amount);
                 
                 if (amount >= 100000) {
-                    // Mega whale messages
                     const msgs = [
                         `Mega whale just dropped ${amt} ATOM`,
                         `A giant committed ${amt} ATOM`,
@@ -696,7 +708,6 @@
                     ];
                     return msgs[Math.floor(Math.random() * msgs.length)];
                 } else if (amount >= 50000) {
-                    // Whale messages
                     const msgs = [
                         `Whale joined with ${amt} ATOM`,
                         `A high-conviction stake of ${amt} ATOM`,
@@ -710,7 +721,6 @@
                     ];
                     return msgs[Math.floor(Math.random() * msgs.length)];
                 } else if (amount >= 10000) {
-                    // Large stake messages
                     const msgs = [
                         `A believer committed ${amt} ATOM`,
                         `Confidence expressed with ${amt} ATOM`,
@@ -725,7 +735,6 @@
                     ];
                     return msgs[Math.floor(Math.random() * msgs.length)];
                 } else if (amount >= 1000) {
-                    // Notable messages
                     const msgs = [
                         `Long-term conviction: ${amt} ATOM staked`,
                         `${amt} ATOM joined the network`,
@@ -740,7 +749,6 @@
                     ];
                     return msgs[Math.floor(Math.random() * msgs.length)];
                 } else if (amount >= 100) {
-                    // Smaller but meaningful
                     const msgs = [
                         `${amt} ATOM staked with purpose`,
                         `Small but mighty: ${amt} ATOM`,
@@ -754,7 +762,6 @@
                     ];
                     return msgs[Math.floor(Math.random() * msgs.length)];
                 } else {
-                    // Micro stakes - still showing love!
                     const msgs = [
                         `${amt} ATOM staked`,
                         `+${amt} ATOM joined`,
@@ -763,24 +770,34 @@
                         `${amt} ATOM locked`,
                         `Every bit counts: ${amt} ATOM`,
                         `${amt} ATOM committed`,
-                        `Micro stake: ${amt} ATOM`
+                        `New staker: ${amt} ATOM`
                     ];
                     return msgs[Math.floor(Math.random() * msgs.length)];
                 }
             };
             
-            // Generate ticker messages
-            const messages = tickerDelegations.map(d => {
+            // Use ALL delegations (up to 200)
+            const uniqueDelegations = tickerDelegations.slice(0, 200);
+            
+            // Generate ticker items with Mintscan links (include height)
+            const tickerHTML = uniqueDelegations.map(d => {
                 const msg = getTickerMessage(d.amount);
-                return `<span class="ticker-text">${msg}</span>`;
+                return `<div class="ticker-item" data-tx="${d.txHash}" data-height="${d.height || ''}"><span class="ticker-text">${msg}</span></div>`;
+            }).join('');
+            
+            // Duplicate for seamless infinite loop
+            document.getElementById('tickerTrack').innerHTML = tickerHTML + tickerHTML;
+            
+            // Add click handlers for Mintscan links
+            document.querySelectorAll('#tickerTrack .ticker-item').forEach(el => {
+                el.style.cursor = 'pointer';
+                const hash = el.dataset.tx;
+                const height = el.dataset.height;
+                const url = height 
+                    ? `https://www.mintscan.io/cosmos/tx/${hash}?height=${height}`
+                    : `https://www.mintscan.io/cosmos/tx/${hash}`;
+                el.onclick = () => window.open(url, '_blank');
             });
-            
-            // Duplicate for seamless loop
-            const tickerHTML = [...messages, ...messages].map(m => 
-                `<div class="ticker-item">${m}</div>`
-            ).join('');
-            
-            document.getElementById('tickerTrack').innerHTML = tickerHTML;
         }
 
         // ========== Multi-Source Price Provider ==========

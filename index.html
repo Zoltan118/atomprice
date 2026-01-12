@@ -98,7 +98,7 @@
         }
         .ticker-track {
             display: flex;
-            animation: tickerScroll 35s linear infinite;
+            animation: tickerScroll 25s linear infinite;
             animation-play-state: running;
         }
         .ticker-track:hover {
@@ -110,26 +110,15 @@
         }
         .ticker-item {
             flex-shrink: 0;
-            padding: 0 32px;
+            padding: 0 28px;
             font-size: 11px;
             font-weight: 400;
-            color: #3a3a3a;
-            letter-spacing: 0.5px;
-            white-space: nowrap;
-            text-transform: uppercase;
-        }
-        .ticker-item .amount {
             color: #555;
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
         }
-        .ticker-item .action {
-            color: #333;
-            font-weight: 400;
-        }
-        .ticker-item .separator {
-            color: #222;
-            padding: 0 8px;
+        .ticker-text {
+            color: #555;
         }
         .ticker-fade-left,
         .ticker-fade-right {
@@ -349,6 +338,94 @@
             }
             return false;
         }
+        
+        // Fetch initial delegations from REST API (for first-time visitors)
+        async function fetchInitialDelegations() {
+            const endpoints = [
+                'https://cosmos.api.silknodes.io',
+                'https://cosmos-rest.publicnode.com'
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    console.log(`📡 Fetching initial data from ${endpoint}...`);
+                    
+                    // Fetch recent transactions with delegate events
+                    const query = encodeURIComponent("message.action='/cosmos.staking.v1beta1.MsgDelegate'");
+                    const url = `${endpoint}/cosmos/tx/v1beta1/txs?events=${query}&order_by=ORDER_BY_DESC&pagination.limit=30`;
+                    
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    
+                    const data = await res.json();
+                    const txResponses = data.tx_responses || [];
+                    const txs = data.txs || [];
+                    
+                    if (txResponses.length === 0) continue;
+                    
+                    console.log(`✅ Found ${txResponses.length} recent delegations`);
+                    
+                    // Parse delegations
+                    for (let i = 0; i < Math.min(txResponses.length, txs.length); i++) {
+                        const txr = txResponses[i];
+                        const tx = txs[i];
+                        const hash = txr?.txhash;
+                        const timestamp = txr?.timestamp;
+                        const messages = tx?.body?.messages || [];
+                        
+                        for (const msg of messages) {
+                            const type = msg['@type'] || '';
+                            if (!type.includes('MsgDelegate')) continue;
+                            
+                            const amtObj = msg.amount;
+                            if (!amtObj) continue;
+                            
+                            const amtStr = amtObj.amount;
+                            const denom = amtObj.denom;
+                            if (!amtStr) continue;
+                            
+                            const amount = (denom === 'uatom') 
+                                ? Number(amtStr) / 1_000_000 
+                                : Number(amtStr);
+                            
+                            if (!Number.isFinite(amount) || amount <= 0) continue;
+                            
+                            const delegation = { amount, txHash: hash, timestamp };
+                            
+                            // Categorize
+                            if (amount >= WHALE_MIN) {
+                                whaleDelegations.push(delegation);
+                            }
+                            if (amount >= NOTABLE_MIN && amount < WHALE_MIN) {
+                                notableDelegations.push(delegation);
+                            }
+                            if (amount >= TICKER_MIN) {
+                                tickerDelegations.push(delegation);
+                            }
+                        }
+                    }
+                    
+                    // Sort and trim
+                    whaleDelegations.sort((a, b) => b.amount - a.amount);
+                    notableDelegations.sort((a, b) => b.amount - a.amount);
+                    whaleDelegations = whaleDelegations.slice(0, 5);
+                    notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
+                    tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
+                    
+                    // Update UI
+                    updateWhaleHero(false);
+                    updateNotableList(false);
+                    updateTicker();
+                    saveCache();
+                    
+                    return true;
+                } catch (e) {
+                    console.log(`❌ ${endpoint} failed:`, e.message);
+                }
+            }
+            
+            return false;
+        }
 
         const currencies = {
             usd: { decimals: 3, symbol: '$', hasPair: true },
@@ -566,25 +643,71 @@
         function updateTicker() {
             if (tickerDelegations.length === 0) return;
             
-            // Generate ticker messages from all delegations
-            const messages = tickerDelegations.map(d => {
-                const amt = d.amount >= 1000 ? formatAmount(d.amount) : d.amount.toFixed(0);
+            // Community vibes messages - varied and fun!
+            const getTickerMessage = (amount) => {
+                const amt = amount >= 1000 ? formatAmount(amount) : amount.toFixed(0);
                 
-                // Dynamic action words based on amount
-                let action;
-                if (d.amount >= 50000) {
-                    action = 'Whale staked';
-                } else if (d.amount >= 10000) {
-                    action = 'Large stake';
-                } else if (d.amount >= 1000) {
-                    action = 'Staked';
-                } else if (d.amount >= 100) {
-                    action = 'Staked';
+                if (amount >= 100000) {
+                    // Mega whale messages
+                    const msgs = [
+                        `Mega whale just dropped ${amt} ATOM`,
+                        `${amt} ATOM whale sighting`,
+                        `A giant committed ${amt} ATOM`,
+                        `${amt} ATOM locked by a legend`
+                    ];
+                    return msgs[Math.floor(Math.random() * msgs.length)];
+                } else if (amount >= 50000) {
+                    // Whale messages
+                    const msgs = [
+                        `Whale joined with ${amt} ATOM`,
+                        `${amt} ATOM whale alert`,
+                        `A big believer staked ${amt} ATOM`,
+                        `${amt} ATOM just got serious`
+                    ];
+                    return msgs[Math.floor(Math.random() * msgs.length)];
+                } else if (amount >= 10000) {
+                    // Large stake messages
+                    const msgs = [
+                        `Someone staked ${amt} ATOM`,
+                        `A believer added ${amt} ATOM`,
+                        `${amt} ATOM secured`,
+                        `New staker locked ${amt} ATOM`
+                    ];
+                    return msgs[Math.floor(Math.random() * msgs.length)];
+                } else if (amount >= 1000) {
+                    // Notable messages
+                    const msgs = [
+                        `${amt} ATOM staked`,
+                        `Someone committed ${amt} ATOM`,
+                        `${amt} ATOM joined the network`,
+                        `New stake: ${amt} ATOM`
+                    ];
+                    return msgs[Math.floor(Math.random() * msgs.length)];
+                } else if (amount >= 100) {
+                    // Small but meaningful
+                    const msgs = [
+                        `${amt} ATOM locked`,
+                        `Someone added ${amt} ATOM`,
+                        `${amt} ATOM staked`,
+                        `New staker: ${amt} ATOM`
+                    ];
+                    return msgs[Math.floor(Math.random() * msgs.length)];
                 } else {
-                    action = 'Staked';
+                    // Micro stakes - still showing love!
+                    const msgs = [
+                        `${amt} ATOM joined`,
+                        `+${amt} ATOM`,
+                        `${amt} ATOM staked`,
+                        `Someone staked ${amt} ATOM`
+                    ];
+                    return msgs[Math.floor(Math.random() * msgs.length)];
                 }
-                
-                return `<span class="action">${action}</span> <span class="amount">${amt} ATOM</span>`;
+            };
+            
+            // Generate ticker messages
+            const messages = tickerDelegations.map(d => {
+                const msg = getTickerMessage(d.amount);
+                return `<span class="ticker-text">${msg}</span>`;
             });
             
             // Duplicate for seamless loop
@@ -898,6 +1021,12 @@
             // 4) Fetch initial data
             await fetchBinance();
             await fetchChart();
+            
+            // 5) If no cache, fetch initial delegations from REST API
+            if (!hadCache) {
+                console.log('🔍 No cache found - fetching initial data...');
+                await fetchInitialDelegations();
+            }
             
             setInterval(fetchBinance, 60000);
             console.log('✅ Dashboard ready!');

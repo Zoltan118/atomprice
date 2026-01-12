@@ -270,27 +270,7 @@
         <div class="ticker-section">
             <div class="ticker-fade-left"></div>
             <div class="ticker-track" id="tickerTrack">
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">1,200 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">8.5K ATOM</span></div>
-                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+25K ATOM</span></div>
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">3,400 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Whale delegation</span> <span class="amount">125K ATOM</span></div>
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">2,100 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">15K ATOM</span></div>
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">5,600 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">4,200 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+12K ATOM</span></div>
-                <!-- Duplicate for seamless loop -->
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">1,200 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">8.5K ATOM</span></div>
-                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+25K ATOM</span></div>
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">3,400 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Whale delegation</span> <span class="amount">125K ATOM</span></div>
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">2,100 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">15K ATOM</span></div>
-                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">5,600 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">4,200 ATOM</span></div>
-                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+12K ATOM</span></div>
+                <div class="ticker-item"><span class="action">Waiting for live staking data</span> <span class="amount">...</span></div>
             </div>
             <div class="ticker-fade-right"></div>
         </div>
@@ -315,16 +295,60 @@
         const TICKER_MIN = 1;         // 1+ ATOM = ticker news
         const MAX_NOTABLE = 8;
         const MAX_TICKER = 20;        // Keep last 20 for ticker
+        const CACHE_KEY = 'atomprice_cache_v1';
+        const CACHE_TTL_MS = 300000;  // 5 minutes
 
         // State
         let binanceWs = null;
         let whaleDelegations = [], notableDelegations = [], tickerDelegations = [];
-        let stakingRatio = 59.3;  // Will be updated from API
+        let stakingRatio = 59.3;
         let prices = { usd: null, eur: null, try: null };
         let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25 };
         let change24h = 0, currentCurrency = 'usd', chartType = 'line';
         let lastDisplayedPrice = null, chartData = [], chart = null, series = null;
-        let currentTimeframe = '1d'; // Track current timeframe for tooltip formatting
+        let currentTimeframe = '1d';
+        let lastWsUpdate = 0;  // Track last WebSocket update time
+
+        // ========== localStorage Cache ==========
+        function loadCache() {
+            try {
+                const raw = localStorage.getItem(CACHE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+                return parsed.data;
+            } catch { return null; }
+        }
+
+        function saveCache() {
+            try {
+                const data = {
+                    whaleDelegations,
+                    notableDelegations,
+                    tickerDelegations,
+                    stakingRatio
+                };
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+            } catch {}
+        }
+
+        function restoreFromCache() {
+            const cached = loadCache();
+            if (cached) {
+                console.log('📦 Restoring from cache...');
+                whaleDelegations = cached.whaleDelegations || [];
+                notableDelegations = cached.notableDelegations || [];
+                tickerDelegations = cached.tickerDelegations || [];
+                stakingRatio = cached.stakingRatio || 59.3;
+                
+                updateWhaleHero(false);
+                updateNotableList(false);
+                updateTicker();
+                updateStakingDisplay();
+                return true;
+            }
+            return false;
+        }
 
         const currencies = {
             usd: { decimals: 3, symbol: '$', hasPair: true },
@@ -486,6 +510,10 @@
                                     tickerDelegations.unshift(delegation);
                                     tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
                                     updateTicker();
+                                    
+                                    // Save to cache and update timestamp
+                                    lastWsUpdate = Date.now();
+                                    saveCache();
                                 }
                             }
                         }
@@ -496,13 +524,10 @@
             }
         }
         
-        // Staking ratio - hardcoded to avoid CORS issues
-        // Updates when we detect delegations via WebSocket
-        let currentStakingRatio = 59.3;
-        
+        // Staking ratio display
         function updateStakingDisplay() {
-            document.getElementById('stakingRatio').textContent = currentStakingRatio.toFixed(1) + '%';
-            updateStakePressure(currentStakingRatio);
+            document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(1) + '%';
+            updateStakePressure(stakingRatio);
         }
 
         function updateWhaleHero(isNew) {
@@ -853,17 +878,44 @@
         // Init
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
+            
+            // 1) Restore from cache FIRST (instant data)
+            const hadCache = restoreFromCache();
+            if (hadCache) {
+                console.log('📦 Cache restored - showing cached data');
+            }
+            
+            // 2) Initialize UI components
             initChart();
-            connectBinance();
-            connectCosmos();  // Connect to Silk Nodes WebSocket
-            await fetchBinance();
-            await fetchChart();
-            updateStakingDisplay();  // Set initial staking ratio
+            updateStakingDisplay();
             updateWhaleHero();
             updateNotableList();
+            
+            // 3) Connect to live data sources
+            connectBinance();
+            connectCosmos();  // Connect to Silk Nodes WebSocket
+            
+            // 4) Fetch initial data
+            await fetchBinance();
+            await fetchChart();
+            
             setInterval(fetchBinance, 60000);
             console.log('✅ Dashboard ready!');
         }
+        
+        // Refresh data when tab becomes visible again
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                console.log('👁️ Tab visible - checking connection...');
+                // Reconnect WebSocket if needed
+                if (!cosmosWs || cosmosWs.readyState !== WebSocket.OPEN) {
+                    connectCosmos();
+                }
+                // Refresh price data
+                fetchBinance();
+            }
+        });
+        
         init();
     </script>
 </body>

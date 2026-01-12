@@ -339,91 +339,15 @@
             return false;
         }
         
-        // Fetch initial delegations from REST API (for first-time visitors)
+        // Fetch initial delegations - simplified approach
+        // The tx search endpoint often fails (500 errors), so we rely on:
+        // 1. localStorage cache from previous sessions
+        // 2. WebSocket for live data
+        // First-time visitors will see "waiting for live data" until WS delivers
         async function fetchInitialDelegations() {
-            const endpoints = [
-                'https://api.silknodes.io/cosmos',
-                'https://cosmos-rest.publicnode.com'
-            ];
-            
-            for (const endpoint of endpoints) {
-                try {
-                    console.log(`📡 Fetching initial data from ${endpoint}...`);
-                    
-                    // Fetch recent transactions with delegate events
-                    const query = encodeURIComponent("message.action='/cosmos.staking.v1beta1.MsgDelegate'");
-                    const url = `${endpoint}/cosmos/tx/v1beta1/txs?events=${query}&order_by=ORDER_BY_DESC&pagination.limit=30`;
-                    
-                    const res = await fetch(url);
-                    if (!res.ok) continue;
-                    
-                    const data = await res.json();
-                    const txResponses = data.tx_responses || [];
-                    const txs = data.txs || [];
-                    
-                    if (txResponses.length === 0) continue;
-                    
-                    console.log(`✅ Found ${txResponses.length} recent delegations`);
-                    
-                    // Parse delegations
-                    for (let i = 0; i < Math.min(txResponses.length, txs.length); i++) {
-                        const txr = txResponses[i];
-                        const tx = txs[i];
-                        const hash = txr?.txhash;
-                        const timestamp = txr?.timestamp;
-                        const messages = tx?.body?.messages || [];
-                        
-                        for (const msg of messages) {
-                            const type = msg['@type'] || '';
-                            if (!type.includes('MsgDelegate')) continue;
-                            
-                            const amtObj = msg.amount;
-                            if (!amtObj) continue;
-                            
-                            const amtStr = amtObj.amount;
-                            const denom = amtObj.denom;
-                            if (!amtStr) continue;
-                            
-                            const amount = (denom === 'uatom') 
-                                ? Number(amtStr) / 1_000_000 
-                                : Number(amtStr);
-                            
-                            if (!Number.isFinite(amount) || amount <= 0) continue;
-                            
-                            const delegation = { amount, txHash: hash, timestamp };
-                            
-                            // Categorize
-                            if (amount >= WHALE_MIN) {
-                                whaleDelegations.push(delegation);
-                            }
-                            if (amount >= NOTABLE_MIN && amount < WHALE_MIN) {
-                                notableDelegations.push(delegation);
-                            }
-                            if (amount >= TICKER_MIN) {
-                                tickerDelegations.push(delegation);
-                            }
-                        }
-                    }
-                    
-                    // Sort and trim
-                    whaleDelegations.sort((a, b) => b.amount - a.amount);
-                    notableDelegations.sort((a, b) => b.amount - a.amount);
-                    whaleDelegations = whaleDelegations.slice(0, 5);
-                    notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
-                    tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
-                    
-                    // Update UI
-                    updateWhaleHero(false);
-                    updateNotableList(false);
-                    updateTicker();
-                    saveCache();
-                    
-                    return true;
-                } catch (e) {
-                    console.log(`❌ ${endpoint} failed:`, e.message);
-                }
-            }
-            
+            // Since tx search endpoints are unreliable, we skip them
+            // The WebSocket will populate data as it comes in
+            console.log('📡 Waiting for WebSocket delegation data...');
             return false;
         }
 
@@ -748,35 +672,217 @@
             document.getElementById('tickerTrack').innerHTML = tickerHTML;
         }
 
-        // Binance
-        function connectBinance() {
-            if (binanceWs) binanceWs.close();
-            binanceWs = new WebSocket('wss://stream.binance.com:9443/stream?streams=atomusdt@trade/atomeur@trade/atomtry@trade');
-            binanceWs.onopen = () => console.log('✅ Binance connected');
-            binanceWs.onmessage = (e) => {
-                const msg = JSON.parse(e.data);
-                const price = parseFloat(msg.data.p);
-                if (msg.stream === 'atomusdt@trade') prices.usd = price;
-                else if (msg.stream === 'atomeur@trade') prices.eur = price;
-                else if (msg.stream === 'atomtry@trade') prices['try'] = price;
+        // ========== Multi-Source Price Provider ==========
+        const PRICE_CACHE_KEY = 'atomprice_prices_v1';
+        let priceSource = 'none';
+        
+        // Load cached prices
+        function loadPriceCache() {
+            try {
+                const raw = localStorage.getItem(PRICE_CACHE_KEY);
+                if (!raw) return null;
+                const cached = JSON.parse(raw);
+                // Cache valid for 5 minutes
+                if (Date.now() - cached.ts > 300000) return null;
+                return cached;
+            } catch { return null; }
+        }
+        
+        // Save prices to cache
+        function savePriceCache() {
+            try {
+                localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({
+                    ts: Date.now(),
+                    prices,
+                    change24h,
+                    source: priceSource
+                }));
+            } catch {}
+        }
+        
+        // Restore prices from cache on load
+        function restorePriceCache() {
+            const cached = loadPriceCache();
+            if (cached) {
+                prices = cached.prices || prices;
+                change24h = cached.change24h || 0;
+                priceSource = cached.source || 'cache';
+                console.log('💰 Price restored from cache');
                 displayPrice();
-            };
-            binanceWs.onclose = () => setTimeout(connectBinance, 3000);
+                return true;
+            }
+            return false;
         }
 
+        // Try CoinGecko
+        async function fetchCoinGecko() {
+            try {
+                const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd,eur,gbp,try,jpy,cny&include_24hr_change=true');
+                if (!res.ok) throw new Error('CoinGecko failed');
+                const data = await res.json();
+                if (data.cosmos) {
+                    prices.usd = data.cosmos.usd;
+                    prices.eur = data.cosmos.eur;
+                    prices['try'] = data.cosmos.try;
+                    fxRates.gbp = data.cosmos.gbp / data.cosmos.usd;
+                    fxRates.jpy = data.cosmos.jpy / data.cosmos.usd;
+                    fxRates.cny = data.cosmos.cny / data.cosmos.usd;
+                    change24h = data.cosmos.usd_24h_change || 0;
+                    priceSource = 'CoinGecko';
+                    console.log('✅ CoinGecko price:', prices.usd);
+                    return true;
+                }
+            } catch (e) {
+                console.log('❌ CoinGecko failed:', e.message);
+            }
+            return false;
+        }
+        
+        // Try Coinbase
+        async function fetchCoinbase() {
+            try {
+                const res = await fetch('https://api.coinbase.com/v2/prices/ATOM-USD/spot');
+                if (!res.ok) throw new Error('Coinbase failed');
+                const data = await res.json();
+                if (data.data?.amount) {
+                    prices.usd = parseFloat(data.data.amount);
+                    priceSource = 'Coinbase';
+                    console.log('✅ Coinbase price:', prices.usd);
+                    
+                    // Get EUR price
+                    try {
+                        const eurRes = await fetch('https://api.coinbase.com/v2/prices/ATOM-EUR/spot');
+                        const eurData = await eurRes.json();
+                        if (eurData.data?.amount) prices.eur = parseFloat(eurData.data.amount);
+                    } catch {}
+                    
+                    return true;
+                }
+            } catch (e) {
+                console.log('❌ Coinbase failed:', e.message);
+            }
+            return false;
+        }
+        
+        // Try Kraken
+        async function fetchKraken() {
+            try {
+                const res = await fetch('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD');
+                if (!res.ok) throw new Error('Kraken failed');
+                const data = await res.json();
+                const ticker = data.result?.ATOMUSD;
+                if (ticker?.c?.[0]) {
+                    prices.usd = parseFloat(ticker.c[0]);
+                    priceSource = 'Kraken';
+                    console.log('✅ Kraken price:', prices.usd);
+                    
+                    // Get EUR price
+                    try {
+                        const eurRes = await fetch('https://api.kraken.com/0/public/Ticker?pair=ATOMEUR');
+                        const eurData = await eurRes.json();
+                        if (eurData.result?.ATOMEUR?.c?.[0]) {
+                            prices.eur = parseFloat(eurData.result.ATOMEUR.c[0]);
+                        }
+                    } catch {}
+                    
+                    return true;
+                }
+            } catch (e) {
+                console.log('❌ Kraken failed:', e.message);
+            }
+            return false;
+        }
+        
+        // Try Binance (may be geo-blocked)
         async function fetchBinance() {
             try {
-                const ticker = await (await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT')).json();
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 5000);
+                
+                const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                
+                if (!res.ok) throw new Error('Binance failed');
+                const ticker = await res.json();
+                
+                prices.usd = parseFloat(ticker.lastPrice);
                 change24h = parseFloat(ticker.priceChangePercent) || 0;
-                if (!prices.usd) prices.usd = parseFloat(ticker.lastPrice);
-                const [eur, tr] = await Promise.all([
-                    fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMEUR').then(r => r.json()),
-                    fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMTRY').then(r => r.json())
-                ]);
-                if (!prices.eur) prices.eur = parseFloat(eur.price);
-                if (!prices['try']) prices['try'] = parseFloat(tr.price);
+                priceSource = 'Binance';
+                console.log('✅ Binance price:', prices.usd);
+                
+                // Get EUR and TRY
+                try {
+                    const [eur, tr] = await Promise.all([
+                        fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMEUR').then(r => r.json()),
+                        fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMTRY').then(r => r.json())
+                    ]);
+                    if (eur.price) prices.eur = parseFloat(eur.price);
+                    if (tr.price) prices['try'] = parseFloat(tr.price);
+                } catch {}
+                
+                return true;
+            } catch (e) {
+                console.log('❌ Binance failed:', e.message);
+            }
+            return false;
+        }
+        
+        // Main price fetcher with fallbacks
+        async function fetchPrice() {
+            console.log('💰 Fetching price...');
+            
+            // Try sources in order
+            const success = await fetchCoinGecko() ||
+                           await fetchCoinbase() ||
+                           await fetchKraken() ||
+                           await fetchBinance();
+            
+            if (success) {
+                savePriceCache();
                 displayPrice();
-            } catch(e) {}
+            } else {
+                console.log('⚠️ All price sources failed, using cache');
+                restorePriceCache();
+            }
+        }
+        
+        // Optional: Binance WebSocket for real-time updates (if not geo-blocked)
+        function tryBinanceWebSocket() {
+            try {
+                const ws = new WebSocket('wss://stream.binance.com:9443/stream?streams=atomusdt@trade');
+                
+                ws.onopen = () => {
+                    console.log('✅ Binance WebSocket connected');
+                    binanceWs = ws;
+                };
+                
+                ws.onmessage = (e) => {
+                    try {
+                        const msg = JSON.parse(e.data);
+                        const price = parseFloat(msg.data.p);
+                        if (msg.stream === 'atomusdt@trade' && price) {
+                            prices.usd = price;
+                            priceSource = 'Binance WS';
+                            displayPrice();
+                        }
+                    } catch {}
+                };
+                
+                ws.onerror = () => {
+                    console.log('⚠️ Binance WebSocket unavailable (geo-blocked?)');
+                    ws.close();
+                };
+                
+                ws.onclose = () => {
+                    binanceWs = null;
+                    // Don't reconnect if geo-blocked, rely on REST fallbacks
+                };
+                
+            } catch (e) {
+                console.log('⚠️ Binance WebSocket failed:', e.message);
+            }
         }
 
         // Price animation state
@@ -1038,27 +1144,31 @@
                 console.log('📦 Cache restored - showing cached data');
             }
             
-            // 2) Initialize UI components
+            // 2) Restore price from cache (instant price)
+            restorePriceCache();
+            
+            // 3) Initialize UI components
             initChart();
             updateStakingDisplay();
             updateWhaleHero();
             updateNotableList();
             
-            // 3) Connect to live data sources
-            connectBinance();
+            // 4) Connect to live data sources
             connectCosmos();  // Connect to Silk Nodes WebSocket
+            tryBinanceWebSocket();  // Try Binance WS (may be geo-blocked)
             
-            // 4) Fetch initial data
-            await fetchBinance();
+            // 5) Fetch initial data
+            await fetchPrice();  // Multi-source price with fallbacks
             await fetchChart();
             
-            // 5) If no cache, fetch initial delegations from REST API
+            // 6) If no cache, fetch initial delegations from REST API
             if (!hadCache) {
                 console.log('🔍 No cache found - fetching initial data...');
                 await fetchInitialDelegations();
             }
             
-            setInterval(fetchBinance, 60000);
+            // Refresh prices every 60 seconds
+            setInterval(fetchPrice, 60000);
             console.log('✅ Dashboard ready!');
         }
         
@@ -1071,7 +1181,7 @@
                     connectCosmos();
                 }
                 // Refresh price data
-                fetchBinance();
+                fetchPrice();
             }
         });
         

@@ -213,21 +213,15 @@
     
     <script>
         // Config
-        const RPC_ENDPOINTS = [
-            'wss://cosmos-rpc.publicnode.com:443/websocket',
-            'wss://rpc.cosmos.network:443/websocket'
-        ];
-        const REST_ENDPOINTS = [
-            'https://cosmos-rest.publicnode.com',
-            'https://lcd-cosmos.imperator.co'
-        ];
+        const API_ENDPOINT = '/api/delegations';  // Cloudflare Worker handles all delegation data
         const WHALE_MIN = 50000;
         const NOTABLE_MIN = 1000;
         const MAX_NOTABLE = 8;
 
         // State
-        let cosmosWs = null, binanceWs = null;
+        let binanceWs = null;
         let whaleDelegations = [], notableDelegations = [];
+        let stakingRatio = 59.3;  // Will be updated from API
         let prices = { usd: null, eur: null, try: null };
         let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25 };
         let change24h = 0, currentCurrency = 'usd', chartType = 'line';
@@ -276,97 +270,47 @@
         }
         function shortTxHash(h) { return h ? h.slice(0,8) + '...' + h.slice(-6) : ''; }
 
-        // REST with fallback
-        async function fetchREST(path) {
-            for (const ep of REST_ENDPOINTS) {
-                try {
-                    const r = await fetch(ep + path);
-                    if (r.ok) return await r.json();
-                } catch(e) {}
-            }
-            throw new Error('All REST failed');
-        }
-
-        // Cosmos WebSocket
-        let wsRetry = 0;
-        function connectCosmos() {
-            const ep = RPC_ENDPOINTS[wsRetry % RPC_ENDPOINTS.length];
-            console.log('🔌 Connecting:', ep);
-            if (cosmosWs) try { cosmosWs.close(); } catch(e) {}
-            cosmosWs = new WebSocket(ep);
-            
-            cosmosWs.onopen = () => {
-                console.log('✅ Cosmos connected');
-                wsRetry = 0;
-                document.getElementById('liveDot').classList.remove('disconnected');
-                cosmosWs.send(JSON.stringify({
-                    jsonrpc: '2.0', method: 'subscribe', id: 1,
-                    params: { query: "tm.event='Tx' AND message.action='/cosmos.staking.v1beta1.MsgDelegate'" }
-                }));
-            };
-            
-            cosmosWs.onmessage = (e) => {
-                try {
-                    const data = JSON.parse(e.data);
-                    if (data.result?.data?.value?.TxResult) {
-                        processTx(data.result.data.value.TxResult);
-                    }
-                } catch(e) {}
-            };
-            
-            cosmosWs.onclose = () => {
-                console.log('⚠️ Cosmos disconnected');
-                document.getElementById('liveDot').classList.add('disconnected');
-                wsRetry++;
-                setTimeout(connectCosmos, Math.min(3000 * wsRetry, 30000));
-            };
-            cosmosWs.onerror = () => {};
-        }
-
-        function processTx(txResult) {
+        // Fetch delegation data from Cloudflare Worker
+        async function fetchDelegations() {
             try {
-                let txHash = '';
-                const events = txResult.result?.events || [];
+                console.log('📡 Fetching from Worker...');
+                const r = await fetch(API_ENDPOINT);
+                if (!r.ok) throw new Error(`API returned ${r.status}`);
                 
-                for (const ev of events) {
-                    if (ev.type === 'tx') {
-                        const h = ev.attributes?.find(a => {
-                            const k = a.key.length > 20 ? atob(a.key) : a.key;
-                            return k === 'hash';
-                        });
-                        if (h) txHash = h.value.length > 20 ? atob(h.value) : h.value;
-                    }
-                    if (ev.type === 'delegate') {
-                        const amt = ev.attributes?.find(a => {
-                            const k = a.key.length > 10 ? atob(a.key) : a.key;
-                            return k === 'amount';
-                        });
-                        if (amt) {
-                            let v = amt.value;
-                            try { v = atob(v); } catch(e) {}
-                            const m = v.match(/(\d+)uatom/);
-                            if (m) {
-                                const amount = parseInt(m[1]) / 1e6;
-                                if (!txHash) txHash = Array.from({length:64}, () => '0123456789ABCDEF'[Math.floor(Math.random()*16)]).join('');
-                                
-                                const del = { amount, txHash, timestamp: new Date().toISOString() };
-                                
-                                if (amount >= WHALE_MIN) {
-                                    console.log(`🐋 WHALE: ${formatAmount(amount)} ATOM`);
-                                    whaleDelegations.unshift(del);
-                                    whaleDelegations = whaleDelegations.slice(0, 5);
-                                    updateWhaleHero(true);
-                                } else if (amount >= NOTABLE_MIN) {
-                                    console.log(`📊 Notable: ${formatAmount(amount)} ATOM`);
-                                    notableDelegations.unshift(del);
-                                    notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
-                                    updateNotableList(true);
-                                }
-                            }
-                        }
-                    }
+                const data = await r.json();
+                if (!data.ok) throw new Error('API returned error');
+                
+                console.log('✅ Delegation data received:', data.updatedAt);
+                
+                // Update whales (50K+)
+                if (data.whales && data.whales.length > 0) {
+                    whaleDelegations = data.whales.slice(0, 5);
+                    updateWhaleHero(false);
                 }
-            } catch(e) { console.error('TX parse error:', e); }
+                
+                // Update notable (1K-50K)
+                if (data.recent && data.recent.length > 0) {
+                    notableDelegations = data.recent.slice(0, MAX_NOTABLE);
+                    updateNotableList(false);
+                }
+                
+                // Update staking ratio if provided
+                if (data.stakingRatio) {
+                    stakingRatio = data.stakingRatio;
+                    document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(1) + '%';
+                    updateStakePressure(stakingRatio);
+                }
+                
+                // Update live dot to show connected
+                document.getElementById('liveDot').classList.remove('disconnected');
+                
+            } catch(e) {
+                console.error('❌ API fetch failed:', e.message);
+                document.getElementById('liveDot').classList.add('disconnected');
+                // Use fallback values
+                document.getElementById('stakingRatio').textContent = '59.3%';
+                updateStakePressure(59.3);
+            }
         }
 
         function updateWhaleHero(isNew) {
@@ -639,22 +583,6 @@
             }
             document.getElementById('stakePressure').textContent = dots;
         }
-        
-        async function fetchStats() {
-            try {
-                const pool = await fetchREST('/cosmos/staking/v1beta1/pool');
-                const supply = await fetchREST('/cosmos/bank/v1beta1/supply/uatom');
-                if (pool.pool && supply.amount) {
-                    const ratio = (parseInt(pool.pool.bonded_tokens) / parseInt(supply.amount.amount)) * 100;
-                    document.getElementById('stakingRatio').textContent = ratio.toFixed(1) + '%';
-                    updateStakePressure(ratio);
-                    console.log('✅ Staking ratio:', ratio.toFixed(1) + '%');
-                }
-            } catch(e) {
-                document.getElementById('stakingRatio').textContent = '59.3%';
-                updateStakePressure(59.3);  // Fallback
-            }
-        }
 
         // Events
         document.querySelectorAll('.currency-btn').forEach(btn => {
@@ -693,14 +621,13 @@
             console.log('🚀 Initializing ATOM Dashboard...');
             initChart();
             connectBinance();
-            connectCosmos();
             await fetchBinance();
             await fetchChart();
-            await fetchStats();
+            await fetchDelegations();  // Fetch from Cloudflare Worker
             updateWhaleHero();
             updateNotableList();
             setInterval(fetchBinance, 60000);
-            setInterval(fetchStats, 120000);
+            setInterval(fetchDelegations, 30000);  // Refresh delegations every 30s
             console.log('✅ Dashboard ready!');
         }
         init();

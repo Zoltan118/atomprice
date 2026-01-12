@@ -230,8 +230,8 @@
             </div>
         </div>
         <div class="stats-row">
-            <div class="stat"><div class="stat-value" id="stakingRatio">—%</div><div class="stat-label">staking ratio</div></div>
-            <div class="stat center"><div class="stat-value" id="stakePressure">○○○○○</div><div class="stat-label">stake pressure</div></div>
+            <div class="stat"><div class="stat-value" id="stakingRatio">59.3%</div><div class="stat-label">staking ratio</div></div>
+            <div class="stat center"><div class="stat-value" id="stakePressure">●●●●○</div><div class="stat-label">stake pressure</div></div>
             <div class="stat right"><div class="stat-value" id="inflationRate">10.00%</div><div class="stat-label">inflation rate</div></div>
         </div>
         <div class="divider"></div>
@@ -259,7 +259,7 @@
         <div class="ticker-section">
             <div class="ticker-fade-left"></div>
             <div class="ticker-track" id="tickerTrack">
-                <div class="ticker-item"><span class="action">Waiting for live staking data</span> <span class="amount">...</span></div>
+                <div class="ticker-item"><span class="ticker-text">waiting for live staking data...</span></div>
             </div>
             <div class="ticker-fade-right"></div>
         </div>
@@ -283,38 +283,46 @@
         const NOTABLE_MIN = 1000;     // 1K-50K ATOM = notable (for list)
         const TICKER_MIN = 1;         // 1+ ATOM = ticker news
         const MAX_NOTABLE = 8;
-        const MAX_TICKER = 20;        // Keep last 20 for ticker
-        const CACHE_KEY = 'atomprice_cache_v1';
-        const CACHE_TTL_MS = 300000;  // 5 minutes
+        const MAX_TICKER = 50;        // Keep last 50 for ticker (more history)
+        const CACHE_KEY = 'atomprice_cache_v2';
+        const CACHE_TTL_MS = 86400000;  // 24 hours!
 
         // State
         let binanceWs = null;
         let whaleDelegations = [], notableDelegations = [], tickerDelegations = [];
-        let stakingRatio = 59.3;
+        let stakingRatio = 59.3;  // Default - will be updated from chain
         let prices = { usd: null, eur: null, try: null };
         let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25 };
-        let change24h = 0, currentCurrency = 'usd', chartType = 'line';
+        let change24h = null, currentCurrency = 'usd', chartType = 'line';
         let lastDisplayedPrice = null, chartData = [], chart = null, series = null;
         let currentTimeframe = '1d';
         let lastWsUpdate = 0;  // Track last WebSocket update time
 
-        // ========== localStorage Cache ==========
+        // ========== localStorage Cache (24 hours) ==========
         function loadCache() {
             try {
                 const raw = localStorage.getItem(CACHE_KEY);
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
-                if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+                // Cache valid for 24 hours
+                if (Date.now() - parsed.ts > CACHE_TTL_MS) {
+                    localStorage.removeItem(CACHE_KEY);
+                    return null;
+                }
                 return parsed.data;
             } catch { return null; }
         }
 
         function saveCache() {
             try {
+                // Clean old delegations (older than 24 hours)
+                const cutoff = Date.now() - CACHE_TTL_MS;
+                const filterOld = (arr) => arr.filter(d => new Date(d.timestamp).getTime() > cutoff);
+                
                 const data = {
-                    whaleDelegations,
-                    notableDelegations,
-                    tickerDelegations,
+                    whaleDelegations: filterOld(whaleDelegations).slice(0, 20),
+                    notableDelegations: filterOld(notableDelegations).slice(0, 30),
+                    tickerDelegations: filterOld(tickerDelegations).slice(0, 100),
                     stakingRatio
                 };
                 localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
@@ -324,16 +332,19 @@
         function restoreFromCache() {
             const cached = loadCache();
             if (cached) {
-                console.log('📦 Restoring from cache...');
+                console.log('📦 Restoring from 24h cache...');
                 whaleDelegations = cached.whaleDelegations || [];
                 notableDelegations = cached.notableDelegations || [];
                 tickerDelegations = cached.tickerDelegations || [];
-                stakingRatio = cached.stakingRatio || 59.3;
+                if (cached.stakingRatio) stakingRatio = cached.stakingRatio;
                 
+                // Immediately update UI
                 updateWhaleHero(false);
                 updateNotableList(false);
                 updateTicker();
                 updateStakingDisplay();
+                
+                console.log(`✅ Loaded ${tickerDelegations.length} cached delegations`);
                 return true;
             }
             return false;
@@ -348,6 +359,53 @@
             // Since tx search endpoints are unreliable, we skip them
             // The WebSocket will populate data as it comes in
             console.log('📡 Waiting for WebSocket delegation data...');
+            return false;
+        }
+        
+        // Fetch staking pool data (staking ratio)
+        async function fetchStakingData() {
+            const endpoints = [
+                'https://api.silknodes.io/cosmos',
+                'https://cosmos-rest.publicnode.com'
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    // Get staking pool
+                    const poolRes = await fetch(`${endpoint}/cosmos/staking/v1beta1/pool`);
+                    if (!poolRes.ok) continue;
+                    const poolData = await poolRes.json();
+                    
+                    // Get total supply
+                    const supplyRes = await fetch(`${endpoint}/cosmos/bank/v1beta1/supply/uatom`);
+                    if (!supplyRes.ok) continue;
+                    const supplyData = await supplyRes.json();
+                    
+                    const bonded = parseInt(poolData.pool?.bonded_tokens || 0) / 1e6;
+                    const totalSupply = parseInt(supplyData.amount?.amount || 0) / 1e6;
+                    
+                    if (bonded > 0 && totalSupply > 0) {
+                        stakingRatio = (bonded / totalSupply) * 100;
+                        console.log(`✅ Staking ratio: ${stakingRatio.toFixed(1)}%`);
+                        updateStakingDisplay();
+                        saveCache();
+                    }
+                    
+                    // Get inflation
+                    try {
+                        const inflRes = await fetch(`${endpoint}/cosmos/mint/v1beta1/inflation`);
+                        if (inflRes.ok) {
+                            const inflData = await inflRes.json();
+                            const inflation = parseFloat(inflData.inflation) * 100;
+                            document.getElementById('inflationRate').textContent = inflation.toFixed(2) + '%';
+                        }
+                    } catch {}
+                    
+                    return true;
+                } catch (e) {
+                    console.log(`❌ ${endpoint} staking data failed:`, e.message);
+                }
+            }
             return false;
         }
 
@@ -367,9 +425,12 @@
 
         // Helpers
         function formatAmount(n) {
-            if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
-            if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
-            return n.toLocaleString();
+            // Show full numbers with commas, decimals only if they exist
+            if (n % 1 === 0) {
+                return n.toLocaleString();  // 50 → "50", 54324 → "54,324"
+            }
+            // Has decimals - show up to 2
+            return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         function formatNumber(n, d) {
             return d === 0 ? Math.round(n).toLocaleString() : n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
@@ -426,11 +487,35 @@
             cosmosWs.onmessage = (e) => {
                 try {
                     const data = JSON.parse(e.data);
-                    if (data.result?.data?.value?.TxResult) {
-                        processTx(data.result.data.value.TxResult);
+                    
+                    // VERBOSE DEBUG: Log everything
+                    if (data.result?.data?.value) {
+                        const value = data.result.data.value;
+                        console.log('📨 WS DATA:', JSON.stringify(value).slice(0, 300));
+                        
+                        // Try TxResult path
+                        if (value.TxResult) {
+                            console.log('✅ Found TxResult');
+                            processTx(value.TxResult);
+                        }
+                        // Try other possible paths
+                        else if (value.tx_result) {
+                            console.log('✅ Found tx_result');
+                            processTx({ result: value.tx_result });
+                        }
+                        else {
+                            console.log('⚠️ Unknown data structure:', Object.keys(value));
+                        }
+                    } else if (data.result?.events) {
+                        // Direct events format
+                        console.log('📨 Direct events:', Object.keys(data.result));
+                        processTx(data.result);
+                    } else if (data.id !== undefined) {
+                        // Subscription confirmation
+                        console.log('📨 Subscription confirmed, id:', data.id);
                     }
                 } catch(err) {
-                    // Ignore parse errors
+                    console.error('WS parse error:', err);
                 }
             };
             
@@ -451,7 +536,10 @@
                 let txHash = '';
                 const events = txResult.result?.events || [];
                 
-                // Find tx hash
+                // Debug: log raw events
+                // console.log('📦 Raw events:', JSON.stringify(events).slice(0, 500));
+                
+                // Find tx hash first
                 for (const ev of events) {
                     if (ev.type === 'tx') {
                         const hashAttr = ev.attributes?.find(a => {
@@ -462,60 +550,82 @@
                             txHash = hashAttr.value.length > 20 ? atob(hashAttr.value) : hashAttr.value;
                         }
                     }
-                    
-                    // Find delegate events
+                }
+                
+                // Find delegate events
+                for (const ev of events) {
                     if (ev.type === 'delegate') {
-                        const amtAttr = ev.attributes?.find(a => {
-                            const key = a.key.length > 10 ? atob(a.key) : a.key;
-                            return key === 'amount';
-                        });
+                        let amount = 0;
                         
-                        if (amtAttr) {
-                            let value = amtAttr.value;
-                            try { value = atob(value); } catch(e) {}
+                        for (const attr of (ev.attributes || [])) {
+                            let key = attr.key;
+                            let value = attr.value;
                             
-                            const match = value.match(/(\d+)uatom/);
-                            if (match) {
-                                const amount = parseInt(match[1]) / 1e6;
-                                
-                                // Generate random hash if not found
-                                if (!txHash) {
-                                    txHash = Array.from({length: 64}, () => 
-                                        '0123456789ABCDEF'[Math.floor(Math.random() * 16)]
-                                    ).join('');
+                            // Try to decode base64
+                            try { 
+                                if (key && key.length > 10) key = atob(key); 
+                            } catch(e) {}
+                            try { 
+                                if (value && value.length > 10) value = atob(value); 
+                            } catch(e) {}
+                            
+                            if (key === 'amount') {
+                                // Parse amount - handle "123456uatom" format
+                                const match = value.match(/(\d+)uatom/i);
+                                if (match) {
+                                    amount = parseInt(match[1]) / 1e6;
                                 }
+                            }
+                        }
+                        
+                        if (amount > 0) {
+                            // Generate hash if not found
+                            if (!txHash) {
+                                txHash = Array.from({length: 64}, () => 
+                                    '0123456789ABCDEF'[Math.floor(Math.random() * 16)]
+                                ).join('');
+                            }
+                            
+                            // Check for duplicates (same hash already exists)
+                            const isDuplicate = tickerDelegations.some(d => d.txHash === txHash);
+                            if (isDuplicate) {
+                                console.log(`⏭️ Skipping duplicate: ${txHash.slice(0,8)}...`);
+                                return;
+                            }
+                            
+                            const delegation = {
+                                amount,
+                                txHash,
+                                timestamp: new Date().toISOString()
+                            };
+                            
+                            // Log ALL delegations
+                            console.log(`💰 NEW: ${amount.toFixed(2)} ATOM (${txHash.slice(0,8)}...)`);
+                            
+                            // Categorize by amount
+                            if (amount >= WHALE_MIN) {
+                                console.log(`🐋 WHALE: ${formatAmount(amount)} ATOM`);
+                                whaleDelegations.unshift(delegation);
+                                whaleDelegations = whaleDelegations.slice(0, 20);
+                                updateWhaleHero(true);
+                            }
+                            
+                            if (amount >= NOTABLE_MIN && amount < WHALE_MIN) {
+                                console.log(`📊 Notable: ${formatAmount(amount)} ATOM`);
+                                notableDelegations.unshift(delegation);
+                                notableDelegations = notableDelegations.slice(0, 30);
+                                updateNotableList(true);
+                            }
+                            
+                            // All delegations ≥1 ATOM go to ticker
+                            if (amount >= TICKER_MIN) {
+                                tickerDelegations.unshift(delegation);
+                                tickerDelegations = tickerDelegations.slice(0, 100);
+                                updateTicker();
                                 
-                                const delegation = {
-                                    amount,
-                                    txHash,
-                                    timestamp: new Date().toISOString()
-                                };
-                                
-                                // Categorize by amount
-                                if (amount >= WHALE_MIN) {
-                                    console.log(`🐋 WHALE: ${formatAmount(amount)} ATOM`);
-                                    whaleDelegations.unshift(delegation);
-                                    whaleDelegations = whaleDelegations.slice(0, 5);
-                                    updateWhaleHero(true);
-                                }
-                                
-                                if (amount >= NOTABLE_MIN && amount < WHALE_MIN) {
-                                    console.log(`📊 Notable: ${formatAmount(amount)} ATOM`);
-                                    notableDelegations.unshift(delegation);
-                                    notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
-                                    updateNotableList(true);
-                                }
-                                
-                                // All delegations ≥1 ATOM go to ticker
-                                if (amount >= TICKER_MIN) {
-                                    tickerDelegations.unshift(delegation);
-                                    tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
-                                    updateTicker();
-                                    
-                                    // Save to cache and update timestamp
-                                    lastWsUpdate = Date.now();
-                                    saveCache();
-                                }
+                                // Save to cache immediately
+                                lastWsUpdate = Date.now();
+                                saveCache();
                             }
                         }
                     }
@@ -528,6 +638,7 @@
         // Staking ratio display
         function updateStakingDisplay() {
             document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(1) + '%';
+            document.getElementById('inflationRate').textContent = '10.00%';  // Fixed value
             updateStakePressure(stakingRatio);
         }
 
@@ -957,8 +1068,14 @@
             }
             
             lastDisplayedPrice = price;
-            ch.textContent = (change24h >= 0 ? '+' : '') + change24h.toFixed(2) + '%';
-            ch.className = 'change ' + (change24h >= 0 ? 'pos' : 'neg');
+            
+            // Handle change24h display
+            if (change24h !== null) {
+                ch.textContent = (change24h >= 0 ? '+' : '') + change24h.toFixed(2) + '%';
+                ch.className = 'change ' + (change24h >= 0 ? 'pos' : 'neg');
+            } else {
+                ch.textContent = '';
+            }
             
             // Update tab title with price
             document.title = currencyTabNames[currentCurrency] + formatNumber(price, decimals) + ' · ATOM';
@@ -1134,41 +1251,39 @@
             };
         });
 
-        // Init
+        // Init - INSTANT loading from cache
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
             
-            // 1) Restore from cache FIRST (instant data)
+            // 1) INSTANT: Restore from 24h cache FIRST (before anything else!)
             const hadCache = restoreFromCache();
-            if (hadCache) {
-                console.log('📦 Cache restored - showing cached data');
-            }
             
-            // 2) Restore price from cache (instant price)
+            // 2) INSTANT: Restore price from cache
             restorePriceCache();
             
-            // 3) Initialize UI components
+            // 3) Initialize chart
             initChart();
+            
+            // 4) Show initial UI state
             updateStakingDisplay();
-            updateWhaleHero();
-            updateNotableList();
-            
-            // 4) Connect to live data sources
-            connectCosmos();  // Connect to Silk Nodes WebSocket
-            tryBinanceWebSocket();  // Try Binance WS (may be geo-blocked)
-            
-            // 5) Fetch initial data
-            await fetchPrice();  // Multi-source price with fallbacks
-            await fetchChart();
-            
-            // 6) If no cache, fetch initial delegations from REST API
             if (!hadCache) {
-                console.log('🔍 No cache found - fetching initial data...');
-                await fetchInitialDelegations();
+                updateWhaleHero();
+                updateNotableList();
             }
             
-            // Refresh prices every 60 seconds
+            // 5) Connect to live data (async, don't block)
+            connectCosmos();
+            tryBinanceWebSocket();
+            
+            // 6) Fetch fresh data in background
+            fetchPrice();
+            fetchChart();
+            fetchStakingData();
+            
+            // 7) Refresh prices every 60 seconds
             setInterval(fetchPrice, 60000);
+            setInterval(fetchStakingData, 300000); // Refresh staking every 5 min
+            
             console.log('✅ Dashboard ready!');
         }
         

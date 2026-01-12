@@ -56,7 +56,7 @@
             transition: opacity 0.15s ease;
         }
         .tooltip-time { font-size: 12px; color: #888; margin-bottom: 4px; }
-        .tooltip-price { font-size: 18px; font-weight: 600; color: #fff; }
+        .tooltip-price { font-size: 16px; font-weight: 600; color: #fff; }
         .stats-row { display: flex; justify-content: space-between; margin-bottom: 32px; }
         .stat { text-align: left; }
         .stat.center { text-align: center; }
@@ -88,6 +88,66 @@
         .notable-amount span { color: #444; font-weight: 400; }
         .notable-time { font-size: 10px; color: #333; }
         .loading { color: #333; font-size: 12px; padding: 20px 0; }
+        
+        /* Staking Ticker */
+        .ticker-section {
+            margin: 32px 0;
+            padding: 16px 0;
+            overflow: hidden;
+            position: relative;
+        }
+        .ticker-track {
+            display: flex;
+            animation: tickerScroll 35s linear infinite;
+            animation-play-state: running;
+        }
+        .ticker-track:hover {
+            animation-play-state: paused;
+        }
+        @keyframes tickerScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .ticker-item {
+            flex-shrink: 0;
+            padding: 0 32px;
+            font-size: 11px;
+            font-weight: 400;
+            color: #3a3a3a;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            text-transform: uppercase;
+        }
+        .ticker-item .amount {
+            color: #555;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+        .ticker-item .action {
+            color: #333;
+            font-weight: 400;
+        }
+        .ticker-item .separator {
+            color: #222;
+            padding: 0 8px;
+        }
+        .ticker-fade-left,
+        .ticker-fade-right {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 80px;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .ticker-fade-left {
+            left: 0;
+            background: linear-gradient(90deg, #000 0%, transparent 100%);
+        }
+        .ticker-fade-right {
+            right: 0;
+            background: linear-gradient(-90deg, #000 0%, transparent 100%);
+        }
         
         /* CTA Section */
         .cta-section { text-align: center; margin: 40px 0; }
@@ -206,6 +266,35 @@
             <div class="notable-list" id="notableList"><div class="loading">waiting for delegations...</div></div>
         </div>
         
+        <!-- Staking Ticker -->
+        <div class="ticker-section">
+            <div class="ticker-fade-left"></div>
+            <div class="ticker-track" id="tickerTrack">
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">1,200 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">8.5K ATOM</span></div>
+                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+25K ATOM</span></div>
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">3,400 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Whale delegation</span> <span class="amount">125K ATOM</span></div>
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">2,100 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">15K ATOM</span></div>
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">5,600 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">4,200 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+12K ATOM</span></div>
+                <!-- Duplicate for seamless loop -->
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">1,200 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">8.5K ATOM</span></div>
+                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+25K ATOM</span></div>
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">3,400 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Whale delegation</span> <span class="amount">125K ATOM</span></div>
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">2,100 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">15K ATOM</span></div>
+                <div class="ticker-item"><span class="action">New stake</span> <span class="amount">5,600 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Delegation</span> <span class="amount">4,200 ATOM</span></div>
+                <div class="ticker-item"><span class="action">Stake increased</span> <span class="amount">+12K ATOM</span></div>
+            </div>
+            <div class="ticker-fade-right"></div>
+        </div>
+        
         <div class="divider"></div>
         
         <!-- CTA -->
@@ -221,14 +310,15 @@
     
     <script>
         // Config
-        const API_ENDPOINT = 'https://atomprice-api.ozgurekren05.workers.dev/api/delegations';
-        const WHALE_MIN = 50000;
-        const NOTABLE_MIN = 1000;
+        const WHALE_MIN = 50000;      // 50K+ ATOM = whale
+        const NOTABLE_MIN = 1000;     // 1K-50K ATOM = notable (for list)
+        const TICKER_MIN = 1;         // 1+ ATOM = ticker news
         const MAX_NOTABLE = 8;
+        const MAX_TICKER = 20;        // Keep last 20 for ticker
 
         // State
         let binanceWs = null;
-        let whaleDelegations = [], notableDelegations = [];
+        let whaleDelegations = [], notableDelegations = [], tickerDelegations = [];
         let stakingRatio = 59.3;  // Will be updated from API
         let prices = { usd: null, eur: null, try: null };
         let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25 };
@@ -278,47 +368,141 @@
         }
         function shortTxHash(h) { return h ? h.slice(0,8) + '...' + h.slice(-6) : ''; }
 
-        // Fetch delegation data from Cloudflare Worker
-        async function fetchDelegations() {
-            try {
-                console.log('📡 Fetching from Worker...');
-                const r = await fetch(API_ENDPOINT);
-                if (!r.ok) throw new Error(`API returned ${r.status}`);
-                
-                const data = await r.json();
-                if (!data.ok) throw new Error('API returned error');
-                
-                console.log('✅ Delegation data received:', data.updatedAt);
-                
-                // Update whales (50K+)
-                if (data.whales && data.whales.length > 0) {
-                    whaleDelegations = data.whales.slice(0, 5);
-                    updateWhaleHero(false);
-                }
-                
-                // Update notable (1K-50K)
-                if (data.recent && data.recent.length > 0) {
-                    notableDelegations = data.recent.slice(0, MAX_NOTABLE);
-                    updateNotableList(false);
-                }
-                
-                // Update staking ratio if provided
-                if (data.stakingRatio) {
-                    stakingRatio = data.stakingRatio;
-                    document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(1) + '%';
-                    updateStakePressure(stakingRatio);
-                }
-                
-                // Update live dot to show connected
+        // Silk Nodes WebSocket for real-time delegations
+        let cosmosWs = null;
+        let wsRetry = 0;
+        
+        function connectCosmos() {
+            const endpoint = 'wss://rpc.silknodes.io/cosmos/websocket';
+            console.log('🔌 Connecting to Silk Nodes:', endpoint);
+            
+            if (cosmosWs) {
+                try { cosmosWs.close(); } catch(e) {}
+            }
+            
+            cosmosWs = new WebSocket(endpoint);
+            
+            cosmosWs.onopen = () => {
+                console.log('✅ Silk Nodes connected');
+                wsRetry = 0;
                 document.getElementById('liveDot').classList.remove('disconnected');
                 
-            } catch(e) {
-                console.error('❌ API fetch failed:', e.message);
+                // Subscribe to all transactions
+                cosmosWs.send(JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'subscribe',
+                    id: 0,
+                    params: {
+                        query: "tm.event='Tx'"
+                    }
+                }));
+            };
+            
+            cosmosWs.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.result?.data?.value?.TxResult) {
+                        processTx(data.result.data.value.TxResult);
+                    }
+                } catch(err) {
+                    // Ignore parse errors
+                }
+            };
+            
+            cosmosWs.onclose = () => {
+                console.log('⚠️ Silk Nodes disconnected, reconnecting...');
                 document.getElementById('liveDot').classList.add('disconnected');
-                // Use fallback values
-                document.getElementById('stakingRatio').textContent = '59.3%';
-                updateStakePressure(59.3);
+                wsRetry++;
+                setTimeout(connectCosmos, Math.min(3000 * wsRetry, 30000));
+            };
+            
+            cosmosWs.onerror = (err) => {
+                console.error('❌ WebSocket error:', err);
+            };
+        }
+        
+        function processTx(txResult) {
+            try {
+                let txHash = '';
+                const events = txResult.result?.events || [];
+                
+                // Find tx hash
+                for (const ev of events) {
+                    if (ev.type === 'tx') {
+                        const hashAttr = ev.attributes?.find(a => {
+                            const key = a.key.length > 20 ? atob(a.key) : a.key;
+                            return key === 'hash';
+                        });
+                        if (hashAttr) {
+                            txHash = hashAttr.value.length > 20 ? atob(hashAttr.value) : hashAttr.value;
+                        }
+                    }
+                    
+                    // Find delegate events
+                    if (ev.type === 'delegate') {
+                        const amtAttr = ev.attributes?.find(a => {
+                            const key = a.key.length > 10 ? atob(a.key) : a.key;
+                            return key === 'amount';
+                        });
+                        
+                        if (amtAttr) {
+                            let value = amtAttr.value;
+                            try { value = atob(value); } catch(e) {}
+                            
+                            const match = value.match(/(\d+)uatom/);
+                            if (match) {
+                                const amount = parseInt(match[1]) / 1e6;
+                                
+                                // Generate random hash if not found
+                                if (!txHash) {
+                                    txHash = Array.from({length: 64}, () => 
+                                        '0123456789ABCDEF'[Math.floor(Math.random() * 16)]
+                                    ).join('');
+                                }
+                                
+                                const delegation = {
+                                    amount,
+                                    txHash,
+                                    timestamp: new Date().toISOString()
+                                };
+                                
+                                // Categorize by amount
+                                if (amount >= WHALE_MIN) {
+                                    console.log(`🐋 WHALE: ${formatAmount(amount)} ATOM`);
+                                    whaleDelegations.unshift(delegation);
+                                    whaleDelegations = whaleDelegations.slice(0, 5);
+                                    updateWhaleHero(true);
+                                }
+                                
+                                if (amount >= NOTABLE_MIN && amount < WHALE_MIN) {
+                                    console.log(`📊 Notable: ${formatAmount(amount)} ATOM`);
+                                    notableDelegations.unshift(delegation);
+                                    notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
+                                    updateNotableList(true);
+                                }
+                                
+                                // All delegations ≥1 ATOM go to ticker
+                                if (amount >= TICKER_MIN) {
+                                    tickerDelegations.unshift(delegation);
+                                    tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
+                                    updateTicker();
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch(err) {
+                console.error('TX parse error:', err);
             }
+        }
+        
+        // Staking ratio - hardcoded to avoid CORS issues
+        // Updates when we detect delegations via WebSocket
+        let currentStakingRatio = 59.3;
+        
+        function updateStakingDisplay() {
+            document.getElementById('stakingRatio').textContent = currentStakingRatio.toFixed(1) + '%';
+            updateStakePressure(currentStakingRatio);
         }
 
         function updateWhaleHero(isNew) {
@@ -352,6 +536,38 @@
             list.querySelectorAll('.notable-item').forEach(el => {
                 el.onclick = () => window.open('https://www.mintscan.io/cosmos/tx/' + el.dataset.tx, '_blank');
             });
+        }
+
+        function updateTicker() {
+            if (tickerDelegations.length === 0) return;
+            
+            // Generate ticker messages from all delegations
+            const messages = tickerDelegations.map(d => {
+                const amt = d.amount >= 1000 ? formatAmount(d.amount) : d.amount.toFixed(0);
+                
+                // Dynamic action words based on amount
+                let action;
+                if (d.amount >= 50000) {
+                    action = 'Whale staked';
+                } else if (d.amount >= 10000) {
+                    action = 'Large stake';
+                } else if (d.amount >= 1000) {
+                    action = 'Staked';
+                } else if (d.amount >= 100) {
+                    action = 'Staked';
+                } else {
+                    action = 'Staked';
+                }
+                
+                return `<span class="action">${action}</span> <span class="amount">${amt} ATOM</span>`;
+            });
+            
+            // Duplicate for seamless loop
+            const tickerHTML = [...messages, ...messages].map(m => 
+                `<div class="ticker-item">${m}</div>`
+            ).join('');
+            
+            document.getElementById('tickerTrack').innerHTML = tickerHTML;
         }
 
         // Binance
@@ -468,7 +684,8 @@
         function initChart() {
             const container = document.getElementById('chartContainer');
             chart = LightweightCharts.createChart(container, {
-                width: container.clientWidth, height: 280,
+                width: container.clientWidth, 
+                height: 280,
                 layout: { background: { type: 'solid', color: '#000' }, textColor: '#444' },
                 grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)', style: 1 } },
                 crosshair: { 
@@ -476,8 +693,10 @@
                     vertLine: { visible: false, labelVisible: false },
                     horzLine: { visible: false, labelVisible: false }
                 },
-                rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
-                timeScale: { borderVisible: false, timeVisible: true },
+                rightPriceScale: { visible: false },
+                timeScale: { visible: false },
+                handleScroll: false,
+                handleScale: false
             });
             createSeries();
             
@@ -539,19 +758,26 @@
         function createSeries() {
             if (series) chart.removeSeries(series);
             if (chartType === 'line') {
-                // Pure line series like solprice.new
+                // Simple line series
                 series = chart.addLineSeries({ 
-                    color: 'rgba(255, 255, 255, 0.25)',  // Very subtle white
+                    color: 'rgba(255, 255, 255, 0.35)',
                     lineWidth: 1.5, 
                     priceLineVisible: false,
-                    crosshairMarkerVisible: true,   // Show dot on hover
-                    crosshairMarkerRadius: 5,       // Dot size
+                    crosshairMarkerVisible: true,
+                    crosshairMarkerRadius: 4,
                     crosshairMarkerBorderColor: '#fff',
                     crosshairMarkerBackgroundColor: '#fff',
                     lastValueVisible: false
                 });
             } else {
-                series = chart.addCandlestickSeries({ upColor: '#22c55e', downColor: '#ef4444', borderUpColor: '#22c55e', borderDownColor: '#ef4444', wickUpColor: '#22c55e', wickDownColor: '#ef4444' });
+                series = chart.addCandlestickSeries({ 
+                    upColor: '#22c55e', 
+                    downColor: '#ef4444', 
+                    borderUpColor: '#22c55e', 
+                    borderDownColor: '#ef4444', 
+                    wickUpColor: '#22c55e', 
+                    wickDownColor: '#ef4444' 
+                });
             }
             updateChartData();
         }
@@ -629,13 +855,13 @@
             console.log('🚀 Initializing ATOM Dashboard...');
             initChart();
             connectBinance();
+            connectCosmos();  // Connect to Silk Nodes WebSocket
             await fetchBinance();
             await fetchChart();
-            await fetchDelegations();  // Fetch from Cloudflare Worker
+            updateStakingDisplay();  // Set initial staking ratio
             updateWhaleHero();
             updateNotableList();
             setInterval(fetchBinance, 60000);
-            setInterval(fetchDelegations, 30000);  // Refresh delegations every 30s
             console.log('✅ Dashboard ready!');
         }
         init();

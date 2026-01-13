@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 
 const OUT_FILE = "data/delegations_24h.json";
 
-const MIN_ATOM = Number(process.env.MIN_ATOM ?? "1");
+const MIN_ATOM = Number(process.env.MIN_ATOM ?? "100");
 const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? "24");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "3");   // keep small to avoid rate-limits
 const PER_PAGE = Number(process.env.PER_PAGE ?? "50");        // keep smaller than 100

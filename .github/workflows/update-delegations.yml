@@ -29,8 +29,7 @@ jobs:
           LIMIT_PAGES: "10"
           PAGE_LIMIT: "100"
         run: |
-          node update_delegations_24h.mjs
-
+        node scripts/delegations_updater.mjs
       - name: Commit & push if changed
         run: |
           git config user.name "atomprice-bot"

@@ -23,7 +23,6 @@ async function fetchJson(url) {
 }
 
 function uatomToAtom(amountStr) {
-  // amountStr may look like "1234567uatom"
   if (!amountStr || typeof amountStr !== "string") return null;
   if (!amountStr.endsWith("uatom")) return null;
   const n = Number(amountStr.replace("uatom", ""));
@@ -32,20 +31,17 @@ function uatomToAtom(amountStr) {
 }
 
 function getEventAttr(events, type, key) {
-  const ev = events?.find(e => e.type === type);
+  const ev = (events || []).find(e => e.type === type);
   if (!ev) return null;
-  const attr = ev.attributes?.find(a => a.key === key);
+  const attr = (ev.attributes || []).find(a => a.key === key);
   return attr?.value ?? null;
 }
 
 function parseDelegateFromTx(txResp) {
-  // Prefer events (most reliable for amount + addresses)
-  const events = txResp?.logs?.flatMap(l => l?.events || []) || txResp?.events || [];
+  // Cosmos LCD returns logs with events; use those.
+  const events = (txResp?.logs || []).flatMap(l => l?.events || []);
 
-  const action =
-    getEventAttr(events, "message", "action") ||
-    getEventAttr(events, "message", "action");
-
+  const action = getEventAttr(events, "message", "action");
   if (!action || !String(action).includes("MsgDelegate")) return [];
 
   const amountStr = getEventAttr(events, "delegate", "amount");
@@ -68,20 +64,16 @@ function parseDelegateFromTx(txResp) {
 async function fetchDelegations24h() {
   const cutoff = cutoffMs(WINDOW_HOURS);
 
-  // Two query variants; use the first that yields results.
+  // Try the most specific first, then fallback
   const eventQueries = [
     "message.action='/cosmos.staking.v1beta1.MsgDelegate'",
     "message.module='staking'"
   ];
 
-  let usedEvents = null;
-  let items = [];
-
   for (const evQ of eventQueries) {
-    items = [];
-    usedEvents = evQ;
-
+    let items = [];
     let nextKey = null;
+
     for (let page = 0; page < LIMIT_PAGES; page++) {
       const params = new URLSearchParams();
       params.set("events", evQ);
@@ -96,10 +88,9 @@ async function fetchDelegations24h() {
       if (!txs.length) break;
 
       for (const txResp of txs) {
-        // stop once older than cutoff (DESC order)
         const ts = txResp?.timestamp ? new Date(txResp.timestamp).getTime() : null;
         if (ts && Number.isFinite(ts) && ts < cutoff) {
-          return { usedEvents, items }; // early exit
+          return { usedEvents: evQ, items };
         }
 
         const parsed = parseDelegateFromTx(txResp);
@@ -110,11 +101,32 @@ async function fetchDelegations24h() {
       if (!nextKey) break;
     }
 
-    if (items.length) break; // this query worked
+    if (items.length) return { usedEvents: evQ, items };
   }
 
-  return { usedEvents, items };
+  return { usedEvents: null, items: [] };
 }
 
 async function main() {
-  fs.mkdirSync("data", { recursive: true })
+  fs.mkdirSync("data", { recursive: true });
+
+  try {
+    const { usedEvents, items } = await fetchDelegations24h();
+
+    // Deduplicate
+    const seen = new Set();
+    const deduped = [];
+    for (const it of items) {
+      const k = `${it.txhash}|${it.amount_atom}|${it.delegator}|${it.validator}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      deduped.push(it);
+    }
+
+    // Sort by size desc (nice for hero)
+    deduped.sort((a, b) => (b.amount_atom || 0) - (a.amount_atom || 0));
+
+    const out = {
+      generated_at: isoNow(),
+      window_hours: WINDOW_HOURS,
+      min_atom: MIN_

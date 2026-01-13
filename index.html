@@ -96,8 +96,10 @@
             overflow: hidden;
         }
         .notable-item:hover { background: #111; }
-        .notable-amount { font-size: 15px; font-weight: 500; font-family: 'Inter', monospace; color: #e0e0e0; }
-        .notable-amount span { color: #555; font-weight: 400; }
+        .notable-amount { font-size: 15px; font-weight: 500; font-family: 'Inter', monospace; }
+        .notable-amount .amount-value { color: #e0e0e0; }
+        .notable-amount .amount-unit { color: #555; font-weight: 400; }
+        .notable-amount .flap-char { color: #e0e0e0; }
         .loading { color: #333; font-size: 12px; padding: 20px 0; }
         
         /* Split-flap character animation */
@@ -221,7 +223,7 @@
         .ticker-track {
             display: flex;
             width: max-content;
-            animation: tickerScroll var(--ticker-duration, 75s) linear infinite;
+            animation: tickerScroll var(--ticker-duration, 60s) linear infinite;
             will-change: transform;
         }
         .ticker-track:hover {
@@ -424,7 +426,7 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '1.0.3';
+        const APP_VERSION = '1.0.4';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
         // Config
@@ -937,7 +939,7 @@
             
             list.innerHTML = pageItems.map((d, i) => 
                 `<div class="notable-item" data-tx="${d.txHash}" data-height="${d.height || ''}" data-amount="${formatAmount(d.amount)}">
-                    <span class="notable-amount">${animate ? '' : formatAmount(d.amount)} <span>ATOM</span></span>
+                    <span class="notable-amount"><span class="amount-value">${animate ? '' : formatAmount(d.amount)}</span> <span class="amount-unit">ATOM</span></span>
                 </div>`
             ).join('');
             
@@ -947,14 +949,10 @@
                 
                 // If animating, do split-flap effect
                 if (animate) {
-                    const amountEl = el.querySelector('.notable-amount');
+                    const amountValueEl = el.querySelector('.amount-value');
                     const finalAmount = el.dataset.amount;
                     setTimeout(() => {
-                        splitFlapAnimate(amountEl, finalAmount + ' ', i * 80);
-                        // Add ATOM label after
-                        setTimeout(() => {
-                            amountEl.innerHTML += '<span>ATOM</span>';
-                        }, 400 + i * 80);
+                        splitFlapAnimate(amountValueEl, finalAmount, i * 80);
                     }, i * 50);
                 }
             });
@@ -1095,7 +1093,7 @@
             requestAnimationFrame(() => {
                 const itemCount = uniqueDelegations.length;
                 // Base: ~0.3s per item for smooth reading speed
-                const duration = Math.max(30, itemCount * 0.5);
+                const duration = Math.max(30, itemCount * 0.3);
                 track.style.setProperty('--ticker-duration', `${duration}s`);
             });
             
@@ -1697,3 +1695,4 @@
     </script>
 </body>
 </html>
+

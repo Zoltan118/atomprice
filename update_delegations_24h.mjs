@@ -130,3 +130,45 @@ async function main() {
       generated_at: isoNow(),
       window_hours: WINDOW_HOURS,
       min_atom: MIN_
+async function main() {
+  fs.mkdirSync("data", { recursive: true });
+
+  try {
+    const { usedEvents, items } = await fetchDelegations24h();
+
+    const seen = new Set();
+    const deduped = [];
+    for (const it of items) {
+      const k = `${it.txhash}|${it.amount_atom}|${it.delegator}|${it.validator}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      deduped.push(it);
+    }
+
+    deduped.sort((a, b) => (b.amount_atom || 0) - (a.amount_atom || 0));
+
+    const out = {
+      generated_at: isoNow(),
+      window_hours: WINDOW_HOURS,
+      min_atom: MIN_ATOM,
+      source: { lcd: LCD_BASE, events: usedEvents },
+      items: deduped
+    };
+
+    fs.writeFileSync(OUT_FILE, JSON.stringify(out, null, 2));
+    console.log(`✅ Wrote ${deduped.length} delegations to ${OUT_FILE}`);
+  } catch (e) {
+    const out = {
+      generated_at: isoNow(),
+      window_hours: WINDOW_HOURS,
+      min_atom: MIN_ATOM,
+      source: { lcd: LCD_BASE, events: null },
+      items: [],
+      error: String(e?.message || e)
+    };
+    fs.writeFileSync(OUT_FILE, JSON.stringify(out, null, 2));
+    console.log(`⚠️ Wrote empty snapshot due to error: ${out.error}`);
+  }
+}
+
+main();

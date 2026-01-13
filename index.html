@@ -1268,11 +1268,75 @@
             };
         });
 
+        // ========== Load from GitHub JSON Snapshot ==========
+        async function loadDelegationSnapshot() {
+            try {
+                console.log('📥 Loading delegation snapshot...');
+                const res = await fetch('./data/delegations_24h.json', { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const snap = await res.json();
+                const items = snap.items || [];
+                
+                console.log(`✅ Loaded ${items.length} delegations from snapshot (${snap.generated_at})`);
+                
+                if (items.length === 0) return false;
+                
+                // Convert to our format and populate arrays
+                for (const item of items) {
+                    const delegation = {
+                        amount: item.amount_atom,
+                        txHash: item.txhash,
+                        height: item.height,
+                        timestamp: item.time || snap.generated_at
+                    };
+                    
+                    // Skip if no hash
+                    if (!delegation.txHash) continue;
+                    
+                    // Skip duplicates
+                    if (tickerDelegations.some(d => d.txHash === delegation.txHash)) continue;
+                    
+                    // Categorize
+                    if (delegation.amount >= WHALE_MIN) {
+                        whaleDelegations.push(delegation);
+                    }
+                    if (delegation.amount >= NOTABLE_MIN && delegation.amount < WHALE_MIN) {
+                        notableDelegations.push(delegation);
+                    }
+                    if (delegation.amount >= TICKER_MIN) {
+                        tickerDelegations.push(delegation);
+                    }
+                }
+                
+                // Sort by amount (biggest first for whales/notable)
+                whaleDelegations.sort((a, b) => b.amount - a.amount);
+                notableDelegations.sort((a, b) => b.amount - a.amount);
+                
+                // Trim to limits
+                whaleDelegations = whaleDelegations.slice(0, 50);
+                notableDelegations = notableDelegations.slice(0, 50);
+                tickerDelegations = tickerDelegations.slice(0, 200);
+                
+                // Update UI
+                updateWhaleHero(false);
+                updateNotableList(false);
+                updateTicker();
+                
+                // Save to localStorage for even faster next load
+                saveCache();
+                
+                return true;
+            } catch (err) {
+                console.log('⚠️ Could not load snapshot:', err.message);
+                return false;
+            }
+        }
+
         // Init - INSTANT loading from cache
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
             
-            // 1) INSTANT: Restore from 24h cache FIRST (before anything else!)
+            // 1) INSTANT: Restore from localStorage cache FIRST
             const hadCache = restoreFromCache();
             
             // 2) INSTANT: Restore price from cache
@@ -1288,18 +1352,23 @@
                 updateNotableList();
             }
             
-            // 5) Connect to live data (async, don't block)
+            // 5) Load from JSON snapshot (fills data if no cache or adds more)
+            if (!hadCache || tickerDelegations.length < 50) {
+                await loadDelegationSnapshot();
+            }
+            
+            // 6) Connect to live data (async, don't block)
             connectCosmos();
             tryBinanceWebSocket();
             
-            // 6) Fetch fresh data in background
+            // 7) Fetch fresh data in background
             fetchPrice();
             fetchChart();
             fetchStakingData();
             
-            // 7) Refresh prices every 60 seconds
+            // 8) Refresh prices every 60 seconds
             setInterval(fetchPrice, 60000);
-            setInterval(fetchStakingData, 300000); // Refresh staking every 5 min
+            setInterval(fetchStakingData, 300000);
             
             console.log('✅ Dashboard ready!');
         }

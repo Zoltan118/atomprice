@@ -367,6 +367,7 @@
             <button class="currency-btn active" data-currency="usd">$</button>
             <button class="currency-btn" data-currency="eur">€</button>
             <button class="currency-btn" data-currency="gbp">£</button>
+            <button class="currency-btn" data-currency="btc">₿</button>
             <button class="currency-btn" data-currency="try">₺</button>
             <button class="currency-btn" data-currency="jpy">¥</button>
             <button class="currency-btn" data-currency="cny">元</button>
@@ -462,13 +463,13 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '1.0.5';
+        const APP_VERSION = '1.1.0';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
         // Config
         const WHALE_MIN = 25000;      // 25K+ ATOM = whale (changed from 50K)
         const NOTABLE_MIN = 1000;     // 1K-25K ATOM = notable (for list)
-        const TICKER_MIN = 100;         // 100+ ATOM = ticker news
+        const TICKER_MIN = 1;         // 1+ ATOM = ticker news
         const MAX_NOTABLE = 25;       // Max 25 notable delegations (5 pages × 5)
         const ITEMS_PER_PAGE = 5;     // 5 items per page
         const MAX_TICKER = 200;       // Keep last 200 for ticker
@@ -476,11 +477,10 @@
         const CACHE_TTL_MS = 86400000;  // 24 hours!
 
         // State
-        let binanceWs = null;
         let whaleDelegations = [], notableDelegations = [], tickerDelegations = [];
         let stakingRatio = 59.3;  // Default - will be updated from chain
-        let prices = { usd: null, eur: null, try: null };
-        let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25 };
+        let prices = { usd: null, eur: null, btc: null, try: null };
+        let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25, try: 35.5 };
         let change24h = null, currentCurrency = 'usd', chartType = 'line';
         let lastDisplayedPrice = null, chartData = [], chart = null, series = null;
         let currentTimeframe = '1d';
@@ -645,14 +645,15 @@
             usd: { decimals: 3, symbol: '$', hasPair: true },
             eur: { decimals: 3, symbol: '€', hasPair: true },
             gbp: { decimals: 3, symbol: '£', hasPair: false },
-            try: { decimals: 2, symbol: '₺', hasPair: true },
+            btc: { decimals: 8, symbol: '₿', hasPair: true },
+            try: { decimals: 2, symbol: '₺', hasPair: false },
             jpy: { decimals: 1, symbol: '¥', hasPair: false },
             cny: { decimals: 2, symbol: '¥', hasPair: false }
         };
         
         // Tab display names (more explicit for tab title)
         const currencyTabNames = {
-            usd: '$', eur: '€', gbp: '£', try: '₺', jpy: 'JPY ', cny: 'CNY '
+            usd: '$', eur: '€', gbp: '£', btc: '₿', try: '₺', jpy: 'JPY ', cny: 'CNY '
         };
 
         // Helpers
@@ -1260,51 +1261,14 @@
             return false;
         }
         
-        // Try Binance (may be geo-blocked)
-        async function fetchBinance() {
-            try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 5000);
-                
-                const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT', {
-                    signal: controller.signal
-                });
-                clearTimeout(timeout);
-                
-                if (!res.ok) throw new Error('Binance failed');
-                const ticker = await res.json();
-                
-                prices.usd = parseFloat(ticker.lastPrice);
-                change24h = parseFloat(ticker.priceChangePercent) || 0;
-                priceSource = 'Binance';
-                console.log('✅ Binance price:', prices.usd);
-                
-                // Get EUR and TRY
-                try {
-                    const [eur, tr] = await Promise.all([
-                        fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMEUR').then(r => r.json()),
-                        fetch('https://api.binance.com/api/v3/ticker/price?symbol=ATOMTRY').then(r => r.json())
-                    ]);
-                    if (eur.price) prices.eur = parseFloat(eur.price);
-                    if (tr.price) prices['try'] = parseFloat(tr.price);
-                } catch {}
-                
-                return true;
-            } catch (e) {
-                console.log('❌ Binance failed:', e.message);
-            }
-            return false;
-        }
-        
-        // Main price fetcher with fallbacks
+        // Main price fetcher with fallbacks (no Binance - geo-blocked in many countries)
         async function fetchPrice() {
             console.log('💰 Fetching price...');
             
-            // Try sources in order
+            // Try sources in order (no Binance)
             const success = await fetchCoinGecko() ||
                            await fetchCoinbase() ||
-                           await fetchKraken() ||
-                           await fetchBinance();
+                           await fetchKraken();
             
             if (success) {
                 savePriceCache();
@@ -1315,40 +1279,82 @@
             }
         }
         
-        // Optional: Binance WebSocket for real-time updates (if not geo-blocked)
-        function tryBinanceWebSocket() {
+        // Kraken WebSocket v2 for real-time price updates (globally available)
+        let krakenWs = null;
+        let krakenReconnectAttempts = 0;
+        
+        function connectKrakenWebSocket() {
             try {
-                const ws = new WebSocket('wss://stream.binance.com:9443/stream?streams=atomusdt@trade');
+                console.log('🔌 Connecting to Kraken WebSocket...');
+                const ws = new WebSocket('wss://ws.kraken.com/v2');
                 
                 ws.onopen = () => {
-                    console.log('✅ Binance WebSocket connected');
-                    binanceWs = ws;
+                    console.log('✅ Kraken WebSocket connected');
+                    krakenWs = ws;
+                    krakenReconnectAttempts = 0;
+                    
+                    // Subscribe to ATOM/USD and ATOM/BTC tickers
+                    ws.send(JSON.stringify({
+                        method: 'subscribe',
+                        params: {
+                            channel: 'ticker',
+                            symbol: ['ATOM/USD', 'ATOM/EUR', 'ATOM/BTC']
+                        }
+                    }));
                 };
                 
                 ws.onmessage = (e) => {
                     try {
                         const msg = JSON.parse(e.data);
-                        const price = parseFloat(msg.data.p);
-                        if (msg.stream === 'atomusdt@trade' && price) {
-                            prices.usd = price;
-                            priceSource = 'Binance WS';
-                            displayPrice();
+                        
+                        // Handle ticker updates
+                        if (msg.channel === 'ticker' && msg.type === 'update' && msg.data) {
+                            for (const ticker of msg.data) {
+                                const symbol = ticker.symbol;
+                                const lastPrice = parseFloat(ticker.last);
+                                const change24h_pct = parseFloat(ticker.change_pct);
+                                
+                                if (symbol === 'ATOM/USD' && lastPrice) {
+                                    prices.usd = lastPrice;
+                                    change24h = change24h_pct || change24h;
+                                    priceSource = 'Kraken WS';
+                                    displayPrice();
+                                } else if (symbol === 'ATOM/EUR' && lastPrice) {
+                                    prices.eur = lastPrice;
+                                } else if (symbol === 'ATOM/BTC' && lastPrice) {
+                                    prices.btc = lastPrice;
+                                    if (currentCurrency === 'btc') displayPrice();
+                                }
+                            }
                         }
-                    } catch {}
+                        
+                        // Handle subscription confirmation
+                        if (msg.method === 'subscribe' && msg.success) {
+                            console.log('✅ Kraken subscribed to:', msg.result?.symbol);
+                        }
+                        
+                    } catch (err) {
+                        // Ignore parse errors
+                    }
                 };
                 
-                ws.onerror = () => {
-                    console.log('⚠️ Binance WebSocket unavailable (geo-blocked?)');
-                    ws.close();
+                ws.onerror = (err) => {
+                    console.log('⚠️ Kraken WebSocket error');
                 };
                 
                 ws.onclose = () => {
-                    binanceWs = null;
-                    // Don't reconnect if geo-blocked, rely on REST fallbacks
+                    console.log('⚠️ Kraken WebSocket closed');
+                    krakenWs = null;
+                    
+                    // Reconnect with exponential backoff
+                    krakenReconnectAttempts++;
+                    const delay = Math.min(30000, 1000 * Math.pow(2, krakenReconnectAttempts));
+                    console.log(`🔄 Reconnecting in ${delay/1000}s...`);
+                    setTimeout(connectKrakenWebSocket, delay);
                 };
                 
             } catch (e) {
-                console.log('⚠️ Binance WebSocket failed:', e.message);
+                console.log('❌ Kraken WebSocket failed:', e.message);
             }
         }
 
@@ -1717,7 +1723,7 @@
             
             // 6) Connect to live data (async, don't block)
             connectCosmos();
-            tryBinanceWebSocket();
+            connectKrakenWebSocket();
             
             // 7) Fetch fresh data in background
             fetchPrice();
@@ -1735,9 +1741,12 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 console.log('👁️ Tab visible - checking connection...');
-                // Reconnect WebSocket if needed
+                // Reconnect WebSockets if needed
                 if (!cosmosWs || cosmosWs.readyState !== WebSocket.OPEN) {
                     connectCosmos();
+                }
+                if (!krakenWs || krakenWs.readyState !== WebSocket.OPEN) {
+                    connectKrakenWebSocket();
                 }
                 // Refresh price data
                 fetchPrice();

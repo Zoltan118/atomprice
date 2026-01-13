@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>ATOM</title>
     <link rel="icon" type="image/svg+xml" href="atomto100_.svg">
     <!-- Google tag (gtag.js) -->
@@ -78,18 +81,151 @@
         .whale-hero-label { font-size: 12px; color: #444; margin-top: 8px; text-transform: uppercase; letter-spacing: 2px; }
         .whale-hero-tx { font-size: 10px; color: #333; margin-top: 4px; font-family: monospace; }
         .notable-section { margin-bottom: 32px; }
-        .notable-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
-        .notable-list { display: flex; flex-direction: column; gap: 6px; }
-        .notable-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #0a0a0a; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .notable-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .notable-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+        .notable-list { display: flex; flex-direction: column; gap: 6px; min-height: 270px; }
+        .notable-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 10px 14px; 
+            background: #0a0a0a; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            transition: all 0.2s;
+            perspective: 1000px;
+        }
         .notable-item:hover { background: #111; }
-        .notable-item.new { animation: slideIn 0.3s ease; }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-        .notable-amount { font-size: 14px; font-weight: 500; }
+        .notable-amount { font-size: 15px; font-weight: 500; }
         .notable-amount span { color: #444; font-weight: 400; }
-        .notable-time { font-size: 10px; color: #333; }
         .loading { color: #333; font-size: 12px; padding: 20px 0; }
         
-        /* Staking Ticker */
+        /* Split-flap animation */
+        .flip-container {
+            display: inline-block;
+            perspective: 1000px;
+        }
+        .flip-card {
+            display: inline-block;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+        .notable-item.flipping .notable-amount {
+            animation: flipIn 0.4s ease-out;
+        }
+        @keyframes flipIn {
+            0% { 
+                transform: rotateX(-90deg); 
+                opacity: 0;
+            }
+            50% {
+                opacity: 0.5;
+            }
+            100% { 
+                transform: rotateX(0deg); 
+                opacity: 1;
+            }
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .page-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 6px;
+            color: #555;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .page-btn:hover { background: #111; color: #888; border-color: #333; }
+        .page-btn.active { background: #1a1a1a; color: #fff; border-color: #333; }
+        
+        /* Mintscan Slide Panel */
+        .slide-panel {
+            position: fixed;
+            top: 0;
+            right: -450px;
+            width: 450px;
+            height: 100vh;
+            background: #0a0a0a;
+            border-left: 1px solid #222;
+            z-index: 1000;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .slide-panel.open { right: 0; }
+        .slide-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #222;
+        }
+        .slide-panel-title { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .slide-panel-close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #666;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .slide-panel-close:hover { background: #111; color: #fff; }
+        .slide-panel-iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+        }
+        .slide-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .slide-overlay.open { opacity: 1; pointer-events: auto; }
+        
+        /* Mobile: full-width panel from bottom */
+        @media (max-width: 600px) {
+            .slide-panel {
+                right: 0;
+                bottom: -100%;
+                top: auto;
+                width: 100%;
+                height: 80vh;
+                border-left: none;
+                border-top: 1px solid #222;
+                border-radius: 16px 16px 0 0;
+                transition: bottom 0.3s ease;
+            }
+            .slide-panel.open { bottom: 0; }
+        }
+        
+        /* Staking Ticker - Smooth infinite scroll */
         .ticker-section {
             margin: 32px 0;
             padding: 16px 0;
@@ -98,8 +234,8 @@
         }
         .ticker-track {
             display: flex;
-            animation: tickerScroll 5s linear infinite;
-            animation-play-state: running;
+            animation: tickerScroll 30s linear infinite;
+            will-change: transform;
         }
         .ticker-track:hover {
             animation-play-state: paused;
@@ -110,13 +246,14 @@
         }
         .ticker-item {
             flex-shrink: 0;
-            padding: 0 20px;
+            padding: 0 24px;
             font-size: 11px;
             font-weight: 400;
-            color: #555;
+            color: #444;
             letter-spacing: 0.3px;
             white-space: nowrap;
             transition: color 0.15s ease;
+            cursor: pointer;
         }
         .ticker-item:hover {
             color: #fff;
@@ -125,7 +262,7 @@
             color: #fff;
         }
         .ticker-text {
-            color: #555;
+            color: #444;
             transition: color 0.15s ease;
         }
         .ticker-fade-left,
@@ -248,7 +385,7 @@
         <div class="live-section">
             <div class="live-header">
                 <div class="live-dot" id="liveDot"></div>
-                <span class="live-label">live delegations (50K+ ATOM)</span>
+                <span class="live-label">live delegations (25K+ ATOM)</span>
             </div>
             <div class="whale-hero">
                 <div class="whale-hero-value" id="whaleHero">—</div>
@@ -257,10 +394,13 @@
             </div>
         </div>
         
-        <!-- Notable Delegations (1K-50K) -->
+        <!-- Notable Delegations (1K-25K) with pagination -->
         <div class="notable-section">
-            <div class="notable-label">recent delegations (1K-50K ATOM)</div>
+            <div class="notable-header">
+                <div class="notable-label">recent delegations (1K-25K ATOM)</div>
+            </div>
             <div class="notable-list" id="notableList"><div class="loading">waiting for delegations...</div></div>
+            <div class="pagination" id="notablePagination"></div>
         </div>
         
         <!-- Staking Ticker -->
@@ -285,14 +425,29 @@
 
     </div>
     
+    <!-- Slide Panel for Mintscan -->
+    <div class="slide-overlay" id="slideOverlay"></div>
+    <div class="slide-panel" id="slidePanel">
+        <div class="slide-panel-header">
+            <span class="slide-panel-title">Transaction Details</span>
+            <button class="slide-panel-close" id="slidePanelClose">×</button>
+        </div>
+        <iframe class="slide-panel-iframe" id="slidePanelIframe" src=""></iframe>
+    </div>
+    
     <script>
+        // Version - increment this to bust cache for returning users
+        const APP_VERSION = '1.0.1';
+        console.log(`ATOM Dashboard v${APP_VERSION}`);
+        
         // Config
-        const WHALE_MIN = 50000;      // 50K+ ATOM = whale
-        const NOTABLE_MIN = 1000;     // 1K-50K ATOM = notable (for list)
+        const WHALE_MIN = 25000;      // 25K+ ATOM = whale (changed from 50K)
+        const NOTABLE_MIN = 1000;     // 1K-25K ATOM = notable (for list)
         const TICKER_MIN = 1;         // 1+ ATOM = ticker news
-        const MAX_NOTABLE = 8;
+        const MAX_NOTABLE = 25;       // Max 25 notable delegations (5 pages × 5)
+        const ITEMS_PER_PAGE = 5;     // 5 items per page
         const MAX_TICKER = 200;       // Keep last 200 for ticker
-        const CACHE_KEY = 'atomprice_cache_v3';
+        const CACHE_KEY = 'atomprice_cache_v4';
         const CACHE_TTL_MS = 86400000;  // 24 hours!
 
         // State
@@ -624,7 +779,8 @@
             
             if (delegation.amount >= NOTABLE_MIN && delegation.amount < WHALE_MIN) {
                 notableDelegations.unshift(delegation);
-                notableDelegations = notableDelegations.slice(0, 50);
+                notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
+                currentNotablePage = 1; // Reset to first page on new delegation
                 updateNotableList(true);
             }
             
@@ -654,10 +810,7 @@
                 const top = whaleDelegations[0];
                 hero.textContent = formatAmount(top.amount) + ' ATOM';
                 tx.textContent = shortTxHash(top.txHash);
-                const url = top.height 
-                    ? `https://www.mintscan.io/cosmos/tx/${top.txHash}?height=${top.height}`
-                    : `https://www.mintscan.io/cosmos/tx/${top.txHash}`;
-                hero.onclick = () => window.open(url, '_blank');
+                hero.onclick = () => openMintscanPanel(top.txHash, top.height);
                 hero.style.cursor = 'pointer';
                 if (isNew) { hero.classList.add('new'); setTimeout(() => hero.classList.remove('new'), 500); }
             } else {
@@ -666,25 +819,98 @@
             }
         }
 
+        // Slide Panel for Mintscan
+        function openMintscanPanel(hash, height) {
+            const url = height 
+                ? `https://www.mintscan.io/cosmos/tx/${hash}?height=${height}`
+                : `https://www.mintscan.io/cosmos/tx/${hash}`;
+            
+            document.getElementById('slidePanelIframe').src = url;
+            document.getElementById('slidePanel').classList.add('open');
+            document.getElementById('slideOverlay').classList.add('open');
+        }
+        
+        function closeMintscanPanel() {
+            document.getElementById('slidePanel').classList.remove('open');
+            document.getElementById('slideOverlay').classList.remove('open');
+            setTimeout(() => {
+                document.getElementById('slidePanelIframe').src = '';
+            }, 300);
+        }
+        
+        // Panel event listeners
+        document.getElementById('slidePanelClose').onclick = closeMintscanPanel;
+        document.getElementById('slideOverlay').onclick = closeMintscanPanel;
+
+        // Notable list pagination
+        let currentNotablePage = 1;
+        
         function updateNotableList(isNew) {
+            renderNotablePage(currentNotablePage, isNew);
+            renderNotablePagination();
+        }
+        
+        function renderNotablePage(page, animate = false) {
             const list = document.getElementById('notableList');
+            const startIdx = (page - 1) * ITEMS_PER_PAGE;
+            const pageItems = notableDelegations.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+            
             if (notableDelegations.length === 0) {
                 list.innerHTML = '<div class="loading">waiting for delegations...</div>';
                 return;
             }
-            list.innerHTML = notableDelegations.map((d, i) => 
-                `<div class="notable-item${isNew && i === 0 ? ' new' : ''}" data-tx="${d.txHash}" data-height="${d.height || ''}">
+            
+            if (pageItems.length === 0) {
+                list.innerHTML = '<div class="loading">no more delegations</div>';
+                return;
+            }
+            
+            list.innerHTML = pageItems.map((d, i) => 
+                `<div class="notable-item${animate ? ' flipping' : ''}" data-tx="${d.txHash}" data-height="${d.height || ''}" style="animation-delay: ${i * 0.08}s">
                     <span class="notable-amount">${formatAmount(d.amount)} <span>ATOM</span></span>
-                    <span class="notable-time">${timeAgo(d.timestamp)}</span>
                 </div>`
             ).join('');
+            
+            // Add click handlers for slide panel
             list.querySelectorAll('.notable-item').forEach(el => {
-                const hash = el.dataset.tx;
-                const height = el.dataset.height;
-                const url = height 
-                    ? `https://www.mintscan.io/cosmos/tx/${hash}?height=${height}`
-                    : `https://www.mintscan.io/cosmos/tx/${hash}`;
-                el.onclick = () => window.open(url, '_blank');
+                el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
+            });
+            
+            // Remove animation class after animation completes
+            if (animate) {
+                setTimeout(() => {
+                    list.querySelectorAll('.notable-item').forEach(el => {
+                        el.classList.remove('flipping');
+                    });
+                }, 600);
+            }
+        }
+        
+        function renderNotablePagination() {
+            const pagination = document.getElementById('notablePagination');
+            const totalPages = Math.min(5, Math.ceil(notableDelegations.length / ITEMS_PER_PAGE));
+            
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+            
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                html += `<button class="page-btn${i === currentNotablePage ? ' active' : ''}" data-page="${i}">${i}</button>`;
+            }
+            pagination.innerHTML = html;
+            
+            // Add click handlers
+            pagination.querySelectorAll('.page-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const newPage = parseInt(btn.dataset.page);
+                    if (newPage !== currentNotablePage) {
+                        currentNotablePage = newPage;
+                        renderNotablePage(newPage, true); // true = animate
+                        renderNotablePagination();
+                    }
+                };
             });
         }
 
@@ -788,15 +1014,9 @@
             // Duplicate for seamless infinite loop
             document.getElementById('tickerTrack').innerHTML = tickerHTML + tickerHTML;
             
-            // Add click handlers for Mintscan links
+            // Add click handlers for slide panel
             document.querySelectorAll('#tickerTrack .ticker-item').forEach(el => {
-                el.style.cursor = 'pointer';
-                const hash = el.dataset.tx;
-                const height = el.dataset.height;
-                const url = height 
-                    ? `https://www.mintscan.io/cosmos/tx/${hash}?height=${height}`
-                    : `https://www.mintscan.io/cosmos/tx/${hash}`;
-                el.onclick = () => window.open(url, '_blank');
+                el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
             });
         }
 
@@ -1272,7 +1492,9 @@
         async function loadDelegationSnapshot() {
             try {
                 console.log('📥 Loading delegation snapshot...');
-                const res = await fetch('./data/delegations_24h.json', { cache: 'no-store' });
+                // Cache-busting: add timestamp to URL
+                const cacheBuster = `?t=${Date.now()}`;
+                const res = await fetch('./data/delegations_24h.json' + cacheBuster);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const snap = await res.json();
                 const items = snap.items || [];
@@ -1314,8 +1536,8 @@
                 
                 // Trim to limits
                 whaleDelegations = whaleDelegations.slice(0, 50);
-                notableDelegations = notableDelegations.slice(0, 50);
-                tickerDelegations = tickerDelegations.slice(0, 200);
+                notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
+                tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
                 
                 // Update UI
                 updateWhaleHero(false);

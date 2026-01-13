@@ -3,8 +3,8 @@ import fs from "node:fs";
 const RPC_BASE = process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos";
 const WINDOW_HOURS = Number(process.env.WINDOW_HOURS || "24");
 const MIN_ATOM = Number(process.env.MIN_ATOM || "1");
-const LIMIT_PAGES = Number(process.env.LIMIT_PAGES || "10");
-const PAGE_LIMIT = Number(process.env.PAGE_LIMIT || "100");
+const LIMIT_PAGES = Number(process.env.LIMIT_PAGES || "2");
+const PAGE_LIMIT = Number(process.env.PAGE_LIMIT || "50");
 
 const OUT_FILE = "data/delegations_24h.json";
 
@@ -49,11 +49,14 @@ async function getBlockTimeISO(height) {
 }
 
 async function txSearch(query, page, per_page) {
-  // Important: query must be quoted for Tendermint endpoint
-  const url =
-    `${RPC_BASE}/tx_search?query="${encodeURIComponent(query)}"` +
-    `&prove=false&page=${page}&per_page=${per_page}&order_by="desc"`;
+  const params = new URLSearchParams();
+  params.set("query", query);
+  params.set("prove", "false");
+  params.set("page", String(page));
+  params.set("per_page", String(per_page));
+  params.set("order_by", "desc");
 
+  const url = `${RPC_BASE}/tx_search?${params.toString()}`;
   return fetchJson(url);
 }
 
@@ -89,12 +92,11 @@ async function main() {
   const cutoff = cutoffMs(WINDOW_HOURS);
 
   // Try a couple query variants because chains can differ in indexed keys
-  const queries = [
-    `message.action='/cosmos.staking.v1beta1.MsgDelegate'`,
-    `message.module='staking' AND message.action='/cosmos.staking.v1beta1.MsgDelegate'`,
-    `message.module='staking'`
-  ];
-
+ const queries = [
+  "message.action='/cosmos.staking.v1beta1.MsgDelegate'",
+  "message.module='staking'"
+ ];
+  
   let usedQuery = null;
   let items = [];
 

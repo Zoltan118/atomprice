@@ -16,19 +16,20 @@
       gtag('js', new Date());
       gtag('config', 'G-HHWS3TR8LN');
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+        body { font-family: 'DM Sans', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
         .container { max-width: 700px; margin: 0 auto; padding: 50px 20px; }
-        .label { text-align: center; font-size: 11px; font-weight: 500; letter-spacing: 3px; color: #444; margin-bottom: 32px; text-transform: uppercase; }
+        .label { text-align: center; font-size: 18px; font-weight: 500; letter-spacing: 6px; color: #888; margin-bottom: 8px; text-transform: uppercase; }
         .price-row { display: flex; align-items: baseline; justify-content: center; gap: 16px; margin-bottom: 20px; }
         
         /* Odometer Price Display */
         .price { 
+            font-family: 'DM Sans', sans-serif;
             font-size: clamp(64px, 16vw, 120px); 
-            font-weight: 700; 
+            font-weight: 500; 
             letter-spacing: -3px; 
             line-height: 1; 
             display: flex;
@@ -47,6 +48,14 @@
         }
         .price-symbol {
             display: inline-block;
+        }
+        .price-symbol.currency {
+            font-size: 0.45em;
+            font-weight: 400;
+            color: #666;
+            margin-right: 4px;
+            vertical-align: top;
+            margin-top: 0.15em;
         }
         .price.flash-up .price-digit-inner { color: #22c55e; }
         .price.flash-down .price-digit-inner { color: #ef4444; }
@@ -100,7 +109,7 @@
         .stat { text-align: left; }
         .stat.center { text-align: center; }
         .stat.right { text-align: right; }
-        .stat-value { font-size: 32px; font-weight: 600; }
+        .stat-value { font-size: 32px; font-weight: 600; letter-spacing: -1px; }
         .stat-label { font-size: 10px; color: #444; text-transform: lowercase; }
         .divider { height: 1px; background: #1a1a1a; margin-bottom: 32px; }
         .live-section { margin-bottom: 32px; }
@@ -115,7 +124,7 @@
         .whale-hero-value.new { animation: flashGreen 0.5s ease; }
         @keyframes flashGreen { 0%, 100% { color: #fff; } 50% { color: #22c55e; } }
         .whale-hero-label { font-size: 12px; color: #444; margin-top: 8px; text-transform: uppercase; letter-spacing: 2px; }
-        .whale-hero-tx { font-size: 10px; color: #333; margin-top: 4px; font-family: monospace; }
+        .whale-hero-tx { font-size: 10px; color: #333; margin-top: 4px; font-family: 'Space Grotesk', monospace; }
         .notable-section { margin-bottom: 32px; }
         .notable-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .notable-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
@@ -132,7 +141,7 @@
             overflow: hidden;
         }
         .notable-item:hover { background: #111; }
-        .notable-amount { font-size: 15px; font-weight: 500; font-family: 'Inter', monospace; }
+        .notable-amount { font-size: 16px; font-weight: 500; }
         .notable-amount .amount-value { color: #e0e0e0; }
         .notable-amount .amount-unit { color: #555; font-weight: 400; }
         .notable-amount .flap-char { color: #e0e0e0; }
@@ -367,7 +376,6 @@
             <button class="currency-btn active" data-currency="usd">$</button>
             <button class="currency-btn" data-currency="eur">€</button>
             <button class="currency-btn" data-currency="gbp">£</button>
-            <button class="currency-btn" data-currency="btc">₿</button>
             <button class="currency-btn" data-currency="try">₺</button>
             <button class="currency-btn" data-currency="jpy">¥</button>
             <button class="currency-btn" data-currency="cny">元</button>
@@ -463,13 +471,13 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '1.1.0';
+        const APP_VERSION = '1.3.2';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
         // Config
         const WHALE_MIN = 25000;      // 25K+ ATOM = whale (changed from 50K)
         const NOTABLE_MIN = 1000;     // 1K-25K ATOM = notable (for list)
-        const TICKER_MIN = 1;         // 1+ ATOM = ticker news
+        const TICKER_MIN = 100;       // 100+ ATOM = ticker news
         const MAX_NOTABLE = 25;       // Max 25 notable delegations (5 pages × 5)
         const ITEMS_PER_PAGE = 5;     // 5 items per page
         const MAX_TICKER = 200;       // Keep last 200 for ticker
@@ -479,8 +487,8 @@
         // State
         let whaleDelegations = [], notableDelegations = [], tickerDelegations = [];
         let stakingRatio = 59.3;  // Default - will be updated from chain
-        let prices = { usd: null, eur: null, btc: null, try: null };
-        let fxRates = { gbp: 0.79, jpy: 157, cny: 7.25, try: 35.5 };
+        let prices = { usd: null, eur: null };
+        let fxRates = { gbp: 0.79, try: 35.8, jpy: 156, cny: 7.25 };
         let change24h = null, currentCurrency = 'usd', chartType = 'line';
         let lastDisplayedPrice = null, chartData = [], chart = null, series = null;
         let currentTimeframe = '1d';
@@ -642,18 +650,24 @@
         }
 
         const currencies = {
-            usd: { decimals: 3, symbol: '$', hasPair: true },
-            eur: { decimals: 3, symbol: '€', hasPair: true },
-            gbp: { decimals: 3, symbol: '£', hasPair: false },
-            btc: { decimals: 8, symbol: '₿', hasPair: true },
-            try: { decimals: 2, symbol: '₺', hasPair: false },
-            jpy: { decimals: 1, symbol: '¥', hasPair: false },
-            cny: { decimals: 2, symbol: '¥', hasPair: false }
+            usd: { symbol: '$', hasPair: true },
+            eur: { symbol: '€', hasPair: true },
+            gbp: { symbol: '£', hasPair: false },
+            try: { symbol: '₺', hasPair: false },
+            jpy: { symbol: '¥', hasPair: false },
+            cny: { symbol: '元', hasPair: false }
         };
+        
+        // Smart decimals: 3 for prices < 10, 2 for others, 0 for JPY
+        function getDecimals(price, currency) {
+            if (currency === 'jpy') return 0;
+            if (price < 10) return 3;
+            return 2;
+        }
         
         // Tab display names (more explicit for tab title)
         const currencyTabNames = {
-            usd: '$', eur: '€', gbp: '£', btc: '₿', try: '₺', jpy: 'JPY ', cny: 'CNY '
+            usd: '$', eur: '€', gbp: '£', try: '₺', jpy: '¥', cny: '元'
         };
 
         // Helpers
@@ -668,7 +682,10 @@
         function formatNumber(n, d) {
             return d === 0 ? Math.round(n).toLocaleString() : n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
         }
-        function formatPrice(p) { return currencies[currentCurrency].symbol + formatNumber(p, currencies[currentCurrency].decimals); }
+        function formatPriceWithDecimals(p, currency) {
+            const decimals = getDecimals(p, currency);
+            return currencies[currency].symbol + formatNumber(p, decimals);
+        }
         function getCurrentPrice() {
             if (currencies[currentCurrency].hasPair) return prices[currentCurrency];
             return prices.usd ? prices.usd * fxRates[currentCurrency] : null;
@@ -1182,6 +1199,30 @@
             return false;
         }
 
+        // Load FX rates from GitHub JSON (updated by ECB script)
+        async function loadFxRates() {
+            try {
+                const cacheBuster = `?t=${Date.now()}`;
+                const res = await fetch('./data/fx_rates.json' + cacheBuster);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                
+                if (data.rates) {
+                    // ECB rates are EUR-based, convert to USD-based
+                    const eurToUsd = data.rates.USD || 1.08;
+                    fxRates.gbp = (data.rates.GBP || 0.85) / eurToUsd;
+                    fxRates.try = (data.rates.TRY || 38) / eurToUsd;
+                    fxRates.jpy = (data.rates.JPY || 168) / eurToUsd;
+                    fxRates.cny = (data.rates.CNY || 7.8) / eurToUsd;
+                    console.log('✅ FX rates loaded from JSON:', fxRates);
+                    return true;
+                }
+            } catch (err) {
+                console.log('⚠️ Could not load FX rates JSON:', err.message);
+            }
+            return false;
+        }
+
         // Try CoinGecko
         async function fetchCoinGecko() {
             try {
@@ -1191,13 +1232,14 @@
                 if (data.cosmos) {
                     prices.usd = data.cosmos.usd;
                     prices.eur = data.cosmos.eur;
-                    prices['try'] = data.cosmos.try;
-                    fxRates.gbp = data.cosmos.gbp / data.cosmos.usd;
-                    fxRates.jpy = data.cosmos.jpy / data.cosmos.usd;
-                    fxRates.cny = data.cosmos.cny / data.cosmos.usd;
+                    // Update fxRates from CoinGecko if available
+                    if (data.cosmos.gbp && data.cosmos.usd) fxRates.gbp = data.cosmos.gbp / data.cosmos.usd;
+                    if (data.cosmos.try && data.cosmos.usd) fxRates.try = data.cosmos.try / data.cosmos.usd;
+                    if (data.cosmos.jpy && data.cosmos.usd) fxRates.jpy = data.cosmos.jpy / data.cosmos.usd;
+                    if (data.cosmos.cny && data.cosmos.usd) fxRates.cny = data.cosmos.cny / data.cosmos.usd;
                     change24h = data.cosmos.usd_24h_change || 0;
                     priceSource = 'CoinGecko';
-                    console.log('✅ CoinGecko price:', prices.usd);
+                    console.log('✅ CoinGecko price:', prices.usd, 'FX:', fxRates);
                     return true;
                 }
             } catch (e) {
@@ -1293,12 +1335,12 @@
                     krakenWs = ws;
                     krakenReconnectAttempts = 0;
                     
-                    // Subscribe to ATOM/USD and ATOM/BTC tickers
+                    // Subscribe to ATOM/USD ticker
                     ws.send(JSON.stringify({
                         method: 'subscribe',
                         params: {
                             channel: 'ticker',
-                            symbol: ['ATOM/USD', 'ATOM/EUR', 'ATOM/BTC']
+                            symbol: ['ATOM/USD', 'ATOM/EUR']
                         }
                     }));
                 };
@@ -1307,24 +1349,17 @@
                     try {
                         const msg = JSON.parse(e.data);
                         
+                        // Handle ticker snapshot (initial data)
+                        if (msg.channel === 'ticker' && msg.type === 'snapshot' && msg.data) {
+                            for (const ticker of msg.data) {
+                                processKrakenTicker(ticker);
+                            }
+                        }
+                        
                         // Handle ticker updates
                         if (msg.channel === 'ticker' && msg.type === 'update' && msg.data) {
                             for (const ticker of msg.data) {
-                                const symbol = ticker.symbol;
-                                const lastPrice = parseFloat(ticker.last);
-                                const change24h_pct = parseFloat(ticker.change_pct);
-                                
-                                if (symbol === 'ATOM/USD' && lastPrice) {
-                                    prices.usd = lastPrice;
-                                    change24h = change24h_pct || change24h;
-                                    priceSource = 'Kraken WS';
-                                    displayPrice();
-                                } else if (symbol === 'ATOM/EUR' && lastPrice) {
-                                    prices.eur = lastPrice;
-                                } else if (symbol === 'ATOM/BTC' && lastPrice) {
-                                    prices.btc = lastPrice;
-                                    if (currentCurrency === 'btc') displayPrice();
-                                }
+                                processKrakenTicker(ticker);
                             }
                         }
                         
@@ -1355,6 +1390,23 @@
                 
             } catch (e) {
                 console.log('❌ Kraken WebSocket failed:', e.message);
+            }
+        }
+        
+        function processKrakenTicker(ticker) {
+            const symbol = ticker.symbol;
+            const lastPrice = parseFloat(ticker.last);
+            const change24h_pct = parseFloat(ticker.change_pct) || null;
+            
+            if (symbol === 'ATOM/USD' && lastPrice) {
+                prices.usd = lastPrice;
+                if (change24h_pct !== null) change24h = change24h_pct;
+                priceSource = 'Kraken WS';
+                console.log(`💰 Kraken USD: $${lastPrice.toFixed(3)}`);
+                displayPrice();
+            } else if (symbol === 'ATOM/EUR' && lastPrice) {
+                prices.eur = lastPrice;
+                if (currentCurrency === 'eur') displayPrice();
             }
         }
 
@@ -1397,6 +1449,53 @@
             animRAF = requestAnimationFrame(tick);
         }
         
+        // Split-flap animation for currency switching (airport departure board style)
+        function splitFlapPriceAnimate(targetValue, decimals) {
+            const el = document.getElementById('price');
+            const symbol = currencies[currentCurrency].symbol;
+            const finalStr = formatNumber(targetValue, decimals);
+            
+            // Build initial HTML with random digits
+            let html = `<span class="price-symbol currency">${symbol}</span>`;
+            const chars = finalStr.split('');
+            
+            chars.forEach((char, i) => {
+                const isDigit = /\d/.test(char);
+                if (isDigit) {
+                    html += `<span class="price-digit"><span class="price-digit-inner" data-final="${char}" data-index="${i}">${Math.floor(Math.random() * 10)}</span></span>`;
+                } else {
+                    html += `<span class="price-symbol">${char}</span>`;
+                }
+            });
+            
+            el.innerHTML = html;
+            
+            // Animate each digit with staggered timing
+            const digitEls = el.querySelectorAll('.price-digit-inner[data-final]');
+            digitEls.forEach((digitEl, idx) => {
+                const finalChar = digitEl.dataset.final;
+                let cycles = 0;
+                const maxCycles = 5 + Math.floor(Math.random() * 5); // 5-9 cycles
+                const baseDelay = idx * 40; // Stagger start
+                
+                setTimeout(() => {
+                    const interval = setInterval(() => {
+                        cycles++;
+                        if (cycles >= maxCycles) {
+                            clearInterval(interval);
+                            digitEl.textContent = finalChar;
+                            digitEl.style.opacity = '1';
+                        } else {
+                            digitEl.textContent = Math.floor(Math.random() * 10);
+                            digitEl.style.opacity = '0.7';
+                        }
+                    }, 50);
+                }, baseDelay);
+            });
+            
+            animatingPrice = targetValue;
+        }
+        
         // Render price with odometer-style digits
         function renderOdometerPrice(value, decimals, direction = null, animProgress = 0) {
             const el = document.getElementById('price');
@@ -1404,7 +1503,8 @@
             const priceStr = formatNumber(value, decimals);
             
             // Build HTML with individual digit spans
-            let html = `<span class="price-symbol">${symbol}</span>`;
+            // Currency symbol is smaller and lighter
+            let html = `<span class="price-symbol currency">${symbol}</span>`;
             
             // Remove symbol from price string if it starts with it
             const numStr = priceStr.replace(symbol, '');
@@ -1434,7 +1534,7 @@
             const price = getCurrentPrice();
             if (!price) return;
             
-            const decimals = currencies[currentCurrency].decimals;
+            const decimals = getDecimals(price, currentCurrency);
             
             // Animate if price changed
             if (lastDisplayedPrice !== null && price !== lastDisplayedPrice) {
@@ -1509,7 +1609,7 @@
                 }
                 
                 document.getElementById('tooltipTime').textContent = timeText;
-                document.getElementById('tooltipPrice').textContent = formatPrice(price);
+                document.getElementById('tooltipPrice').textContent = formatPriceWithDecimals(price, currentCurrency);
                 
                 // Position tooltip near the cursor
                 const containerRect = chartContainer.getBoundingClientRect();
@@ -1605,8 +1705,15 @@
                 btn.classList.add('active');
                 currentCurrency = btn.dataset.currency;
                 lastDisplayedPrice = null;
-                animatingPrice = null; // Reset animation state for new currency
-                displayPrice();
+                animatingPrice = null;
+                
+                // Use split-flap animation for currency switch
+                const price = getCurrentPrice();
+                if (price) {
+                    const decimals = getDecimals(price, currentCurrency);
+                    splitFlapPriceAnimate(price, decimals);
+                }
+                
                 updateChartData();
             };
         });
@@ -1721,16 +1828,19 @@
                 await loadDelegationSnapshot();
             }
             
-            // 6) Connect to live data (async, don't block)
+            // 6) Load FX rates from JSON
+            await loadFxRates();
+            
+            // 7) Connect to live data (async, don't block)
             connectCosmos();
             connectKrakenWebSocket();
             
-            // 7) Fetch fresh data in background
+            // 8) Fetch fresh data in background
             fetchPrice();
             fetchChart();
             fetchStakingData();
             
-            // 8) Refresh prices every 60 seconds
+            // 9) Refresh prices every 60 seconds
             setInterval(fetchPrice, 60000);
             setInterval(fetchStakingData, 300000);
             

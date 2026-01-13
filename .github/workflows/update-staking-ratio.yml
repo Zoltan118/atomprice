@@ -1,0 +1,35 @@
+name: Update staking ratio
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *" # every 6 hours
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run staking ratio updater
+        env:
+          LCD_BASE: "https://api.silknodes.io/cosmos"
+        run: |
+          node scripts/staking_ratio_updater.mjs
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/staking_ratio.json
+          git diff --cached --quiet || git commit -m "Update staking ratio snapshot"
+          git push

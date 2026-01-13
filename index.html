@@ -24,9 +24,45 @@
         .container { max-width: 700px; margin: 0 auto; padding: 50px 20px; }
         .label { text-align: center; font-size: 11px; font-weight: 500; letter-spacing: 3px; color: #444; margin-bottom: 32px; text-transform: uppercase; }
         .price-row { display: flex; align-items: baseline; justify-content: center; gap: 16px; margin-bottom: 20px; }
-        .price { font-size: clamp(64px, 16vw, 120px); font-weight: 700; letter-spacing: -3px; line-height: 1; transition: color 0.1s ease; }
-        .price.up { color: #22c55e; }
-        .price.down { color: #ef4444; }
+        
+        /* Odometer Price Display */
+        .price { 
+            font-size: clamp(64px, 16vw, 120px); 
+            font-weight: 700; 
+            letter-spacing: -3px; 
+            line-height: 1; 
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+        }
+        .price-digit {
+            display: inline-block;
+            position: relative;
+            overflow: hidden;
+            height: 1em;
+        }
+        .price-digit-inner {
+            display: inline-block;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .price-symbol {
+            display: inline-block;
+        }
+        .price.flash-up .price-digit-inner { color: #22c55e; }
+        .price.flash-down .price-digit-inner { color: #ef4444; }
+        @keyframes flashGreenPrice {
+            0% { color: #fff; }
+            30% { color: #22c55e; }
+            100% { color: #fff; }
+        }
+        @keyframes flashRedPrice {
+            0% { color: #fff; }
+            30% { color: #ef4444; }
+            100% { color: #fff; }
+        }
+        .price.flash-up { animation: flashGreenPrice 0.6s ease; }
+        .price.flash-down { animation: flashRedPrice 0.6s ease; }
+        
         .change { font-size: 16px; font-weight: 500; color: #333; }
         .change.pos { color: #22c55e; }
         .change.neg { color: #ef4444; }
@@ -426,7 +462,7 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '1.0.4';
+        const APP_VERSION = '1.0.5';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
         // Config
@@ -1093,7 +1129,7 @@
             requestAnimationFrame(() => {
                 const itemCount = uniqueDelegations.length;
                 // Base: ~0.3s per item for smooth reading speed
-                const duration = Math.max(30, itemCount * 0.72);
+                const duration = Math.max(30, itemCount * 0.85);
                 track.style.setProperty('--ticker-duration', `${duration}s`);
             });
             
@@ -1327,40 +1363,63 @@
             const start = animatingPrice || nextPrice;
             const end = nextPrice;
             const startTime = performance.now();
-            const duration = 750;
-            const slidePx = 8;
-            const dir = end >= start ? -1 : 1; // slide up if price up, down if price down
+            const duration = 600;
+            const direction = end > start ? 'up' : 'down';
             
-            // Subtle directional slide
-            el.style.willChange = 'transform';
-            el.style.transition = 'none';
-            el.style.transform = `translateY(${dir * slidePx}px)`;
-            el.style.opacity = '0.85';
-            
-            // Snap back quickly, then tween number
-            requestAnimationFrame(() => {
-                el.style.transition = 'transform 200ms ease-out, opacity 200ms ease-out';
-                el.style.transform = 'translateY(0px)';
-                el.style.opacity = '1';
-            });
+            // Flash color
+            el.classList.remove('flash-up', 'flash-down');
+            void el.offsetWidth; // Force reflow
+            el.classList.add(direction === 'up' ? 'flash-up' : 'flash-down');
+            setTimeout(() => el.classList.remove('flash-up', 'flash-down'), 600);
             
             function tick(now) {
                 const t = Math.min(1, (now - startTime) / duration);
-                // easeOutCubic
+                // easeOutCubic for smooth deceleration
                 const eased = 1 - Math.pow(1 - t, 3);
                 const v = start + (end - start) * eased;
                 
-                el.textContent = formatNumber(v, decimals);
+                // Update odometer display
+                renderOdometerPrice(v, decimals, direction, 1 - t);
                 
                 if (t < 1) {
                     animRAF = requestAnimationFrame(tick);
                 } else {
                     animatingPrice = end;
-                    el.style.willChange = 'auto';
                 }
             }
             
             animRAF = requestAnimationFrame(tick);
+        }
+        
+        // Render price with odometer-style digits
+        function renderOdometerPrice(value, decimals, direction = null, animProgress = 0) {
+            const el = document.getElementById('price');
+            const symbol = currencies[currentCurrency].symbol;
+            const priceStr = formatNumber(value, decimals);
+            
+            // Build HTML with individual digit spans
+            let html = `<span class="price-symbol">${symbol}</span>`;
+            
+            // Remove symbol from price string if it starts with it
+            const numStr = priceStr.replace(symbol, '');
+            
+            for (let i = 0; i < numStr.length; i++) {
+                const char = numStr[i];
+                const isDigit = /\d/.test(char);
+                
+                if (isDigit && animProgress > 0) {
+                    // Calculate offset for rolling effect (only during animation)
+                    const offsetY = direction === 'up' ? -animProgress * 20 : animProgress * 20;
+                    html += `<span class="price-digit"><span class="price-digit-inner" style="transform: translateY(${offsetY}%)">${char}</span></span>`;
+                } else if (isDigit) {
+                    html += `<span class="price-digit"><span class="price-digit-inner">${char}</span></span>`;
+                } else {
+                    // Non-digits (comma, period) - no animation
+                    html += `<span class="price-symbol">${char}</span>`;
+                }
+            }
+            
+            el.innerHTML = html;
         }
 
         function displayPrice() {
@@ -1373,17 +1432,11 @@
             
             // Animate if price changed
             if (lastDisplayedPrice !== null && price !== lastDisplayedPrice) {
-                // Color flash
-                el.classList.remove('up', 'down');
-                void el.offsetWidth;
-                el.classList.add(price > lastDisplayedPrice ? 'up' : 'down');
-                setTimeout(() => el.classList.remove('up', 'down'), 750);
-                
-                // Smooth tween animation
+                // Animate with odometer effect
                 animatePriceTo(price, decimals);
             } else if (animatingPrice === null) {
-                // First load - no animation
-                el.textContent = formatNumber(price, decimals);
+                // First load - no animation, just render
+                renderOdometerPrice(price, decimals);
                 animatingPrice = price;
             }
             

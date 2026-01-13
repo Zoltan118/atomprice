@@ -1,0 +1,38 @@
+name: Update delegations (24h)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6 hours
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run script
+        env:
+          RPC_HTTP: "https://rpc.silknodes.io/cosmos"
+          MIN_ATOM: "1"
+          WINDOW_HOURS: "24"
+          LIMIT_TXS: "500"
+        run: |
+          node update_delegations_24h.mjs
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add delegations_24h.json
+          git diff --cached --quiet || git commit -m "Update delegations snapshot"
+          git push

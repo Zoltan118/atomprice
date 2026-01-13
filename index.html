@@ -96,8 +96,8 @@
             overflow: hidden;
         }
         .notable-item:hover { background: #111; }
-        .notable-amount { font-size: 15px; font-weight: 500; font-family: 'Inter', monospace; }
-        .notable-amount span { color: #444; font-weight: 400; }
+        .notable-amount { font-size: 15px; font-weight: 500; font-family: 'Inter', monospace; color: #e0e0e0; }
+        .notable-amount span { color: #555; font-weight: 400; }
         .loading { color: #333; font-size: 12px; padding: 20px 0; }
         
         /* Split-flap character animation */
@@ -211,7 +211,7 @@
             .slide-panel.open { bottom: 0; }
         }
         
-        /* Staking Ticker - Fast smooth scroll */
+        /* Staking Ticker - Seamless infinite scroll */
         .ticker-section {
             margin: 32px 0;
             padding: 16px 0;
@@ -220,7 +220,8 @@
         }
         .ticker-track {
             display: flex;
-            animation: tickerScroll 3s linear infinite;
+            width: max-content;
+            animation: tickerScroll var(--ticker-duration, 60s) linear infinite;
             will-change: transform;
         }
         .ticker-track:hover {
@@ -232,10 +233,10 @@
         }
         .ticker-item {
             flex-shrink: 0;
-            padding: 0 20px;
+            padding: 0 16px;
             font-size: 11px;
             font-weight: 400;
-            color: #444;
+            color: #666;
             letter-spacing: 0.3px;
             white-space: nowrap;
             transition: color 0.15s ease;
@@ -248,7 +249,7 @@
             color: #fff;
         }
         .ticker-text {
-            color: #444;
+            color: #666;
             transition: color 0.15s ease;
         }
         .ticker-fade-left,
@@ -423,7 +424,7 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '1.0.2';
+        const APP_VERSION = '1.0.3';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
         // Config
@@ -1063,6 +1064,7 @@
                 } else {
                     const msgs = [
                         `${amt} ATOM staked`,
+                        `+${amt} ATOM joined`,
                         `${amt} ATOM added`,
                         `Small stake, big belief: ${amt} ATOM`,
                         `${amt} ATOM locked`,
@@ -1083,8 +1085,19 @@
                 return `<div class="ticker-item" data-tx="${d.txHash}" data-height="${d.height || ''}"><span class="ticker-text">${msg}</span></div>`;
             }).join('');
             
-            // Duplicate for seamless infinite loop
-            document.getElementById('tickerTrack').innerHTML = tickerHTML + tickerHTML;
+            const track = document.getElementById('tickerTrack');
+            
+            // Duplicate content for seamless loop
+            track.innerHTML = tickerHTML + tickerHTML;
+            
+            // Calculate duration based on content width (more items = longer duration)
+            // This ensures consistent speed regardless of content amount
+            requestAnimationFrame(() => {
+                const itemCount = uniqueDelegations.length;
+                // Base: ~0.3s per item for smooth reading speed
+                const duration = Math.max(30, itemCount * 0.3);
+                track.style.setProperty('--ticker-duration', `${duration}s`);
+            });
             
             // Add click handlers for slide panel
             document.querySelectorAll('#tickerTrack .ticker-item').forEach(el => {

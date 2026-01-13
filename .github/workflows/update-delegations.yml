@@ -1,16 +1,9 @@
-- name: Run delegation updater
-  env:
-    LCD_BASE: "https://api.silknodes.io/cosmos"
-    MIN_ATOM: "1"
-    WINDOW_HOURS: "24"
-    LIMIT_PAGES: "10"
-    PAGE_LIMIT: "100"
-  run: |
-      node scripts/delegations_updater.mjs
+name: Update delegations (24h)
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"   # every 6 hours
+    - cron: "0 */6 * * *"
 
 permissions:
   contents: write
@@ -36,10 +29,12 @@ jobs:
           LIMIT_PAGES: "10"
           PAGE_LIMIT: "100"
         run: |
-        node scripts/delegations_updater.mjs
+          node scripts/delegations_updater.mjs
+
       - name: Commit & push if changed
         run: |
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
           git add data/delegations_24h.json
-          git diff --cached --quiet
+          git diff --cached --quiet || git commit -m "Update delegations snapshot"
+          git push

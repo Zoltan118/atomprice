@@ -1,95 +1,64 @@
-/**
- * Pull recent MsgDelegate txs via Tendermint RPC `tx_search`,
- * filter to the last WINDOW_HOURS, store > MIN_ATOM to data/delegations_24h.json
- *
- * Output format:
- * {
- *   generated_at, window_hours, min_atom,
- *   source: { rpc, query },
- *   items: [{ amount_atom, delegator, validator, height, txhash, timestamp }]
- * }
- */
-
 import fs from "node:fs/promises";
 
 const OUT_FILE = "data/delegations_24h.json";
 
 const MIN_ATOM = Number(process.env.MIN_ATOM ?? "1");
 const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? "24");
-const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "6");
-const PER_PAGE = Number(process.env.PER_PAGE ?? "100");
+const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "3");   // keep small to avoid rate-limits
+const PER_PAGE = Number(process.env.PER_PAGE ?? "50");        // keep smaller than 100
 
 const PRIMARY_RPC = (process.env.RPC_BASE ?? "").trim();
 
-// Fallback public RPCs (no keys). If one is down/rate-limited, next one is tried.
-// These are examples of public Cosmos Hub RPC endpoints. :contentReference[oaicite:0]{index=0}
 const FALLBACK_RPCS = [
   PRIMARY_RPC,
   "https://cosmos-rpc.publicnode.com",
   "https://cosmos-rpc.polkachu.com",
-  "https://cosmos.blockpi.network/rpc/v1/public",
   "https://cosmoshub-mainnet-rpc.itrocket.net",
   "https://rpc.cosmos.nodestake.org",
   "https://cosmoshub-rpc.stakely.io",
-  "https://cosmoshub.rpc.stakin-nodes.com",
 ].filter(Boolean);
 
-// Cosmos SDK MsgDelegate type URL used in events.
 const MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
-
-// Tendermint event query (NO surrounding quotes in the query param)
 const EVENT_QUERY = `message.action='${MSG_DELEGATE}'`;
 
-function withTimeout(ms) {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), ms);
-  return { ac, cancel: () => clearTimeout(t) };
+function normalizeRpcBase(rpcBase) {
+  return rpcBase.replace(/\/+$/, "");
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function fetchJson(url, timeoutMs = 15000) {
-  const { ac, cancel } = withTimeout(timeoutMs);
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ac.signal, headers: { "accept": "application/json" } });
+    const res = await fetch(url, { signal: ac.signal, headers: { accept: "application/json" } });
     const text = await res.text();
-    let json;
-    try { json = JSON.parse(text); } catch { json = null; }
+    let json = null;
+    try { json = JSON.parse(text); } catch {}
 
     if (!res.ok) {
-      const msg = json?.error?.data || json?.error?.message || text?.slice(0, 200);
+      const msg = json?.error?.data || json?.error?.message || text?.slice(0, 160);
       throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : ""}`);
     }
     return json;
   } finally {
-    cancel();
+    clearTimeout(t);
   }
-}
-
-function normalizeRpcBase(rpcBase) {
-  // Some providers end with '/', some not
-  return rpcBase.replace(/\/+$/, "");
 }
 
 function getAttr(event, key) {
-  // Tendermint returns either {attributes:[{key,value}]} or legacy {attributes:[{key,value}]} with base64 sometimes.
   const attrs = event?.attributes ?? [];
-  for (const a of attrs) {
-    if (a?.key === key) return a?.value;
-  }
+  for (const a of attrs) if (a?.key === key) return a?.value;
   return null;
 }
 
 function parseAmountAtom(amountStr) {
-  // Most chains emit amount in uatom form: "12345uatom"
-  // Sometimes it can be "12345" + denom elsewhere. We only accept uatom.
   if (!amountStr || typeof amountStr !== "string") return null;
-
   const m = amountStr.match(/^(\d+)\s*uatom$/i);
   if (!m) return null;
-
-  const uatom = BigInt(m[1]);
-  // 1 ATOM = 1_000_000 uatom
-  const atom = Number(uatom) / 1_000_000;
-  return atom;
+  return Number(m[1]) / 1_000_000;
 }
 
 async function ensureOutDir() {
@@ -104,92 +73,69 @@ async function writeSnapshot(payload) {
 async function tryRpc(rpcBase) {
   const base = normalizeRpcBase(rpcBase);
 
-  // 1) get latest block time (for window cut)
+  // Use /status only once (light)
   const status = await fetchJson(`${base}/status`);
-  const latestHeight = Number(status?.result?.sync_info?.latest_block_height ?? 0);
   const latestTime = status?.result?.sync_info?.latest_block_time;
-  if (!latestHeight || !latestTime) throw new Error(`Bad /status response from ${base}`);
+  if (!latestTime) throw new Error(`Bad /status from ${base}`);
 
   const nowMs = Date.parse(latestTime);
   const cutoffMs = nowMs - WINDOW_HOURS * 60 * 60 * 1000;
 
-  // Cache block time per height to avoid refetching
-  const blockTimeCache = new Map();
-
-  async function getBlockTimeMs(height) {
-    if (blockTimeCache.has(height)) return blockTimeCache.get(height);
-    const b = await fetchJson(`${base}/block?height=${height}`);
-    const t = b?.result?.block?.header?.time;
-    const ms = t ? Date.parse(t) : null;
-    blockTimeCache.set(height, ms);
-    return ms;
-  }
-
   const items = [];
   const seen = new Set();
 
-  // 2) walk newest->older delegate txs
   for (let page = 1; page <= LIMIT_PAGES; page++) {
+    // Gentle pacing to avoid 429
+    if (page > 1) await sleep(350);
+
     const params = new URLSearchParams();
-    params.set("query", JSON.stringify(EVENT_QUERY));       // ✅ JSON string: "message.action='...'"
+    params.set("query", JSON.stringify(EVENT_QUERY));
     params.set("prove", "false");
     params.set("page", String(page));
     params.set("per_page", String(PER_PAGE));
-    params.set("order_by", JSON.stringify("desc"));         // ✅ JSON string: "desc"
-    
+    params.set("order_by", JSON.stringify("desc"));
     const url = `${base}/tx_search?${params.toString()}`;
 
-    const data = await fetchJson(url);
+    let data;
+    try {
+      data = await fetchJson(url);
+    } catch (e) {
+      // If RPC says page out of range, just stop paging (not fatal)
+      const msg = String(e?.message || e);
+      if (msg.includes("page should be within")) break;
+      throw e;
+    }
 
     const txs = data?.result?.txs ?? [];
     if (!txs.length) break;
 
     for (const tx of txs) {
-      const height = Number(tx?.height ?? tx?.tx_result?.height ?? 0);
       const txhash = tx?.hash;
-      if (!height || !txhash) continue;
+      const height = Number(tx?.height ?? 0);
+      if (!txhash || !height) continue;
       if (seen.has(txhash)) continue;
       seen.add(txhash);
 
-      const tsMs = await getBlockTimeMs(height);
-      if (!tsMs) continue;
+      // BEST CASE: timestamp is provided in tx_search response (many RPCs do)
+      const tsStr = tx?.timestamp || tx?.tx_result?.timestamp || null;
+      const tsMs = tsStr ? Date.parse(tsStr) : null;
 
-      // stop condition: we are beyond the window and pages are ordered desc (newest first)
-      if (tsMs < cutoffMs) {
-        // We can bail hard because all remaining pages are older
+      // If we have a timestamp and it's older than window -> we can stop hard
+      if (tsMs && tsMs < cutoffMs) {
         page = LIMIT_PAGES + 1;
         break;
       }
 
-      // Extract delegate info from events
       const events = tx?.tx_result?.events ?? [];
       let delegator = null;
       let validator = null;
       let amount_atom = null;
 
       for (const ev of events) {
-        // Some chains emit a "delegate" event with amount/validator/delegator
         if (ev?.type === "delegate") {
-          const d = getAttr(ev, "delegator") || getAttr(ev, "delegator_address");
-          const v = getAttr(ev, "validator") || getAttr(ev, "validator_address");
-          const amt = getAttr(ev, "amount");
-          delegator = delegator || d;
-          validator = validator || v;
-          if (!amount_atom) amount_atom = parseAmountAtom(amt);
-        }
-      }
-
-      // fallback: some nodes only emit amount in "message" event as "amount"
-      if (!amount_atom) {
-        for (const ev of events) {
-          if (ev?.type === "message") {
-            const amt = getAttr(ev, "amount");
-            const parsed = parseAmountAtom(amt);
-            if (parsed) {
-              amount_atom = parsed;
-              break;
-            }
-          }
+          delegator = delegator || getAttr(ev, "delegator") || getAttr(ev, "delegator_address");
+          validator = validator || getAttr(ev, "validator") || getAttr(ev, "validator_address");
+          if (!amount_atom) amount_atom = parseAmountAtom(getAttr(ev, "amount"));
         }
       }
 
@@ -197,16 +143,15 @@ async function tryRpc(rpcBase) {
 
       items.push({
         amount_atom,
-        delegator: delegator || null,
-        validator: validator || null,
+        delegator,
+        validator,
         height,
         txhash,
-        timestamp: new Date(tsMs).toISOString(),
+        timestamp: tsMs ? new Date(tsMs).toISOString() : null,
       });
     }
   }
 
-  // sort biggest first (useful for hero)
   items.sort((a, b) => b.amount_atom - a.amount_atom);
 
   return {

@@ -1,5 +1,12 @@
-name: Update delegations (24h)
-
+- name: Run delegation updater
+  env:
+    LCD_BASE: "https://api.silknodes.io/cosmos"
+    MIN_ATOM: "1"
+    WINDOW_HOURS: "24"
+    LIMIT_PAGES: "10"
+    PAGE_LIMIT: "100"
+  run: |
+    node scripts/delegations_updater.mjs
 on:
   workflow_dispatch:
   schedule:

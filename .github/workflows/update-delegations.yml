@@ -3,7 +3,7 @@ name: Update delegations (24h)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */6 * * *" # every 6 hours
 
 permissions:
   contents: write
@@ -11,7 +11,6 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -23,11 +22,12 @@ jobs:
 
       - name: Run delegation updater
         env:
+          # Prefer your own first (can stay), but script will auto-fallback if this fails.
           RPC_BASE: "https://rpc.silknodes.io/cosmos"
           MIN_ATOM: "1"
           WINDOW_HOURS: "24"
-          LIMIT_PAGES: "10"
-          PAGE_LIMIT: "100"
+          LIMIT_PAGES: "6"
+          PER_PAGE: "100"
         run: |
           node scripts/delegations_updater.mjs
 

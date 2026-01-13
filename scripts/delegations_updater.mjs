@@ -130,10 +130,14 @@ async function tryRpc(rpcBase) {
 
   // 2) walk newest->older delegate txs
   for (let page = 1; page <= LIMIT_PAGES; page++) {
-    const url =
-      `${base}/tx_search` +
-      `?query=${encodeURIComponent(EVENT_QUERY)}` +
-      `&prove=false&page=${page}&per_page=${PER_PAGE}&order_by=desc`;
+    const params = new URLSearchParams();
+    params.set("query", JSON.stringify(EVENT_QUERY));       // ✅ JSON string: "message.action='...'"
+    params.set("prove", "false");
+    params.set("page", String(page));
+    params.set("per_page", String(PER_PAGE));
+    params.set("order_by", JSON.stringify("desc"));         // ✅ JSON string: "desc"
+    
+    const url = `${base}/tx_search?${params.toString()}`;
 
     const data = await fetchJson(url);
 

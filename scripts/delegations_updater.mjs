@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const LCD_BASE = process.env.LCD_BASE || "https://api.silknodes.io/cosmos";
+const RPC_BASE = process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos";
 const WINDOW_HOURS = Number(process.env.WINDOW_HOURS || "24");
 const MIN_ATOM = Number(process.env.MIN_ATOM || "1");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES || "10");
@@ -11,7 +11,6 @@ const OUT_FILE = "data/delegations_24h.json";
 function isoNow() {
   return new Date().toISOString();
 }
-
 function cutoffMs(hours) {
   return Date.now() - hours * 60 * 60 * 1000;
 }
@@ -22,94 +21,106 @@ async function fetchJson(url) {
   return res.json();
 }
 
-function uatomToAtom(amountStr) {
-  if (!amountStr || typeof amountStr !== "string") return null;
-  if (!amountStr.endsWith("uatom")) return null;
-  const n = Number(amountStr.replace("uatom", ""));
+function extractEventAttrs(events, type) {
+  const ev = (events || []).find(e => e.type === type);
+  if (!ev?.attributes) return {};
+  const out = {};
+  for (const a of ev.attributes) {
+    // tendermint may return base64 keys/values on some nodes; yours looks plain JSON for other endpoints
+    // so we assume plain text here
+    out[a.key] = a.value;
+  }
+  return out;
+}
+
+function uatomToAtomFromString(s) {
+  // expects something like "1234567uatom"
+  if (!s || typeof s !== "string") return null;
+  if (!s.endsWith("uatom")) return null;
+  const n = Number(s.replace("uatom", ""));
   if (!Number.isFinite(n)) return null;
   return n / 1_000_000;
 }
 
-function getEventAttr(events, type, key) {
-  const ev = (events || []).find(e => e.type === type);
-  if (!ev) return null;
-  const attr = (ev.attributes || []).find(a => a.key === key);
-  return attr?.value ?? null;
+async function getBlockTimeISO(height) {
+  const b = await fetchJson(`${RPC_BASE}/block?height=${height}`);
+  const t = b?.result?.block?.header?.time;
+  return t ? new Date(t).toISOString() : null;
 }
 
-function parseDelegateFromTx(txResp) {
-  const events = (txResp?.logs || []).flatMap(l => l?.events || []);
-  const action = getEventAttr(events, "message", "action");
+async function txSearch(query, page, per_page) {
+  // Important: query must be quoted for Tendermint endpoint
+  const url =
+    `${RPC_BASE}/tx_search?query="${encodeURIComponent(query)}"` +
+    `&prove=false&page=${page}&per_page=${per_page}&order_by="desc"`;
 
+  return fetchJson(url);
+}
+
+function parseDelegationsFromTx(tx) {
+  // tx_result.events usually contains:
+  // - message.action
+  // - delegate.amount / delegate.delegator / delegate.validator (often)
+  const events = tx?.tx_result?.events || [];
+
+  const msg = extractEventAttrs(events, "message");
+  const action = msg["action"];
+
+  // If action isn’t present, skip; we want real delegates only
   if (!action || !String(action).includes("MsgDelegate")) return [];
 
-  const amountStr = getEventAttr(events, "delegate", "amount");
-  const delegator = getEventAttr(events, "delegate", "delegator");
-  const validator = getEventAttr(events, "delegate", "validator");
-
-  const amountAtom = uatomToAtom(amountStr);
+  const del = extractEventAttrs(events, "delegate");
+  const amountAtom = uatomToAtomFromString(del["amount"]);
   if (!amountAtom || amountAtom < MIN_ATOM) return [];
 
   return [{
-    height: txResp?.height ? Number(txResp.height) : null,
-    time: txResp?.timestamp ? new Date(txResp.timestamp).toISOString() : null,
-    txhash: txResp?.txhash || null,
-    delegator: delegator || null,
-    validator: validator || null,
+    height: Number(tx?.height || 0) || null,
+    time: null, // filled later from block header
+    txhash: tx?.hash || null,
+    delegator: del["delegator"] || null,
+    validator: del["validator"] || null,
     amount_atom: amountAtom
   }];
-}
-
-async function fetchDelegations24h() {
-  const cutoff = cutoffMs(WINDOW_HOURS);
-
-  const eventQueries = [
-    "message.action='/cosmos.staking.v1beta1.MsgDelegate'",
-    "message.module='staking'"
-  ];
-
-  for (const evQ of eventQueries) {
-    let items = [];
-    let nextKey = null;
-
-    for (let page = 0; page < LIMIT_PAGES; page++) {
-      const params = new URLSearchParams();
-      params.set("events", evQ);
-      params.set("order_by", "ORDER_BY_DESC");
-      params.set("limit", String(PAGE_LIMIT));
-      if (nextKey) params.set("pagination.key", nextKey);
-
-      const url = `${LCD_BASE}/cosmos/tx/v1beta1/txs?${params.toString()}`;
-      const data = await fetchJson(url);
-
-      const txs = data?.tx_responses || [];
-      if (!txs.length) break;
-
-      for (const txResp of txs) {
-        const ts = txResp?.timestamp ? new Date(txResp.timestamp).getTime() : null;
-        if (ts && Number.isFinite(ts) && ts < cutoff) {
-          return { usedEvents: evQ, items };
-        }
-
-        for (const d of parseDelegateFromTx(txResp)) items.push(d);
-      }
-
-      nextKey = data?.pagination?.next_key || null;
-      if (!nextKey) break;
-    }
-
-    if (items.length) return { usedEvents: evQ, items };
-  }
-
-  return { usedEvents: null, items: [] };
 }
 
 async function main() {
   fs.mkdirSync("data", { recursive: true });
 
-  try {
-    const { usedEvents, items } = await fetchDelegations24h();
+  const cutoff = cutoffMs(WINDOW_HOURS);
 
+  // Try a couple query variants because chains can differ in indexed keys
+  const queries = [
+    `message.action='/cosmos.staking.v1beta1.MsgDelegate'`,
+    `message.module='staking' AND message.action='/cosmos.staking.v1beta1.MsgDelegate'`,
+    `message.module='staking'`
+  ];
+
+  let usedQuery = null;
+  let items = [];
+
+  try {
+    for (const q of queries) {
+      items = [];
+      usedQuery = q;
+
+      for (let page = 1; page <= LIMIT_PAGES; page++) {
+        const data = await txSearch(q, page, PAGE_LIMIT);
+        const txs = data?.result?.txs || [];
+        if (!txs.length) break;
+
+        for (const tx of txs) {
+          const parsed = parseDelegationsFromTx(tx);
+          for (const d of parsed) items.push(d);
+        }
+
+        // If we didn’t even get any message.action matches, don’t early stop yet; keep paging a bit.
+        // Early stopping by time needs block times, handled after dedupe.
+      }
+
+      if (items.length) break; // found something with this query
+    }
+
+    // Deduplicate
     const seen = new Set();
     const deduped = [];
     for (const it of items) {
@@ -119,29 +130,47 @@ async function main() {
       deduped.push(it);
     }
 
-    deduped.sort((a, b) => (b.amount_atom || 0) - (a.amount_atom || 0));
+    // Fill timestamps (cache by height)
+    const heightToTime = new Map();
+    for (const it of deduped) {
+      if (!it.height) continue;
+      if (!heightToTime.has(it.height)) {
+        heightToTime.set(it.height, await getBlockTimeISO(it.height));
+      }
+      it.time = heightToTime.get(it.height);
+    }
+
+    // Filter to last WINDOW_HOURS using block time
+    const filtered = deduped.filter(it => {
+      if (!it.time) return true; // keep if unknown time
+      return new Date(it.time).getTime() >= cutoff;
+    });
+
+    // Sort biggest first
+    filtered.sort((a, b) => (b.amount_atom || 0) - (a.amount_atom || 0));
 
     const out = {
       generated_at: isoNow(),
       window_hours: WINDOW_HOURS,
       min_atom: MIN_ATOM,
-      source: { lcd: LCD_BASE, events: usedEvents },
-      items: deduped
+      source: { rpc: RPC_BASE, query: usedQuery },
+      items: filtered
     };
 
     fs.writeFileSync(OUT_FILE, JSON.stringify(out, null, 2));
-    console.log(`✅ Wrote ${deduped.length} delegations to ${OUT_FILE}`);
+    console.log(`✅ Wrote ${filtered.length} delegations to ${OUT_FILE}`);
   } catch (e) {
     const out = {
       generated_at: isoNow(),
       window_hours: WINDOW_HOURS,
       min_atom: MIN_ATOM,
-      source: { lcd: LCD_BASE, events: null },
+      source: { rpc: RPC_BASE, query: usedQuery },
       items: [],
       error: String(e?.message || e)
     };
     fs.writeFileSync(OUT_FILE, JSON.stringify(out, null, 2));
     console.log(`⚠️ Wrote empty snapshot due to error: ${out.error}`);
+    process.exitCode = 1;
   }
 }
 

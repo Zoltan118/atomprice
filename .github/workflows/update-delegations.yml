@@ -11,8 +11,9 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -20,12 +21,13 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Run script
+      - name: Run delegation updater
         env:
-          RPC_HTTP: "https://rpc.silknodes.io/cosmos"
+          LCD_BASE: "https://api.silknodes.io/cosmos"
           MIN_ATOM: "1"
           WINDOW_HOURS: "24"
-          LIMIT_TXS: "500"
+          LIMIT_PAGES: "10"
+          PAGE_LIMIT: "100"
         run: |
           node update_delegations_24h.mjs
 
@@ -33,6 +35,5 @@ jobs:
         run: |
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
-          git add delegations_24h.json
-          git diff --cached --quiet || git commit -m "Update delegations snapshot"
-          git push
+          git add data/delegations_24h.json
+          git diff --cached --quiet

@@ -471,7 +471,7 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '1.3.2';
+        const APP_VERSION = '1.3.3';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
         // Config
@@ -667,7 +667,7 @@
         
         // Tab display names (more explicit for tab title)
         const currencyTabNames = {
-            usd: '$', eur: '€', gbp: '£', try: '₺', jpy: '¥', cny: '元'
+            usd: '$', eur: '€', gbp: '£', try: '₺', jpy: 'JPY ', cny: 'CNY '
         };
 
         // Helpers
@@ -1713,6 +1713,10 @@
                     const decimals = getDecimals(price, currentCurrency);
                     splitFlapPriceAnimate(price, decimals);
                 }
+                
+                // Update tab title
+                const decimals = getDecimals(price, currentCurrency);
+                document.title = currencyTabNames[currentCurrency] + formatNumber(price, decimals) + ' · ATOM';
                 
                 updateChartData();
             };

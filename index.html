@@ -419,30 +419,28 @@
         <div class="live-section">
             <div class="live-header">
                 <div class="live-dot" id="liveDot"></div>
-                <span class="live-label">live delegations (25K+ ATOM)</span>
+                <span class="live-label">whale watch</span>
             </div>
             <div class="whale-hero">
-                <div class="whale-hero-value" id="whaleHero">—</div>
-                <div class="whale-hero-label">largest recent</div>
-                <div class="whale-hero-tx" id="whaleHeroTx">waiting for whale...</div>
+                <div class="whale-hero-value" id="whaleHero"></div>
+                <div class="whale-hero-label">largest</div>
+                <div class="whale-hero-tx" id="whaleHeroTx"></div>
             </div>
         </div>
         
         <!-- Notable Delegations (1K-25K) with pagination -->
         <div class="notable-section">
             <div class="notable-header">
-                <div class="notable-label">recent delegations (1K-25K ATOM)</div>
+                <div class="notable-label">recent delegations (1K-24,999 ATOM)</div>
             </div>
-            <div class="notable-list" id="notableList"><div class="loading">waiting for delegations...</div></div>
+            <div class="notable-list" id="notableList"></div>
             <div class="pagination" id="notablePagination"></div>
         </div>
         
         <!-- Staking Ticker -->
         <div class="ticker-section">
             <div class="ticker-fade-left"></div>
-            <div class="ticker-track" id="tickerTrack">
-                <div class="ticker-item"><span class="ticker-text">waiting for live staking data...</span></div>
-            </div>
+            <div class="ticker-track" id="tickerTrack"></div>
             <div class="ticker-fade-right"></div>
         </div>
         
@@ -478,9 +476,11 @@
         const WHALE_MIN = 25000;      // 25K+ ATOM = whale (changed from 50K)
         const NOTABLE_MIN = 1000;     // 1K-25K ATOM = notable (for list)
         const TICKER_MIN = 100;       // 100+ ATOM = ticker news
-        const MAX_NOTABLE = 25;       // Max 25 notable delegations (5 pages × 5)
+        const MAX_NOTABLE = 50;       // Show 50 mids (10 pages × 5)
         const ITEMS_PER_PAGE = 5;     // 5 items per page
         const MAX_TICKER = 200;       // Keep last 200 for ticker
+const MAX_WHALES = 20;        // Keep top 20 whales in whale watch
+const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
         const CACHE_KEY = 'atomprice_cache_v4';
         const CACHE_TTL_MS = 86400000;  // 24 hours!
 
@@ -845,36 +845,78 @@
             }
         }
         
+        
+        // Maintain Top lists (whales/mids) and mixed ticker
+        function upsertWhaleTop(d) {
+            // Dedup by txHash for top list
+            if (whaleDelegations.some(x => x.txHash === d.txHash)) return false;
+
+            whaleDelegations.push(d);
+            whaleDelegations.sort((a, b) => b.amount - a.amount);
+            whaleDelegations = whaleDelegations.slice(0, MAX_WHALES);
+            return true;
+        }
+
+        function upsertMidTop(d) {
+            if (notableDelegations.some(x => x.txHash === d.txHash)) return false;
+
+            notableDelegations.push(d);
+            notableDelegations.sort((a, b) => b.amount - a.amount);
+            notableDelegations = notableDelegations.slice(0, MAX_MIDS);
+            return true;
+        }
+
+        function addToTicker(d) {
+            // Duplicates allowed (as requested)
+            tickerDelegations.unshift(d);
+            tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
+        }
+
         function finalizeDelegation(delegation) {
             if (!delegation.txHash) return;
-            
-            // Check for duplicates
-            const isDuplicate = tickerDelegations.some(d => d.txHash === delegation.txHash);
-            if (isDuplicate) return;
-            
+
             console.log(`💰 NEW: ${delegation.amount.toFixed(2)} ATOM (${delegation.txHash.slice(0,8)}...)`);
-            
-            // Categorize by amount
+
+            // Merge live delegations into ALL sections:
+            // ≥25K → whale watch + ticker
+            // 1K-24,999 → recent delegations + ticker
+            // 100+ → ticker only
+
+            let touched = false;
+
             if (delegation.amount >= WHALE_MIN) {
-                whaleDelegations.unshift(delegation);
-                whaleDelegations = whaleDelegations.slice(0, 50);
-                updateWhaleHero(true);
+                const inserted = upsertWhaleTop(delegation);
+                if (inserted) {
+                    // Show instantly: restart cycle, starts with biggest
+                    startWhaleWatchCycle();
+                    // Also flash/show the new whale immediately if it's now biggest
+                    // (If not biggest, it will appear in random rotation.)
+                    showWhaleAtIndex(0, true);
+                    touched = true;
+                }
+                if (delegation.amount >= TICKER_MIN) {
+                    addToTicker(delegation);
+                    touched = true;
+                }
+            } else if (delegation.amount >= NOTABLE_MIN) {
+                const inserted = upsertMidTop(delegation);
+                if (inserted) {
+                    currentNotablePage = 1; // reset to first page on new mid
+                    updateNotableList(true);
+                    touched = true;
+                }
+                if (delegation.amount >= TICKER_MIN) {
+                    addToTicker(delegation);
+                    touched = true;
+                }
+            } else if (delegation.amount >= TICKER_MIN) {
+                addToTicker(delegation);
+                touched = true;
             }
-            
-            if (delegation.amount >= NOTABLE_MIN && delegation.amount < WHALE_MIN) {
-                notableDelegations.unshift(delegation);
-                notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
-                currentNotablePage = 1; // Reset to first page on new delegation
-                updateNotableList(true);
-            }
-            
-            // All delegations ≥1 ATOM go to ticker
-            if (delegation.amount >= TICKER_MIN) {
-                tickerDelegations.unshift(delegation);
-                tickerDelegations = tickerDelegations.slice(0, 200);
+
+            if (touched) {
+                // Update ticker whenever something is added
                 updateTicker();
-                
-                // Save to cache
                 lastWsUpdate = Date.now();
                 saveCache();
             }
@@ -887,20 +929,79 @@
             updateStakePressure(stakingRatio);
         }
 
-        function updateWhaleHero(isNew) {
+        
+        // Section visibility helper (no placeholders)
+        function setVisible(elOrId, visible) {
+            const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+            if (!el) return;
+            el.style.display = visible ? '' : 'none';
+        }
+
+        // Whale watch (Top 20 whales) — flip/airport-style cycling
+        let whaleCycleTimer = null;
+        let currentWhaleIndex = 0;
+
+        function showWhaleAtIndex(idx, animate = true) {
             const hero = document.getElementById('whaleHero');
             const tx = document.getElementById('whaleHeroTx');
-            if (whaleDelegations.length > 0) {
-                const top = whaleDelegations[0];
-                hero.textContent = formatAmount(top.amount) + ' ATOM';
-                tx.textContent = shortTxHash(top.txHash);
-                hero.onclick = () => openMintscanPanel(top.txHash, top.height);
-                hero.style.cursor = 'pointer';
-                if (isNew) { hero.classList.add('new'); setTimeout(() => hero.classList.remove('new'), 500); }
-            } else {
-                hero.textContent = '—';
-                tx.textContent = 'waiting for whale...';
+            if (!hero || !tx) return;
+
+            if (!whaleDelegations.length) {
+                setVisible(document.querySelector('.live-section'), false);
+                return;
             }
+
+            setVisible(document.querySelector('.live-section'), true);
+
+            const w = whaleDelegations[Math.max(0, Math.min(idx, whaleDelegations.length - 1))];
+            currentWhaleIndex = idx;
+
+            // Full number formatting (25,563 ATOM not 25.56K)
+            const finalText = `${formatAmount(w.amount)} ATOM`;
+
+            if (animate) {
+                // Airport-like flip using existing splitFlapAnimate
+                splitFlapAnimate(hero, finalText, 0);
+            } else {
+                hero.textContent = finalText;
+            }
+
+            tx.textContent = shortTxHash(w.txHash);
+            hero.onclick = () => openMintscanPanel(w.txHash, w.height);
+            hero.style.cursor = 'pointer';
+        }
+
+        function startWhaleWatchCycle() {
+            if (whaleCycleTimer) {
+                clearInterval(whaleCycleTimer);
+                whaleCycleTimer = null;
+            }
+            if (!whaleDelegations.length) {
+                setVisible(document.querySelector('.live-section'), false);
+                return;
+            }
+
+            // Start with biggest whale (sorted desc)
+            currentWhaleIndex = 0;
+            showWhaleAtIndex(0, false);
+
+            whaleCycleTimer = setInterval(() => {
+                if (!whaleDelegations.length) return;
+
+                const n = Math.min(MAX_WHALES, whaleDelegations.length);
+                if (n <= 1) return;
+
+                let next = Math.floor(Math.random() * n);
+                if (next === currentWhaleIndex) next = (next + 1) % n;
+
+                showWhaleAtIndex(next, true);
+            }, 5000);
+        }
+
+        // Update whale watch after any data change
+        function updateWhaleHero(_isNew) {
+            // keep function name for minimal disruption elsewhere
+            startWhaleWatchCycle();
         }
 
         // Slide Panel for Mintscan
@@ -976,32 +1077,34 @@
             });
         }
         
+        
         function renderNotablePage(page, animate = false) {
+            const section = document.querySelector('.notable-section');
             const list = document.getElementById('notableList');
+            if (!list) return;
+
+            if (!notableDelegations.length) {
+                // No placeholders: hide section
+                setVisible(section, false);
+                list.innerHTML = '';
+                return;
+            }
+
+            setVisible(section, true);
+
             const startIdx = (page - 1) * ITEMS_PER_PAGE;
             const pageItems = notableDelegations.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-            
-            if (notableDelegations.length === 0) {
-                list.innerHTML = '<div class="loading">waiting for delegations...</div>';
-                return;
-            }
-            
-            if (pageItems.length === 0) {
-                list.innerHTML = '<div class="loading">no more delegations</div>';
-                return;
-            }
-            
-            list.innerHTML = pageItems.map((d, i) => 
+
+            list.innerHTML = pageItems.map((d) =>
                 `<div class="notable-item" data-tx="${d.txHash}" data-height="${d.height || ''}" data-amount="${formatAmount(d.amount)}">
                     <span class="notable-amount"><span class="amount-value">${animate ? '' : formatAmount(d.amount)}</span> <span class="amount-unit">ATOM</span></span>
                 </div>`
             ).join('');
-            
-            // Add click handlers for slide panel
+
+            // Click handlers + optional split-flap animation
             list.querySelectorAll('.notable-item').forEach((el, i) => {
                 el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
-                
-                // If animating, do split-flap effect
+
                 if (animate) {
                     const amountValueEl = el.querySelector('.amount-value');
                     const finalAmount = el.dataset.amount;
@@ -1012,28 +1115,38 @@
             });
         }
         
+        
         function renderNotablePagination() {
+            const section = document.querySelector('.notable-section');
             const pagination = document.getElementById('notablePagination');
-            const totalPages = Math.min(5, Math.ceil(notableDelegations.length / ITEMS_PER_PAGE));
-            
+            if (!pagination) return;
+
+            if (!notableDelegations.length) {
+                setVisible(section, false);
+                pagination.innerHTML = '';
+                return;
+            }
+
+            // 10 pages × 5 rows = 50 shown
+            const totalPages = Math.min(10, Math.ceil(Math.min(MAX_NOTABLE, notableDelegations.length) / ITEMS_PER_PAGE));
+
             if (totalPages <= 1) {
                 pagination.innerHTML = '';
                 return;
             }
-            
+
             let html = '';
             for (let i = 1; i <= totalPages; i++) {
                 html += `<button class="page-btn${i === currentNotablePage ? ' active' : ''}" data-page="${i}">${i}</button>`;
             }
             pagination.innerHTML = html;
-            
-            // Add click handlers
+
             pagination.querySelectorAll('.page-btn').forEach(btn => {
                 btn.onclick = () => {
                     const newPage = parseInt(btn.dataset.page);
                     if (newPage !== currentNotablePage) {
                         currentNotablePage = newPage;
-                        renderNotablePage(newPage, true); // true = animate
+                        renderNotablePage(newPage, true);
                         renderNotablePagination();
                     }
                 };
@@ -1041,7 +1154,14 @@
         }
 
         function updateTicker() {
-            if (tickerDelegations.length === 0) return;
+            const tickerSection = document.querySelector('.ticker-section');
+            const track = document.getElementById('tickerTrack');
+            if (!tickerDelegations.length) {
+                setVisible(tickerSection, false);
+                if (track) track.innerHTML = '';
+                return;
+            }
+            setVisible(tickerSection, true);
             
             // Community vibes messages - varied and meaningful!
             const getTickerMessage = (amount) => {
@@ -1137,7 +1257,7 @@
                 return `<div class="ticker-item" data-tx="${d.txHash}" data-height="${d.height || ''}"><span class="ticker-text">${msg}</span></div>`;
             }).join('');
             
-            const track = document.getElementById('tickerTrack');
+            
             
             // Duplicate content for seamless loop
             track.innerHTML = tickerHTML + tickerHTML;
@@ -1742,64 +1862,60 @@
         });
 
         // ========== Load from GitHub JSON Snapshot ==========
+        
         async function loadDelegationSnapshot() {
             try {
                 console.log('📥 Loading delegation snapshot...');
-                // Cache-busting: add timestamp to URL
                 const cacheBuster = `?t=${Date.now()}`;
-                const res = await fetch('./data/delegations_24h.json' + cacheBuster);
+                const res = await fetch('./data/delegations_24h.json' + cacheBuster, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const snap = await res.json();
-                const items = snap.items || [];
-                
-                console.log(`✅ Loaded ${items.length} delegations from snapshot (${snap.generated_at})`);
-                
-                if (items.length === 0) return false;
-                
-                // Convert to our format and populate arrays
-                for (const item of items) {
-                    const delegation = {
-                        amount: item.amount_atom,
-                        txHash: item.txhash,
-                        height: item.height,
-                        timestamp: item.time || snap.generated_at
-                    };
-                    
-                    // Skip if no hash
-                    if (!delegation.txHash) continue;
-                    
-                    // Skip duplicates
-                    if (tickerDelegations.some(d => d.txHash === delegation.txHash)) continue;
-                    
-                    // Categorize
-                    if (delegation.amount >= WHALE_MIN) {
-                        whaleDelegations.push(delegation);
-                    }
-                    if (delegation.amount >= NOTABLE_MIN && delegation.amount < WHALE_MIN) {
-                        notableDelegations.push(delegation);
-                    }
-                    if (delegation.amount >= TICKER_MIN) {
-                        tickerDelegations.push(delegation);
-                    }
+
+                if (snap.error) {
+                    console.log('⚠️ Snapshot error:', snap.error);
                 }
-                
-                // Sort by amount (biggest first for whales/notable)
+
+                // New schema
+                const whales = Array.isArray(snap.whales_top) ? snap.whales_top : [];
+                const mids = Array.isArray(snap.mids_top) ? snap.mids_top : [];
+                const tick = Array.isArray(snap.ticker) ? snap.ticker : [];
+
+                // Map into local UI shape
+                whaleDelegations = whales.slice(0, MAX_WHALES).map(it => ({
+                    amount: Number(it.amount_atom || 0),
+                    txHash: it.txhash || it.txHash || '',
+                    height: it.height || '',
+                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
+                })).filter(d => d.txHash && d.amount >= WHALE_MIN);
+
+                notableDelegations = mids.slice(0, MAX_MIDS).map(it => ({
+                    amount: Number(it.amount_atom || 0),
+                    txHash: it.txhash || it.txHash || '',
+                    height: it.height || '',
+                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
+                })).filter(d => d.txHash && d.amount >= NOTABLE_MIN && d.amount < WHALE_MIN);
+
+                // Ticker: duplicates allowed
+                tickerDelegations = tick.slice(0, MAX_TICKER).map(it => ({
+                    amount: Number(it.amount_atom || 0),
+                    txHash: it.txhash || it.txHash || '',
+                    height: it.height || '',
+                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
+                })).filter(d => d.txHash && d.amount >= TICKER_MIN);
+
+                // Sort top lists by amount descending
                 whaleDelegations.sort((a, b) => b.amount - a.amount);
                 notableDelegations.sort((a, b) => b.amount - a.amount);
-                
-                // Trim to limits
-                whaleDelegations = whaleDelegations.slice(0, 50);
-                notableDelegations = notableDelegations.slice(0, MAX_NOTABLE);
-                tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
-                
-                // Update UI
-                updateWhaleHero(false);
+
+                // UI updates (no placeholders — hide if empty)
+                startWhaleWatchCycle();
                 updateNotableList(false);
                 updateTicker();
-                
-                // Save to localStorage for even faster next load
+
+                // Cache
                 saveCache();
-                
+
+                console.log(`✅ Snapshot loaded: whales=${whaleDelegations.length}, mids=${notableDelegations.length}, ticker=${tickerDelegations.length}`);
                 return true;
             } catch (err) {
                 console.log('⚠️ Could not load snapshot:', err.message);

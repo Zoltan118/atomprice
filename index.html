@@ -115,14 +115,16 @@
         .live-section { margin-bottom: 32px; }
         .live-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
         .live-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
-        .live-dot.disconnected { background: #ef4444; animation: none; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .live-label { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
         .whale-hero { text-align: center; margin-bottom: 24px; }
         .whale-hero-value { font-size: clamp(48px, 12vw, 72px); font-weight: 700; letter-spacing: -2px; line-height: 1; cursor: pointer; transition: color 0.2s; }
         .whale-hero-value:hover { color: #888; }
-        .whale-hero-value.new { animation: flashGreen 0.5s ease; }
-        @keyframes flashGreen { 0%, 100% { color: #fff; } 50% { color: #22c55e; } }
+        .whale-hero-value.flipping { animation: flipIn 0.4s ease; }
+        @keyframes flipIn { 
+            0% { transform: rotateX(90deg); opacity: 0.5; } 
+            100% { transform: rotateX(0deg); opacity: 1; } 
+        }
         .whale-hero-label { font-size: 12px; color: #444; margin-top: 8px; text-transform: uppercase; letter-spacing: 2px; }
         .whale-hero-tx { font-size: 10px; color: #333; margin-top: 4px; font-family: 'Space Grotesk', monospace; }
         .notable-section { margin-bottom: 32px; }
@@ -393,12 +395,12 @@
                 </button>
             </div>
             <div class="time-buttons">
-                <button class="time-btn" data-d="1h" data-interval="1m" data-limit="60">1H</button>
-                <button class="time-btn active" data-d="1d" data-interval="15m" data-limit="96">1D</button>
-                <button class="time-btn" data-d="1w" data-interval="1h" data-limit="168">1W</button>
-                <button class="time-btn" data-d="1m" data-interval="4h" data-limit="180">1M</button>
-                <button class="time-btn" data-d="1y" data-interval="1d" data-limit="365">1Y</button>
-                <button class="time-btn" data-d="all" data-interval="1w" data-limit="500">ALL</button>
+                <button class="time-btn" data-d="1h" data-interval="1" data-limit="60">1H</button>
+                <button class="time-btn active" data-d="1d" data-interval="15" data-limit="96">1D</button>
+                <button class="time-btn" data-d="1w" data-interval="60" data-limit="168">1W</button>
+                <button class="time-btn" data-d="1m" data-interval="240" data-limit="180">1M</button>
+                <button class="time-btn" data-d="1y" data-interval="1440" data-limit="365">1Y</button>
+                <button class="time-btn" data-d="all" data-interval="10080" data-limit="500">ALL</button>
             </div>
         </div>
         <div class="chart-area">
@@ -409,27 +411,27 @@
             </div>
         </div>
         <div class="stats-row">
-            <div class="stat"><div class="stat-value" id="stakingRatio">59.3%</div><div class="stat-label">staking ratio</div></div>
-            <div class="stat center"><div class="stat-value" id="stakePressure">●●●●○</div><div class="stat-label">stake pressure</div></div>
-            <div class="stat right"><div class="stat-value" id="inflationRate">10.00%</div><div class="stat-label">inflation rate</div></div>
+            <div class="stat"><div class="stat-value" id="stakingRatio">—</div><div class="stat-label">staking ratio</div></div>
+            <div class="stat center"><div class="stat-value" id="stakePressure">—</div><div class="stat-label">stake pressure</div></div>
+            <div class="stat right"><div class="stat-value" id="inflationRate">—</div><div class="stat-label">inflation rate</div></div>
         </div>
         <div class="divider"></div>
         
-        <!-- Live Delegations -->
-        <div class="live-section">
+        <!-- Whale Watch -->
+        <div class="live-section" id="whaleSection" style="display: none;">
             <div class="live-header">
                 <div class="live-dot" id="liveDot"></div>
                 <span class="live-label">whale watch</span>
             </div>
             <div class="whale-hero">
                 <div class="whale-hero-value" id="whaleHero"></div>
-                <div class="whale-hero-label">largest</div>
+                <div class="whale-hero-label">top delegations</div>
                 <div class="whale-hero-tx" id="whaleHeroTx"></div>
             </div>
         </div>
         
-        <!-- Notable Delegations (1K-25K) with pagination -->
-        <div class="notable-section">
+        <!-- Recent Delegations (1K-24,999 ATOM) with pagination -->
+        <div class="notable-section" id="notableSection" style="display: none;">
             <div class="notable-header">
                 <div class="notable-label">recent delegations (1K-24,999 ATOM)</div>
             </div>
@@ -438,7 +440,7 @@
         </div>
         
         <!-- Staking Ticker -->
-        <div class="ticker-section">
+        <div class="ticker-section" id="tickerSection" style="display: none;">
             <div class="ticker-fade-left"></div>
             <div class="ticker-track" id="tickerTrack"></div>
             <div class="ticker-fade-right"></div>
@@ -469,38 +471,111 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '1.3.3';
+        const APP_VERSION = '2.0.0';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
-        // Config
-        const WHALE_MIN = 25000;      // 25K+ ATOM = whale (changed from 50K)
-        const NOTABLE_MIN = 1000;     // 1K-25K ATOM = notable (for list)
+        // ========== CONFIG ==========
+        const WHALE_MIN = 25000;      // 25K+ ATOM = whale
+        const NOTABLE_MIN = 1000;     // 1K-24,999 ATOM = notable (for list)
         const TICKER_MIN = 100;       // 100+ ATOM = ticker news
+        const MAX_WHALES = 20;        // Top 20 whales for whale watch
+        const MAX_MIDS = 100;         // Top 100 mids
         const MAX_NOTABLE = 50;       // Show 50 mids (10 pages × 5)
         const ITEMS_PER_PAGE = 5;     // 5 items per page
         const MAX_TICKER = 200;       // Keep last 200 for ticker
-const MAX_WHALES = 20;        // Keep top 20 whales in whale watch
-const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
-        const CACHE_KEY = 'atomprice_cache_v4';
-        const CACHE_TTL_MS = 86400000;  // 24 hours!
+        const WHALE_CYCLE_MS = 5000;  // Cycle whale watch every 5 seconds
+        const CACHE_KEY = 'atomprice_cache_v5';
+        const CACHE_TTL_MS = 172800000;  // 48 hours
 
-        // State
-        let whaleDelegations = [], notableDelegations = [], tickerDelegations = [];
-        let stakingRatio = 59.3;  // Default - will be updated from chain
+        // ========== STATE ==========
+        let whaleDelegations = [];
+        let notableDelegations = [];
+        let tickerDelegations = [];
+        let stakingRatio = null;
         let prices = { usd: null, eur: null };
         let fxRates = { gbp: 0.79, try: 35.8, jpy: 156, cny: 7.25 };
-        let change24h = null, currentCurrency = 'usd', chartType = 'line';
-        let lastDisplayedPrice = null, chartData = [], chart = null, series = null;
+        let change24h = null;
+        let currentCurrency = 'usd';
+        let chartType = 'line';
+        let lastDisplayedPrice = null;
+        let chartData = [];
+        let chart = null;
+        let series = null;
         let currentTimeframe = '1d';
-        let lastWsUpdate = 0;  // Track last WebSocket update time
 
-        // ========== localStorage Cache (24 hours) ==========
+        // Whale watch state
+        let whaleCycleTimer = null;
+        let currentWhaleIndex = 0;
+
+        // Notable pagination
+        let currentNotablePage = 1;
+
+        // ========== CURRENCIES ==========
+        const currencies = {
+            usd: { symbol: '$', hasPair: true },
+            eur: { symbol: '€', hasPair: true },
+            gbp: { symbol: '£', hasPair: false },
+            try: { symbol: '₺', hasPair: false },
+            jpy: { symbol: '¥', hasPair: false },
+            cny: { symbol: '元', hasPair: false }
+        };
+        
+        const currencyTabNames = {
+            usd: '$', eur: '€', gbp: '£', try: '₺', jpy: 'JPY ', cny: 'CNY '
+        };
+
+        // ========== HELPERS ==========
+        function getDecimals(price, currency) {
+            if (currency === 'jpy') return 0;
+            if (price < 10) return 3;
+            return 2;
+        }
+
+        function formatAmount(n) {
+            if (n % 1 === 0) {
+                return n.toLocaleString();
+            }
+            return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatNumber(n, d) {
+            return d === 0 ? Math.round(n).toLocaleString() : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+        }
+
+        function formatPriceWithDecimals(p, currency) {
+            const decimals = getDecimals(p, currency);
+            return currencies[currency].symbol + formatNumber(p, decimals);
+        }
+
+        function getCurrentPrice() {
+            if (currencies[currentCurrency].hasPair) return prices[currentCurrency];
+            return prices.usd ? prices.usd * fxRates[currentCurrency] : null;
+        }
+
+        function getConversionRate() {
+            if (currentCurrency === 'usd') return 1;
+            if (currencies[currentCurrency].hasPair && prices[currentCurrency] && prices.usd) {
+                return prices[currentCurrency] / prices.usd;
+            }
+            return fxRates[currentCurrency] || 1;
+        }
+
+        function shortTxHash(h) {
+            return h ? h.slice(0, 8) + '...' + h.slice(-6) : '';
+        }
+
+        function setVisible(elOrId, visible) {
+            const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+            if (!el) return;
+            el.style.display = visible ? '' : 'none';
+        }
+
+        // ========== CACHE ==========
         function loadCache() {
             try {
                 const raw = localStorage.getItem(CACHE_KEY);
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
-                // Cache valid for 24 hours
                 if (Date.now() - parsed.ts > CACHE_TTL_MS) {
                     localStorage.removeItem(CACHE_KEY);
                     return null;
@@ -511,19 +586,15 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
 
         function saveCache() {
             try {
-                // Clean old delegations (older than 24 hours)
-                const cutoff = Date.now() - CACHE_TTL_MS;
-                const filterOld = (arr) => arr.filter(d => new Date(d.timestamp).getTime() > cutoff);
-                
                 const data = {
-                    whaleDelegations: filterOld(whaleDelegations).slice(0, 50),
-                    notableDelegations: filterOld(notableDelegations).slice(0, 50),
-                    tickerDelegations: filterOld(tickerDelegations).slice(0, 200),
+                    whaleDelegations: whaleDelegations.slice(0, MAX_WHALES),
+                    notableDelegations: notableDelegations.slice(0, MAX_MIDS),
+                    tickerDelegations: tickerDelegations.slice(0, MAX_TICKER),
                     stakingRatio
                 };
                 localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-                console.log(`💾 Saved: ${data.tickerDelegations.length} delegations`);
-            } catch(e) {
+                console.log(`💾 Cached: ${data.tickerDelegations.length} delegations`);
+            } catch (e) {
                 console.error('❌ Cache save failed:', e);
             }
         }
@@ -531,14 +602,13 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
         function restoreFromCache() {
             const cached = loadCache();
             if (cached) {
-                console.log('📦 Restoring from 24h cache...');
+                console.log('📦 Restoring from cache...');
                 whaleDelegations = cached.whaleDelegations || [];
                 notableDelegations = cached.notableDelegations || [];
                 tickerDelegations = cached.tickerDelegations || [];
                 if (cached.stakingRatio) stakingRatio = cached.stakingRatio;
                 
-                // Immediately update UI
-                updateWhaleHero(false);
+                updateWhaleWatch();
                 updateNotableList(false);
                 updateTicker();
                 updateStakingDisplay();
@@ -548,20 +618,46 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             }
             return false;
         }
-        
-        // Fetch initial delegations - simplified approach
-        // The tx search endpoint often fails (500 errors), so we rely on:
-        // 1. localStorage cache from previous sessions
-        // 2. WebSocket for live data
-        // First-time visitors will see "waiting for live data" until WS delivers
-        async function fetchInitialDelegations() {
-            // Since tx search endpoints are unreliable, we skip them
-            // The WebSocket will populate data as it comes in
-            console.log('📡 Waiting for WebSocket delegation data...');
+
+        // ========== PRICE CACHE ==========
+        const PRICE_CACHE_KEY = 'atomprice_prices_v2';
+        let priceSource = 'none';
+
+        function loadPriceCache() {
+            try {
+                const raw = localStorage.getItem(PRICE_CACHE_KEY);
+                if (!raw) return null;
+                const cached = JSON.parse(raw);
+                if (Date.now() - cached.ts > 300000) return null; // 5 min
+                return cached;
+            } catch { return null; }
+        }
+
+        function savePriceCache() {
+            try {
+                localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({
+                    ts: Date.now(),
+                    prices,
+                    change24h,
+                    source: priceSource
+                }));
+            } catch {}
+        }
+
+        function restorePriceCache() {
+            const cached = loadPriceCache();
+            if (cached) {
+                prices = cached.prices || prices;
+                change24h = cached.change24h || 0;
+                priceSource = cached.source || 'cache';
+                console.log('💰 Price restored from cache');
+                displayPrice();
+                return true;
+            }
             return false;
         }
-        
-        // Load staking ratio from GitHub JSON snapshot (updated by GitHub Action)
+
+        // ========== STAKING DATA ==========
         async function loadStakingRatioFromJSON() {
             try {
                 const cacheBuster = `?t=${Date.now()}`;
@@ -571,7 +667,6 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 
                 if (data.error) throw new Error(data.error);
                 
-                // The JSON has staking_ratio_vs_supply (0.5933 = 59.33%)
                 if (data.staking_ratio_vs_supply) {
                     stakingRatio = data.staking_ratio_vs_supply * 100;
                     console.log(`✅ Staking ratio from JSON: ${stakingRatio.toFixed(2)}%`);
@@ -580,7 +675,6 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                     return true;
                 }
                 
-                // Alternative: might be staking_ratio directly as percentage
                 if (data.staking_ratio) {
                     stakingRatio = data.staking_ratio;
                     console.log(`✅ Staking ratio from JSON: ${stakingRatio.toFixed(2)}%`);
@@ -595,14 +689,11 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 return false;
             }
         }
-        
-        // Fetch staking pool data (staking ratio) - fallback to REST API
+
         async function fetchStakingData() {
-            // First try loading from our pre-computed JSON (most reliable, no CORS)
             const jsonLoaded = await loadStakingRatioFromJSON();
             if (jsonLoaded) return true;
             
-            // Fallback: try REST API endpoints directly
             console.log('📡 Falling back to REST API for staking data...');
             const endpoints = [
                 'https://api.silknodes.io/cosmos',
@@ -611,12 +702,10 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             
             for (const endpoint of endpoints) {
                 try {
-                    // Get staking pool
                     const poolRes = await fetch(`${endpoint}/cosmos/staking/v1beta1/pool`);
                     if (!poolRes.ok) continue;
                     const poolData = await poolRes.json();
                     
-                    // Get total supply
                     const supplyRes = await fetch(`${endpoint}/cosmos/bank/v1beta1/supply/uatom`);
                     if (!supplyRes.ok) continue;
                     const supplyData = await supplyRes.json();
@@ -631,7 +720,6 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                         saveCache();
                     }
                     
-                    // Get inflation
                     try {
                         const inflRes = await fetch(`${endpoint}/cosmos/mint/v1beta1/inflation`);
                         if (inflRes.ok) {
@@ -649,176 +737,176 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             return false;
         }
 
-        const currencies = {
-            usd: { symbol: '$', hasPair: true },
-            eur: { symbol: '€', hasPair: true },
-            gbp: { symbol: '£', hasPair: false },
-            try: { symbol: '₺', hasPair: false },
-            jpy: { symbol: '¥', hasPair: false },
-            cny: { symbol: '元', hasPair: false }
-        };
-        
-        // Smart decimals: 3 for prices < 10, 2 for others, 0 for JPY
-        function getDecimals(price, currency) {
-            if (currency === 'jpy') return 0;
-            if (price < 10) return 3;
-            return 2;
-        }
-        
-        // Tab display names (more explicit for tab title)
-        const currencyTabNames = {
-            usd: '$', eur: '€', gbp: '£', try: '₺', jpy: 'JPY ', cny: 'CNY '
-        };
-
-        // Helpers
-        function formatAmount(n) {
-            // Show full numbers with commas, decimals only if they exist
-            if (n % 1 === 0) {
-                return n.toLocaleString();  // 50 → "50", 54324 → "54,324"
-            }
-            // Has decimals - show up to 2
-            return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-        function formatNumber(n, d) {
-            return d === 0 ? Math.round(n).toLocaleString() : n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
-        }
-        function formatPriceWithDecimals(p, currency) {
-            const decimals = getDecimals(p, currency);
-            return currencies[currency].symbol + formatNumber(p, decimals);
-        }
-        function getCurrentPrice() {
-            if (currencies[currentCurrency].hasPair) return prices[currentCurrency];
-            return prices.usd ? prices.usd * fxRates[currentCurrency] : null;
-        }
-        function getConversionRate() {
-            if (currentCurrency === 'usd') return 1;
-            if (currencies[currentCurrency].hasPair && prices[currentCurrency] && prices.usd) return prices[currentCurrency] / prices.usd;
-            return fxRates[currentCurrency] || 1;
-        }
-        function timeAgo(ts) {
-            const mins = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
-            if (mins < 1) return 'just now';
-            if (mins < 60) return mins + 'm ago';
-            const hrs = Math.floor(mins / 60);
-            return hrs < 24 ? hrs + 'h ago' : Math.floor(hrs/24) + 'd ago';
-        }
-        function shortTxHash(h) { return h ? h.slice(0,8) + '...' + h.slice(-6) : ''; }
-
-        // Maintain Top lists (whales/mids) and mixed ticker
-        function upsertWhaleTop(d) {
-            // Dedup by txHash for top list
-            if (whaleDelegations.some(x => x.txHash === d.txHash)) return false;
-
-            whaleDelegations.push(d);
-            whaleDelegations.sort((a, b) => b.amount - a.amount);
-            whaleDelegations = whaleDelegations.slice(0, MAX_WHALES);
-            return true;
-        }
-
-        function upsertMidTop(d) {
-            if (notableDelegations.some(x => x.txHash === d.txHash)) return false;
-
-            notableDelegations.push(d);
-            notableDelegations.sort((a, b) => b.amount - a.amount);
-            notableDelegations = notableDelegations.slice(0, MAX_MIDS);
-            return true;
-        }
-
-        function addToTicker(d) {
-            // Duplicates allowed (as requested)
-            tickerDelegations.unshift(d);
-            tickerDelegations = tickerDelegations.slice(0, MAX_TICKER);
-        }
-
-        function finalizeDelegation(delegation) {
-            if (!delegation.txHash) return;
-
-            console.log(`💰 NEW: ${delegation.amount.toFixed(2)} ATOM (${delegation.txHash.slice(0,8)}...)`);
-
-            // Merge live delegations into ALL sections:
-            // ≥25K → whale watch + ticker
-            // 1K-24,999 → recent delegations + ticker
-            // 100+ → ticker only
-
-            let touched = false;
-
-            if (delegation.amount >= WHALE_MIN) {
-                const inserted = upsertWhaleTop(delegation);
-                if (inserted) {
-                    // Show instantly: restart cycle, starts with biggest
-                    startWhaleWatchCycle();
-                    // Also flash/show the new whale immediately if it's now biggest
-                    // (If not biggest, it will appear in random rotation.)
-                    showWhaleAtIndex(0, true);
-                    touched = true;
-                }
-                if (delegation.amount >= TICKER_MIN) {
-                    addToTicker(delegation);
-                    touched = true;
-                }
-            } else if (delegation.amount >= NOTABLE_MIN) {
-                const inserted = upsertMidTop(delegation);
-                if (inserted) {
-                    currentNotablePage = 1; // reset to first page on new mid
-                    updateNotableList(true);
-                    touched = true;
-                }
-                if (delegation.amount >= TICKER_MIN) {
-                    addToTicker(delegation);
-                    touched = true;
-                }
-            } else if (delegation.amount >= TICKER_MIN) {
-                addToTicker(delegation);
-                touched = true;
-            }
-
-            if (touched) {
-                // Update ticker whenever something is added
-                updateTicker();
-                lastWsUpdate = Date.now();
-                saveCache();
-            }
-        }
-        
-        // Staking ratio display
         function updateStakingDisplay() {
-            document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(2) + '%';
-            document.getElementById('inflationRate').textContent = '10.00%';  // Fixed value
-            updateStakePressure(stakingRatio);
+            if (stakingRatio !== null) {
+                document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(1) + '%';
+                updateStakePressure(stakingRatio);
+            }
+            const inflEl = document.getElementById('inflationRate');
+            if (inflEl.textContent === '—') {
+                inflEl.textContent = '10.00%';
+            }
         }
 
-        
-        // Section visibility helper (no placeholders)
-        function setVisible(elOrId, visible) {
-            const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
-            if (!el) return;
-            el.style.display = visible ? '' : 'none';
+        function updateStakePressure(ratio) {
+            let dots;
+            if (ratio >= 60) {
+                dots = '●●●●●';
+            } else if (ratio >= 56) {
+                dots = '●●●●○';
+            } else if (ratio >= 50) {
+                dots = '●●●○○';
+            } else if (ratio >= 45) {
+                dots = '●●○○○';
+            } else {
+                dots = '●○○○○';
+            }
+            document.getElementById('stakePressure').textContent = dots;
         }
 
-        // Whale watch (Top 20 whales) — flip/airport-style cycling
-        let whaleCycleTimer = null;
-        let currentWhaleIndex = 0;
+        // ========== FX RATES ==========
+        async function loadFxRates() {
+            try {
+                const cacheBuster = `?t=${Date.now()}`;
+                const res = await fetch('./data/fx_rates.json' + cacheBuster);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                
+                if (data.rates) {
+                    const eurToUsd = data.rates.USD || 1.08;
+                    fxRates.gbp = (data.rates.GBP || 0.85) / eurToUsd;
+                    fxRates.try = (data.rates.TRY || 38) / eurToUsd;
+                    fxRates.jpy = (data.rates.JPY || 168) / eurToUsd;
+                    fxRates.cny = (data.rates.CNY || 7.8) / eurToUsd;
+                    console.log('✅ FX rates loaded from JSON:', fxRates);
+                    return true;
+                }
+            } catch (err) {
+                console.log('⚠️ Could not load FX rates JSON:', err.message);
+            }
+            return false;
+        }
+
+        // ========== DELEGATION SNAPSHOT ==========
+        async function loadDelegationSnapshot() {
+            try {
+                console.log('📥 Loading delegation snapshot...');
+                const cacheBuster = `?t=${Date.now()}`;
+                const res = await fetch('./data/delegations_24h.json' + cacheBuster, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const snap = await res.json();
+
+                if (snap.error) {
+                    console.log('⚠️ Snapshot error:', snap.error);
+                }
+
+                const whales = Array.isArray(snap.whales_top) ? snap.whales_top : [];
+                const mids = Array.isArray(snap.mids_top) ? snap.mids_top : [];
+                const tick = Array.isArray(snap.ticker) ? snap.ticker : [];
+
+                // Map into local UI shape
+                whaleDelegations = whales.slice(0, MAX_WHALES).map(it => ({
+                    amount: Number(it.amount_atom || 0),
+                    txHash: it.txhash || it.txHash || '',
+                    height: it.height || '',
+                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
+                })).filter(d => d.txHash && d.amount >= WHALE_MIN);
+
+                notableDelegations = mids.slice(0, MAX_MIDS).map(it => ({
+                    amount: Number(it.amount_atom || 0),
+                    txHash: it.txhash || it.txHash || '',
+                    height: it.height || '',
+                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
+                })).filter(d => d.txHash && d.amount >= NOTABLE_MIN && d.amount < WHALE_MIN);
+
+                tickerDelegations = tick.slice(0, MAX_TICKER).map(it => ({
+                    amount: Number(it.amount_atom || 0),
+                    txHash: it.txhash || it.txHash || '',
+                    height: it.height || '',
+                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
+                })).filter(d => d.txHash && d.amount >= TICKER_MIN);
+
+                // Sort by amount descending
+                whaleDelegations.sort((a, b) => b.amount - a.amount);
+                notableDelegations.sort((a, b) => b.amount - a.amount);
+
+                // UI updates
+                updateWhaleWatch();
+                updateNotableList(false);
+                updateTicker();
+
+                // Cache
+                saveCache();
+
+                console.log(`✅ Snapshot loaded: whales=${whaleDelegations.length}, mids=${notableDelegations.length}, ticker=${tickerDelegations.length}`);
+                return true;
+            } catch (err) {
+                console.log('⚠️ Could not load snapshot:', err.message);
+                return false;
+            }
+        }
+
+        // ========== WHALE WATCH ==========
+        function splitFlapAnimate(element, finalText, delay = 0) {
+            const chars = finalText.split('');
+            let html = '';
+            
+            chars.forEach((char, i) => {
+                const isDigit = /\d/.test(char);
+                html += `<span class="flap-char" data-final="${char}" data-is-digit="${isDigit}" style="animation-delay: ${delay + i * 30}ms">${isDigit ? Math.floor(Math.random() * 10) : char}</span>`;
+            });
+            
+            element.innerHTML = html;
+            
+            const charEls = element.querySelectorAll('.flap-char');
+            charEls.forEach((charEl, i) => {
+                const finalChar = charEl.dataset.final;
+                const isDigit = charEl.dataset.isDigit === 'true';
+                
+                if (isDigit) {
+                    let cycles = 0;
+                    const maxCycles = 4 + Math.floor(Math.random() * 4);
+                    const interval = setInterval(() => {
+                        cycles++;
+                        if (cycles >= maxCycles) {
+                            clearInterval(interval);
+                            charEl.textContent = finalChar;
+                            charEl.style.opacity = '1';
+                        } else {
+                            charEl.textContent = Math.floor(Math.random() * 10);
+                            charEl.style.opacity = '0.6';
+                        }
+                    }, 40 + i * 10);
+                } else {
+                    setTimeout(() => {
+                        charEl.textContent = finalChar;
+                    }, delay + i * 30);
+                }
+            });
+        }
 
         function showWhaleAtIndex(idx, animate = true) {
             const hero = document.getElementById('whaleHero');
             const tx = document.getElementById('whaleHeroTx');
-            if (!hero || !tx) return;
+            const section = document.getElementById('whaleSection');
+            
+            if (!hero || !tx || !section) return;
 
             if (!whaleDelegations.length) {
-                setVisible(document.querySelector('.live-section'), false);
+                setVisible(section, false);
                 return;
             }
 
-            setVisible(document.querySelector('.live-section'), true);
+            setVisible(section, true);
 
             const w = whaleDelegations[Math.max(0, Math.min(idx, whaleDelegations.length - 1))];
             currentWhaleIndex = idx;
 
-            // Full number formatting (25,563 ATOM not 25.56K)
             const finalText = `${formatAmount(w.amount)} ATOM`;
 
             if (animate) {
-                // Airport-like flip using existing splitFlapAnimate
+                hero.classList.add('flipping');
+                setTimeout(() => hero.classList.remove('flipping'), 400);
                 splitFlapAnimate(hero, finalText, 0);
             } else {
                 hero.textContent = finalText;
@@ -834,12 +922,13 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 clearInterval(whaleCycleTimer);
                 whaleCycleTimer = null;
             }
+
             if (!whaleDelegations.length) {
-                setVisible(document.querySelector('.live-section'), false);
+                setVisible('whaleSection', false);
                 return;
             }
 
-            // Start with biggest whale (sorted desc)
+            // Start with biggest whale
             currentWhaleIndex = 0;
             showWhaleAtIndex(0, false);
 
@@ -849,20 +938,19 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 const n = Math.min(MAX_WHALES, whaleDelegations.length);
                 if (n <= 1) return;
 
+                // Pick random different index
                 let next = Math.floor(Math.random() * n);
                 if (next === currentWhaleIndex) next = (next + 1) % n;
 
                 showWhaleAtIndex(next, true);
-            }, 5000);
+            }, WHALE_CYCLE_MS);
         }
 
-        // Update whale watch after any data change
-        function updateWhaleHero(_isNew) {
-            // keep function name for minimal disruption elsewhere
+        function updateWhaleWatch() {
             startWhaleWatchCycle();
         }
 
-        // Slide Panel for Mintscan
+        // ========== MINTSCAN PANEL ==========
         function openMintscanPanel(hash, height) {
             const url = height 
                 ? `https://www.mintscan.io/cosmos/tx/${hash}?height=${height}`
@@ -881,68 +969,21 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             }, 300);
         }
         
-        // Panel event listeners
         document.getElementById('slidePanelClose').onclick = closeMintscanPanel;
         document.getElementById('slideOverlay').onclick = closeMintscanPanel;
 
-        // Notable list pagination
-        let currentNotablePage = 1;
-        
-        function updateNotableList(isNew) {
-            renderNotablePage(currentNotablePage, isNew);
+        // ========== NOTABLE LIST ==========
+        function updateNotableList(animate) {
+            renderNotablePage(currentNotablePage, animate);
             renderNotablePagination();
         }
-        
-        // Split-flap animation helper - cycles through random digits before showing final
-        function splitFlapAnimate(element, finalText, delay = 0) {
-            const chars = finalText.split('');
-            let html = '';
-            
-            chars.forEach((char, i) => {
-                const isDigit = /\d/.test(char);
-                html += `<span class="flap-char" data-final="${char}" data-is-digit="${isDigit}" style="animation-delay: ${delay + i * 30}ms">${isDigit ? Math.floor(Math.random() * 10) : char}</span>`;
-            });
-            
-            element.innerHTML = html;
-            
-            // Animate each character
-            const charEls = element.querySelectorAll('.flap-char');
-            charEls.forEach((charEl, i) => {
-                const finalChar = charEl.dataset.final;
-                const isDigit = charEl.dataset.isDigit === 'true';
-                
-                if (isDigit) {
-                    // Cycle through random numbers before settling
-                    let cycles = 0;
-                    const maxCycles = 4 + Math.floor(Math.random() * 4); // 4-7 cycles
-                    const interval = setInterval(() => {
-                        cycles++;
-                        if (cycles >= maxCycles) {
-                            clearInterval(interval);
-                            charEl.textContent = finalChar;
-                            charEl.style.opacity = '1';
-                        } else {
-                            charEl.textContent = Math.floor(Math.random() * 10);
-                            charEl.style.opacity = '0.6';
-                        }
-                    }, 40 + i * 10); // Staggered timing
-                } else {
-                    // Non-digits appear immediately
-                    setTimeout(() => {
-                        charEl.textContent = finalChar;
-                    }, delay + i * 30);
-                }
-            });
-        }
-        
-        
+
         function renderNotablePage(page, animate = false) {
-            const section = document.querySelector('.notable-section');
+            const section = document.getElementById('notableSection');
             const list = document.getElementById('notableList');
-            if (!list) return;
+            if (!list || !section) return;
 
             if (!notableDelegations.length) {
-                // No placeholders: hide section
                 setVisible(section, false);
                 list.innerHTML = '';
                 return;
@@ -953,13 +994,17 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             const startIdx = (page - 1) * ITEMS_PER_PAGE;
             const pageItems = notableDelegations.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
+            if (!pageItems.length) {
+                list.innerHTML = '';
+                return;
+            }
+
             list.innerHTML = pageItems.map((d) =>
                 `<div class="notable-item" data-tx="${d.txHash}" data-height="${d.height || ''}" data-amount="${formatAmount(d.amount)}">
                     <span class="notable-amount"><span class="amount-value">${animate ? '' : formatAmount(d.amount)}</span> <span class="amount-unit">ATOM</span></span>
                 </div>`
             ).join('');
 
-            // Click handlers + optional split-flap animation
             list.querySelectorAll('.notable-item').forEach((el, i) => {
                 el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
 
@@ -972,10 +1017,9 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 }
             });
         }
-        
-        
+
         function renderNotablePagination() {
-            const section = document.querySelector('.notable-section');
+            const section = document.getElementById('notableSection');
             const pagination = document.getElementById('notablePagination');
             if (!pagination) return;
 
@@ -1011,17 +1055,19 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             });
         }
 
+        // ========== TICKER ==========
         function updateTicker() {
-            const tickerSection = document.querySelector('.ticker-section');
+            const tickerSection = document.getElementById('tickerSection');
             const track = document.getElementById('tickerTrack');
+            
             if (!tickerDelegations.length) {
                 setVisible(tickerSection, false);
                 if (track) track.innerHTML = '';
                 return;
             }
+            
             setVisible(tickerSection, true);
             
-            // Community vibes messages - varied and meaningful!
             const getTickerMessage = (amount) => {
                 const amt = formatAmount(amount);
                 
@@ -1106,203 +1152,78 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 }
             };
             
-            // Use ALL delegations (up to 200)
-            const uniqueDelegations = tickerDelegations.slice(0, 200);
+            const uniqueDelegations = tickerDelegations.slice(0, MAX_TICKER);
             
-            // Generate ticker items with Mintscan links (include height)
             const tickerHTML = uniqueDelegations.map(d => {
                 const msg = getTickerMessage(d.amount);
                 return `<div class="ticker-item" data-tx="${d.txHash}" data-height="${d.height || ''}"><span class="ticker-text">${msg}</span></div>`;
             }).join('');
             
-            
-            
-            // Duplicate content for seamless loop
+            // Duplicate for seamless loop
             track.innerHTML = tickerHTML + tickerHTML;
             
-            // Calculate duration based on content width (more items = longer duration)
-            // This ensures consistent speed regardless of content amount
+            // Calculate duration (keep current speed: ~3.18s per item)
             requestAnimationFrame(() => {
                 const itemCount = uniqueDelegations.length;
-                // Base: ~0.3s per item for smooth reading speed
                 const duration = Math.max(45, itemCount * 3.18);
                 track.style.setProperty('--ticker-duration', `${duration}s`);
             });
             
-            // Add click handlers for slide panel
             document.querySelectorAll('#tickerTrack .ticker-item').forEach(el => {
                 el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
             });
         }
 
-        // ========== Multi-Source Price Provider ==========
-        const PRICE_CACHE_KEY = 'atomprice_prices_v1';
-        let priceSource = 'none';
-        
-        // Load cached prices
-        function loadPriceCache() {
-            try {
-                const raw = localStorage.getItem(PRICE_CACHE_KEY);
-                if (!raw) return null;
-                const cached = JSON.parse(raw);
-                // Cache valid for 5 minutes
-                if (Date.now() - cached.ts > 300000) return null;
-                return cached;
-            } catch { return null; }
-        }
-        
-        // Save prices to cache
-        function savePriceCache() {
-            try {
-                localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({
-                    ts: Date.now(),
-                    prices,
-                    change24h,
-                    source: priceSource
-                }));
-            } catch {}
-        }
-        
-        // Restore prices from cache on load
-        function restorePriceCache() {
-            const cached = loadPriceCache();
-            if (cached) {
-                prices = cached.prices || prices;
-                change24h = cached.change24h || 0;
-                priceSource = cached.source || 'cache';
-                console.log('💰 Price restored from cache');
-                displayPrice();
-                return true;
-            }
-            return false;
-        }
-
-        // Load FX rates from GitHub JSON (updated by ECB script)
-        async function loadFxRates() {
-            try {
-                const cacheBuster = `?t=${Date.now()}`;
-                const res = await fetch('./data/fx_rates.json' + cacheBuster);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                
-                if (data.rates) {
-                    // ECB rates are EUR-based, convert to USD-based
-                    const eurToUsd = data.rates.USD || 1.08;
-                    fxRates.gbp = (data.rates.GBP || 0.85) / eurToUsd;
-                    fxRates.try = (data.rates.TRY || 38) / eurToUsd;
-                    fxRates.jpy = (data.rates.JPY || 168) / eurToUsd;
-                    fxRates.cny = (data.rates.CNY || 7.8) / eurToUsd;
-                    console.log('✅ FX rates loaded from JSON:', fxRates);
-                    return true;
-                }
-            } catch (err) {
-                console.log('⚠️ Could not load FX rates JSON:', err.message);
-            }
-            return false;
-        }
-
-        // Try CoinGecko
-        async function fetchCoinGecko() {
-            try {
-                const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd,eur,gbp,try,jpy,cny&include_24hr_change=true');
-                if (!res.ok) throw new Error('CoinGecko failed');
-                const data = await res.json();
-                if (data.cosmos) {
-                    prices.usd = data.cosmos.usd;
-                    prices.eur = data.cosmos.eur;
-                    // Update fxRates from CoinGecko if available
-                    if (data.cosmos.gbp && data.cosmos.usd) fxRates.gbp = data.cosmos.gbp / data.cosmos.usd;
-                    if (data.cosmos.try && data.cosmos.usd) fxRates.try = data.cosmos.try / data.cosmos.usd;
-                    if (data.cosmos.jpy && data.cosmos.usd) fxRates.jpy = data.cosmos.jpy / data.cosmos.usd;
-                    if (data.cosmos.cny && data.cosmos.usd) fxRates.cny = data.cosmos.cny / data.cosmos.usd;
-                    change24h = data.cosmos.usd_24h_change || 0;
-                    priceSource = 'CoinGecko';
-                    console.log('✅ CoinGecko price:', prices.usd, 'FX:', fxRates);
-                    return true;
-                }
-            } catch (e) {
-                console.log('❌ CoinGecko failed:', e.message);
-            }
-            return false;
-        }
-        
-        // Try Coinbase
-        async function fetchCoinbase() {
-            try {
-                const res = await fetch('https://api.coinbase.com/v2/prices/ATOM-USD/spot');
-                if (!res.ok) throw new Error('Coinbase failed');
-                const data = await res.json();
-                if (data.data?.amount) {
-                    prices.usd = parseFloat(data.data.amount);
-                    priceSource = 'Coinbase';
-                    console.log('✅ Coinbase price:', prices.usd);
-                    
-                    // Get EUR price
-                    try {
-                        const eurRes = await fetch('https://api.coinbase.com/v2/prices/ATOM-EUR/spot');
-                        const eurData = await eurRes.json();
-                        if (eurData.data?.amount) prices.eur = parseFloat(eurData.data.amount);
-                    } catch {}
-                    
-                    return true;
-                }
-            } catch (e) {
-                console.log('❌ Coinbase failed:', e.message);
-            }
-            return false;
-        }
-        
-        // Try Kraken
+        // ========== PRICE FETCHING (Kraken only) ==========
         async function fetchKraken() {
             try {
-                const res = await fetch('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD');
+                const res = await fetch('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD,ATOMEUR');
                 if (!res.ok) throw new Error('Kraken failed');
                 const data = await res.json();
-                const ticker = data.result?.ATOMUSD;
-                if (ticker?.c?.[0]) {
-                    prices.usd = parseFloat(ticker.c[0]);
+                
+                const usdTicker = data.result?.ATOMUSD;
+                const eurTicker = data.result?.ATOMEUR;
+                
+                if (usdTicker?.c?.[0]) {
+                    prices.usd = parseFloat(usdTicker.c[0]);
+                    // Calculate 24h change from open price
+                    if (usdTicker.o) {
+                        const openPrice = parseFloat(usdTicker.o);
+                        change24h = ((prices.usd - openPrice) / openPrice) * 100;
+                    }
                     priceSource = 'Kraken';
-                    console.log('✅ Kraken price:', prices.usd);
-                    
-                    // Get EUR price
-                    try {
-                        const eurRes = await fetch('https://api.kraken.com/0/public/Ticker?pair=ATOMEUR');
-                        const eurData = await eurRes.json();
-                        if (eurData.result?.ATOMEUR?.c?.[0]) {
-                            prices.eur = parseFloat(eurData.result.ATOMEUR.c[0]);
-                        }
-                    } catch {}
-                    
-                    return true;
+                    console.log('✅ Kraken USD price:', prices.usd);
                 }
+                
+                if (eurTicker?.c?.[0]) {
+                    prices.eur = parseFloat(eurTicker.c[0]);
+                }
+                
+                return !!prices.usd;
             } catch (e) {
                 console.log('❌ Kraken failed:', e.message);
+                return false;
             }
-            return false;
         }
-        
-        // Main price fetcher with fallbacks (no Binance - geo-blocked in many countries)
+
         async function fetchPrice() {
-            console.log('💰 Fetching price...');
+            console.log('💰 Fetching price from Kraken...');
             
-            // Try sources in order (no Binance)
-            const success = await fetchCoinGecko() ||
-                           await fetchCoinbase() ||
-                           await fetchKraken();
+            const success = await fetchKraken();
             
             if (success) {
                 savePriceCache();
                 displayPrice();
             } else {
-                console.log('⚠️ All price sources failed, using cache');
+                console.log('⚠️ Kraken failed, using cache');
                 restorePriceCache();
             }
         }
-        
-        // Kraken WebSocket v2 for real-time price updates (globally available)
+
+        // ========== KRAKEN WEBSOCKET (Price only) ==========
         let krakenWs = null;
         let krakenReconnectAttempts = 0;
-        
+
         function connectKrakenWebSocket() {
             try {
                 console.log('🔌 Connecting to Kraken WebSocket...');
@@ -1313,7 +1234,6 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                     krakenWs = ws;
                     krakenReconnectAttempts = 0;
                     
-                    // Subscribe to ATOM/USD ticker
                     ws.send(JSON.stringify({
                         method: 'subscribe',
                         params: {
@@ -1327,21 +1247,18 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                     try {
                         const msg = JSON.parse(e.data);
                         
-                        // Handle ticker snapshot (initial data)
                         if (msg.channel === 'ticker' && msg.type === 'snapshot' && msg.data) {
                             for (const ticker of msg.data) {
                                 processKrakenTicker(ticker);
                             }
                         }
                         
-                        // Handle ticker updates
                         if (msg.channel === 'ticker' && msg.type === 'update' && msg.data) {
                             for (const ticker of msg.data) {
                                 processKrakenTicker(ticker);
                             }
                         }
                         
-                        // Handle subscription confirmation
                         if (msg.method === 'subscribe' && msg.success) {
                             console.log('✅ Kraken subscribed to:', msg.result?.symbol);
                         }
@@ -1351,7 +1268,7 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                     }
                 };
                 
-                ws.onerror = (err) => {
+                ws.onerror = () => {
                     console.log('⚠️ Kraken WebSocket error');
                 };
                 
@@ -1359,10 +1276,9 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                     console.log('⚠️ Kraken WebSocket closed');
                     krakenWs = null;
                     
-                    // Reconnect with exponential backoff
                     krakenReconnectAttempts++;
                     const delay = Math.min(30000, 1000 * Math.pow(2, krakenReconnectAttempts));
-                    console.log(`🔄 Reconnecting in ${delay/1000}s...`);
+                    console.log(`🔄 Reconnecting in ${delay / 1000}s...`);
                     setTimeout(connectKrakenWebSocket, delay);
                 };
                 
@@ -1370,7 +1286,7 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 console.log('❌ Kraken WebSocket failed:', e.message);
             }
         }
-        
+
         function processKrakenTicker(ticker) {
             const symbol = ticker.symbol;
             const lastPrice = parseFloat(ticker.last);
@@ -1388,10 +1304,10 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             }
         }
 
-        // Price animation state
+        // ========== PRICE DISPLAY ==========
         let animRAF = null;
         let animatingPrice = null;
-        
+
         function animatePriceTo(nextPrice, decimals) {
             cancelAnimationFrame(animRAF);
             
@@ -1402,19 +1318,16 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             const duration = 600;
             const direction = end > start ? 'up' : 'down';
             
-            // Flash color
             el.classList.remove('flash-up', 'flash-down');
-            void el.offsetWidth; // Force reflow
+            void el.offsetWidth;
             el.classList.add(direction === 'up' ? 'flash-up' : 'flash-down');
             setTimeout(() => el.classList.remove('flash-up', 'flash-down'), 600);
             
             function tick(now) {
                 const t = Math.min(1, (now - startTime) / duration);
-                // easeOutCubic for smooth deceleration
                 const eased = 1 - Math.pow(1 - t, 3);
                 const v = start + (end - start) * eased;
                 
-                // Update odometer display
                 renderOdometerPrice(v, decimals, direction, 1 - t);
                 
                 if (t < 1) {
@@ -1426,14 +1339,12 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             
             animRAF = requestAnimationFrame(tick);
         }
-        
-        // Split-flap animation for currency switching (airport departure board style)
+
         function splitFlapPriceAnimate(targetValue, decimals) {
             const el = document.getElementById('price');
             const symbol = currencies[currentCurrency].symbol;
             const finalStr = formatNumber(targetValue, decimals);
             
-            // Build initial HTML with random digits
             let html = `<span class="price-symbol currency">${symbol}</span>`;
             const chars = finalStr.split('');
             
@@ -1448,13 +1359,12 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             
             el.innerHTML = html;
             
-            // Animate each digit with staggered timing
             const digitEls = el.querySelectorAll('.price-digit-inner[data-final]');
             digitEls.forEach((digitEl, idx) => {
                 const finalChar = digitEl.dataset.final;
                 let cycles = 0;
-                const maxCycles = 5 + Math.floor(Math.random() * 5); // 5-9 cycles
-                const baseDelay = idx * 40; // Stagger start
+                const maxCycles = 5 + Math.floor(Math.random() * 5);
+                const baseDelay = idx * 40;
                 
                 setTimeout(() => {
                     const interval = setInterval(() => {
@@ -1473,18 +1383,13 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             
             animatingPrice = targetValue;
         }
-        
-        // Render price with odometer-style digits
+
         function renderOdometerPrice(value, decimals, direction = null, animProgress = 0) {
             const el = document.getElementById('price');
             const symbol = currencies[currentCurrency].symbol;
             const priceStr = formatNumber(value, decimals);
             
-            // Build HTML with individual digit spans
-            // Currency symbol is smaller and lighter
             let html = `<span class="price-symbol currency">${symbol}</span>`;
-            
-            // Remove symbol from price string if it starts with it
             const numStr = priceStr.replace(symbol, '');
             
             for (let i = 0; i < numStr.length; i++) {
@@ -1492,13 +1397,11 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 const isDigit = /\d/.test(char);
                 
                 if (isDigit && animProgress > 0) {
-                    // Calculate offset for rolling effect (only during animation)
                     const offsetY = direction === 'up' ? -animProgress * 20 : animProgress * 20;
                     html += `<span class="price-digit"><span class="price-digit-inner" style="transform: translateY(${offsetY}%)">${char}</span></span>`;
                 } else if (isDigit) {
                     html += `<span class="price-digit"><span class="price-digit-inner">${char}</span></span>`;
                 } else {
-                    // Non-digits (comma, period) - no animation
                     html += `<span class="price-symbol">${char}</span>`;
                 }
             }
@@ -1514,19 +1417,15 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             
             const decimals = getDecimals(price, currentCurrency);
             
-            // Animate if price changed
             if (lastDisplayedPrice !== null && price !== lastDisplayedPrice) {
-                // Animate with odometer effect
                 animatePriceTo(price, decimals);
             } else if (animatingPrice === null) {
-                // First load - no animation, just render
                 renderOdometerPrice(price, decimals);
                 animatingPrice = price;
             }
             
             lastDisplayedPrice = price;
             
-            // Handle change24h display
             if (change24h !== null) {
                 ch.textContent = (change24h >= 0 ? '+' : '') + change24h.toFixed(2) + '%';
                 ch.className = 'change ' + (change24h >= 0 ? 'pos' : 'neg');
@@ -1534,11 +1433,10 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 ch.textContent = '';
             }
             
-            // Update tab title with price
             document.title = currencyTabNames[currentCurrency] + formatNumber(price, decimals) + ' · ATOM';
         }
 
-        // Chart
+        // ========== CHART (Kraken OHLC) ==========
         function initChart() {
             const container = document.getElementById('chartContainer');
             chart = LightweightCharts.createChart(container, {
@@ -1571,7 +1469,6 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 const price = chartType === 'line' ? data.value : data.close;
                 const date = new Date(p.time * 1000);
                 
-                // Format time based on current timeframe
                 let timeText;
                 if (currentTimeframe === '1h' || currentTimeframe === '1d') {
                     timeText = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -1589,17 +1486,15 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 document.getElementById('tooltipTime').textContent = timeText;
                 document.getElementById('tooltipPrice').textContent = formatPriceWithDecimals(price, currentCurrency);
                 
-                // Position tooltip near the cursor
                 const containerRect = chartContainer.getBoundingClientRect();
                 const tooltipWidth = tooltip.offsetWidth;
                 const tooltipHeight = tooltip.offsetHeight;
                 
-                let left = p.point.x + 15;  // Offset from cursor
-                let top = p.point.y - tooltipHeight / 2;  // Center vertically with cursor
+                let left = p.point.x + 15;
+                let top = p.point.y - tooltipHeight / 2;
                 
-                // Keep tooltip inside chart bounds
                 if (left + tooltipWidth > containerRect.width) {
-                    left = p.point.x - tooltipWidth - 15;  // Flip to left side
+                    left = p.point.x - tooltipWidth - 15;
                 }
                 if (top < 0) top = 5;
                 if (top + tooltipHeight > containerRect.height) {
@@ -1610,13 +1505,13 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
                 tooltip.style.top = top + 'px';
                 tooltip.style.opacity = '1';
             });
+            
             window.addEventListener('resize', () => chart.applyOptions({ width: container.clientWidth }));
         }
 
         function createSeries() {
             if (series) chart.removeSeries(series);
             if (chartType === 'line') {
-                // Simple line series
                 series = chart.addLineSeries({ 
                     color: 'rgba(255, 255, 255, 0.35)',
                     lineWidth: 1.5, 
@@ -1639,90 +1534,62 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             }
             updateChartData();
         }
-        // ===== Chart (Kraken OHLC) =====
-// Replace your current fetchChart() and helper with this version.
 
-async function fetchChart(interval = '15m', limit = 96) {
-    try {
-        const krakenInterval = toKrakenIntervalMinutes(interval);
-
-        // Kraken pair: "ATOMUSD" works; Kraken's result key may be "XATOMZUSD"
-        const pair = 'ATOMUSD';
-        const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${krakenInterval}`;
-
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Kraken OHLC HTTP ${res.status}`);
-
-        const json = await res.json();
-        if (Array.isArray(json.error) && json.error.length) {
-            throw new Error(json.error.join(', '));
-        }
-
-        // Kraken returns result under a key that often isn't exactly "ATOMUSD"
-        const resultKey = Object.keys(json.result || {}).find(k => k !== 'last');
-        const rows = (resultKey && json.result[resultKey]) ? json.result[resultKey] : [];
-
-        // rows format: [time, open, high, low, close, vwap, volume, count]
-        // time is seconds (good for Lightweight Charts)
-        const sliced = rows.slice(-limit);
-
-        const mapped = sliced.map(r => ({
-            time: Number(r[0]),
-            open: Number(r[1]),
-            high: Number(r[2]),
-            low: Number(r[3]),
-            close: Number(r[4]),
-            value: Number(r[4]) // used by your "line" series
-        }));
-
-        // Ensure ascending time order
-        mapped.sort((a, b) => a.time - b.time);
-
-        chartData = mapped;
-        updateChartData();
-    } catch (e) {
-        console.error('Chart fetch error (Kraken OHLC):', e);
-    }
-}
-
-function toKrakenIntervalMinutes(interval) {
-    // Match your UI buttons:
-    // 1H: '1m', 1D: '15m', 1W: '1h', 1M: '4h', 1Y: '1d', ALL: '1w'
-    const map = {
-        '1m': 1,
-        '5m': 5,
-        '15m': 15,
-        '30m': 30,
-        '1h': 60,
-        '4h': 240,
-        '1d': 1440,
-        '1w': 10080
-    };
-
-    // Kraken allows 1,5,15,30,60,240,1440,10080 (and some others)
-    return map[interval] ?? 15;
-}
-
-        
-
-        // Stats
-        function updateStakePressure(ratio) {
-            let dots;
-            if (ratio >= 60) {
-                dots = '●●●●●';  // Very high pressure
-            } else if (ratio >= 56) {
-                dots = '●●●●○';  // High pressure
-            } else if (ratio >= 50) {
-                dots = '●●●○○';  // Medium pressure
-            } else if (ratio >= 45) {
-                dots = '●●○○○';  // Low pressure
-            } else {
-                dots = '●○○○○';  // Very low pressure
+        // Kraken OHLC intervals: 1, 5, 15, 30, 60, 240, 1440, 10080, 21600 (minutes)
+        async function fetchChart(interval = 15, limit = 96) {
+            try {
+                console.log(`📊 Fetching chart from Kraken (interval=${interval}min, limit=${limit})...`);
+                
+                // Calculate 'since' timestamp based on limit and interval
+                const now = Math.floor(Date.now() / 1000);
+                const since = now - (limit * interval * 60);
+                
+                const res = await fetch(`https://api.kraken.com/0/public/OHLC?pair=ATOMUSD&interval=${interval}&since=${since}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                
+                const data = await res.json();
+                
+                if (data.error && data.error.length > 0) {
+                    throw new Error(data.error[0]);
+                }
+                
+                const ohlc = data.result?.ATOMUSD || [];
+                
+                // Kraken OHLC format: [time, open, high, low, close, vwap, volume, count]
+                chartData = ohlc.slice(-limit).map(k => ({
+                    time: parseInt(k[0]),
+                    open: parseFloat(k[1]),
+                    high: parseFloat(k[2]),
+                    low: parseFloat(k[3]),
+                    close: parseFloat(k[4]),
+                    value: parseFloat(k[4])
+                }));
+                
+                console.log(`✅ Chart loaded: ${chartData.length} candles`);
+                updateChartData();
+            } catch (e) {
+                console.error('❌ Chart fetch error:', e.message);
             }
-            document.getElementById('stakePressure').textContent = dots;
         }
 
-        // Events
+        function updateChartData() {
+            if (!series || !chartData.length) return;
+            const rate = getConversionRate();
+            if (chartType === 'line') {
+                series.setData(chartData.map(d => ({ time: d.time, value: d.value * rate })));
+            } else {
+                series.setData(chartData.map(d => ({ 
+                    time: d.time, 
+                    open: d.open * rate, 
+                    high: d.high * rate, 
+                    low: d.low * rate, 
+                    close: d.close * rate 
+                })));
+            }
+            chart.timeScale().fitContent();
+        }
+
+        // ========== EVENT LISTENERS ==========
         document.querySelectorAll('.currency-btn').forEach(btn => {
             btn.onclick = () => {
                 document.querySelector('.currency-btn.active').classList.remove('active');
@@ -1731,14 +1598,12 @@ function toKrakenIntervalMinutes(interval) {
                 lastDisplayedPrice = null;
                 animatingPrice = null;
                 
-                // Use split-flap animation for currency switch
                 const price = getCurrentPrice();
                 if (price) {
                     const decimals = getDecimals(price, currentCurrency);
                     splitFlapPriceAnimate(price, decimals);
                 }
                 
-                // Update tab title
                 const decimals = getDecimals(price, currentCurrency);
                 document.title = currencyTabNames[currentCurrency] + formatNumber(price, decimals) + ' · ATOM';
                 
@@ -1759,131 +1624,56 @@ function toKrakenIntervalMinutes(interval) {
             btn.onclick = () => {
                 document.querySelector('.time-btn.active').classList.remove('active');
                 btn.classList.add('active');
-                // Track timeframe for tooltip formatting
                 currentTimeframe = btn.dataset.d;
-                fetchChart(btn.dataset.interval, parseInt(btn.dataset.limit));
+                fetchChart(parseInt(btn.dataset.interval), parseInt(btn.dataset.limit));
             };
         });
 
-        // ========== Load from GitHub JSON Snapshot ==========
-        
-        async function loadDelegationSnapshot() {
-            try {
-                console.log('📥 Loading delegation snapshot...');
-                const cacheBuster = `?t=${Date.now()}`;
-                const res = await fetch('./data/delegations_24h.json' + cacheBuster, { cache: 'no-store' });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const snap = await res.json();
-
-                if (snap.error) {
-                    console.log('⚠️ Snapshot error:', snap.error);
-                }
-
-                // New schema
-                const whales = Array.isArray(snap.whales_top) ? snap.whales_top : [];
-                const mids = Array.isArray(snap.mids_top) ? snap.mids_top : [];
-                const tick = Array.isArray(snap.ticker) ? snap.ticker : [];
-
-                // Map into local UI shape
-                whaleDelegations = whales.slice(0, MAX_WHALES).map(it => ({
-                    amount: Number(it.amount_atom || 0),
-                    txHash: it.txhash || it.txHash || '',
-                    height: it.height || '',
-                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
-                })).filter(d => d.txHash && d.amount >= WHALE_MIN);
-
-                notableDelegations = mids.slice(0, MAX_MIDS).map(it => ({
-                    amount: Number(it.amount_atom || 0),
-                    txHash: it.txhash || it.txHash || '',
-                    height: it.height || '',
-                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
-                })).filter(d => d.txHash && d.amount >= NOTABLE_MIN && d.amount < WHALE_MIN);
-
-                // Ticker: duplicates allowed
-                tickerDelegations = tick.slice(0, MAX_TICKER).map(it => ({
-                    amount: Number(it.amount_atom || 0),
-                    txHash: it.txhash || it.txHash || '',
-                    height: it.height || '',
-                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
-                })).filter(d => d.txHash && d.amount >= TICKER_MIN);
-
-                // Sort top lists by amount descending
-                whaleDelegations.sort((a, b) => b.amount - a.amount);
-                notableDelegations.sort((a, b) => b.amount - a.amount);
-
-                // UI updates (no placeholders — hide if empty)
-                startWhaleWatchCycle();
-                updateNotableList(false);
-                updateTicker();
-
-                // Cache
-                saveCache();
-
-                console.log(`✅ Snapshot loaded: whales=${whaleDelegations.length}, mids=${notableDelegations.length}, ticker=${tickerDelegations.length}`);
-                return true;
-            } catch (err) {
-                console.log('⚠️ Could not load snapshot:', err.message);
-                return false;
-            }
-        }
-
-        // Init - INSTANT loading from cache
+        // ========== INIT ==========
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
             
-            // 1) INSTANT: Restore from localStorage cache FIRST
+            // 1) Restore from cache first
             const hadCache = restoreFromCache();
-            
-            // 2) INSTANT: Restore price from cache
             restorePriceCache();
             
-            // 3) Initialize chart
+            // 2) Initialize chart
             initChart();
             
-            // 4) Show initial UI state
+            // 3) Show initial UI state
             updateStakingDisplay();
-            if (!hadCache) {
-                updateWhaleHero();
-                updateNotableList();
-            }
             
-            // 5) Load from JSON snapshot (fills data if no cache or adds more)
-            if (!hadCache || tickerDelegations.length < 50) {
-                await loadDelegationSnapshot();
-            }
+            // 4) Load from JSON snapshot
+            await loadDelegationSnapshot();
             
-            // 6) Load FX rates from JSON
+            // 5) Load FX rates
             await loadFxRates();
             
-            // 7) Connect to live data (async, don't block)
-            connectCosmos();
+            // 6) Connect Kraken WebSocket for live price
             connectKrakenWebSocket();
             
-            // 8) Fetch fresh data in background
+            // 7) Fetch fresh data
             fetchPrice();
-            fetchChart();
+            fetchChart(15, 96);  // Default: 1D with 15min candles
             fetchStakingData();
             
-            // 9) Refresh prices every 60 seconds
-            setInterval(fetchPrice, 60000);
-            setInterval(fetchStakingData, 300000);
+            // 8) Refresh intervals
+            setInterval(fetchPrice, 60000);           // Price every 60s
+            setInterval(fetchStakingData, 300000);    // Staking every 5min
+            setInterval(loadDelegationSnapshot, 300000);  // Delegations every 5min
             
             console.log('✅ Dashboard ready!');
         }
         
-        // Refresh data when tab becomes visible again
+        // Refresh when tab becomes visible
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
-                console.log('👁️ Tab visible - checking connection...');
-                // Reconnect WebSockets if needed
-                if (!cosmosWs || cosmosWs.readyState !== WebSocket.OPEN) {
-                    connectCosmos();
-                }
+                console.log('👁️ Tab visible - refreshing...');
                 if (!krakenWs || krakenWs.readyState !== WebSocket.OPEN) {
                     connectKrakenWebSocket();
                 }
-                // Refresh price data
                 fetchPrice();
+                loadDelegationSnapshot();
             }
         });
         

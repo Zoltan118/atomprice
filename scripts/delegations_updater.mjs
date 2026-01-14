@@ -1,29 +1,48 @@
+// scripts/delegations_updater.mjs
+// Atomprice delegation snapshot + persistent Top lists
+// - Fetches recent MsgDelegate txs via Tendermint RPC /tx_search
+// - Maintains:
+//    1) whales_top: Top 20 delegations >= 25,000 ATOM (persistent, keeps biggest ever seen)
+//    2) mids_top:   Top 100 delegations 1,000–24,999 ATOM (persistent, keeps biggest ever seen)
+//    3) ticker:     Fresh mixed feed (recent fetched + some whales/mids), always allowed to change
+//
+// Output file: data/delegations_24h.json
+//
+// Env (optional):
+//   RPC_BASE        default: https://rpc.silknodes.io/cosmos
+//   WINDOW_HOURS    default: 24
+//   MIN_ATOM        default: 1
+//   LIMIT_PAGES     default: 3
+//   PER_PAGE        default: 50
+//   WHALE_MIN       default: 25000
+//   WHALES_KEEP     default: 20
+//   MIDS_MIN        default: 1000
+//   MIDS_MAX        default: 24999.999999
+//   MIDS_KEEP       default: 100
+//   TICKER_KEEP     default: 120
+
 import fs from "node:fs/promises";
 
 const OUT_FILE = "data/delegations_24h.json";
 
-const MIN_ATOM = Number(process.env.MIN_ATOM ?? "100");
+const RPC_BASE = (process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos").replace(/\/+$/, "");
 const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? "24");
-const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "3");   // keep small to avoid rate-limits
-const PER_PAGE = Number(process.env.PER_PAGE ?? "50");        // keep smaller than 100
+const MIN_ATOM = Number(process.env.MIN_ATOM ?? "1");
 
-const PRIMARY_RPC = (process.env.RPC_BASE ?? "").trim();
+const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "3");
+const PER_PAGE = Number(process.env.PER_PAGE ?? "50");
 
-const FALLBACK_RPCS = [
-  PRIMARY_RPC,
-  "https://cosmos-rpc.publicnode.com",
-  "https://cosmos-rpc.polkachu.com",
-  "https://cosmoshub-mainnet-rpc.itrocket.net",
-  "https://rpc.cosmos.nodestake.org",
-  "https://cosmoshub-rpc.stakely.io",
-].filter(Boolean);
+const WHALE_MIN = Number(process.env.WHALE_MIN ?? "25000");
+const WHALES_KEEP = Number(process.env.WHALES_KEEP ?? "20");
+
+const MIDS_MIN = Number(process.env.MIDS_MIN ?? "1000");
+const MIDS_MAX = Number(process.env.MIDS_MAX ?? "24999.999999");
+const MIDS_KEEP = Number(process.env.MIDS_KEEP ?? "100");
+
+const TICKER_KEEP = Number(process.env.TICKER_KEEP ?? "120");
 
 const MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
 const EVENT_QUERY = `message.action='${MSG_DELEGATE}'`;
-
-function normalizeRpcBase(rpcBase) {
-  return rpcBase.replace(/\/+$/, "");
-}
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -37,14 +56,26 @@ async function fetchJson(url, timeoutMs = 15000) {
     const text = await res.text();
     let json = null;
     try { json = JSON.parse(text); } catch {}
-
     if (!res.ok) {
-      const msg = json?.error?.data || json?.error?.message || text?.slice(0, 160);
+      const msg = json?.error?.data || json?.error?.message || json?.message || text?.slice(0, 200);
       throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : ""}`);
     }
     return json;
   } finally {
     clearTimeout(t);
+  }
+}
+
+async function ensureOutDir() {
+  await fs.mkdir("data", { recursive: true });
+}
+
+async function readPrev() {
+  try {
+    const txt = await fs.readFile(OUT_FILE, "utf8");
+    return JSON.parse(txt);
+  } catch {
+    return null;
   }
 }
 
@@ -55,29 +86,78 @@ function getAttr(event, key) {
 }
 
 function parseAmountAtom(amountStr) {
+  // expects "1234567uatom"
   if (!amountStr || typeof amountStr !== "string") return null;
   const m = amountStr.match(/^(\d+)\s*uatom$/i);
   if (!m) return null;
   return Number(m[1]) / 1_000_000;
 }
 
-async function ensureOutDir() {
-  await fs.mkdir("data", { recursive: true });
+function toTsMs(iso) {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
 }
 
-async function writeSnapshot(payload) {
-  await ensureOutDir();
-  await fs.writeFile(OUT_FILE, JSON.stringify(payload, null, 2));
+function normalizeItem(it) {
+  // Ensure consistent shape; keep only what you need for UI
+  return {
+    amount_atom: Number(it.amount_atom),
+    delegator: it.delegator || null,
+    validator: it.validator || null,
+    height: Number(it.height || 0),
+    txhash: it.txhash,
+    timestamp: it.timestamp || null,
+  };
 }
 
-async function tryRpc(rpcBase) {
-  const base = normalizeRpcBase(rpcBase);
+function uniqueByTxhash(items) {
+  const seen = new Set();
+  const out = [];
+  for (const it of items) {
+    const h = it?.txhash;
+    if (!h || seen.has(h)) continue;
+    seen.add(h);
+    out.push(it);
+  }
+  return out;
+}
 
-  // Use /status only once (light)
-  const status = await fetchJson(`${base}/status`);
+function sortByBiggest(items) {
+  return items.slice().sort((a, b) => {
+    const da = Number(a.amount_atom || 0);
+    const db = Number(b.amount_atom || 0);
+    if (db !== da) return db - da;
+
+    // tie-break: newer timestamp, then height
+    const ta = toTsMs(a.timestamp) ?? 0;
+    const tb = toTsMs(b.timestamp) ?? 0;
+    if (tb !== ta) return tb - ta;
+
+    return (Number(b.height || 0) - Number(a.height || 0));
+  });
+}
+
+function sortByNewest(items) {
+  return items.slice().sort((a, b) => {
+    const ta = toTsMs(a.timestamp);
+    const tb = toTsMs(b.timestamp);
+
+    // Prefer timestamp if present
+    if (ta != null && tb != null) return tb - ta;
+    if (ta != null && tb == null) return -1;
+    if (ta == null && tb != null) return 1;
+
+    // Fallback to height
+    return (Number(b.height || 0) - Number(a.height || 0));
+  });
+}
+
+async function fetchRecentDelegations() {
+  // 1) Get chain time for cutoff
+  const status = await fetchJson(`${RPC_BASE}/status`);
   const latestTime = status?.result?.sync_info?.latest_block_time;
-  if (!latestTime) throw new Error(`Bad /status from ${base}`);
-
+  if (!latestTime) throw new Error(`Bad /status from ${RPC_BASE}`);
   const nowMs = Date.parse(latestTime);
   const cutoffMs = nowMs - WINDOW_HOURS * 60 * 60 * 1000;
 
@@ -85,7 +165,6 @@ async function tryRpc(rpcBase) {
   const seen = new Set();
 
   for (let page = 1; page <= LIMIT_PAGES; page++) {
-    // Gentle pacing to avoid 429
     if (page > 1) await sleep(350);
 
     const params = new URLSearchParams();
@@ -94,14 +173,15 @@ async function tryRpc(rpcBase) {
     params.set("page", String(page));
     params.set("per_page", String(PER_PAGE));
     params.set("order_by", JSON.stringify("desc"));
-    const url = `${base}/tx_search?${params.toString()}`;
+
+    const url = `${RPC_BASE}/tx_search?${params.toString()}`;
 
     let data;
     try {
       data = await fetchJson(url);
     } catch (e) {
-      // If RPC says page out of range, just stop paging (not fatal)
       const msg = String(e?.message || e);
+      // stop paging if this RPC has fewer pages
       if (msg.includes("page should be within")) break;
       throw e;
     }
@@ -116,11 +196,9 @@ async function tryRpc(rpcBase) {
       if (seen.has(txhash)) continue;
       seen.add(txhash);
 
-      // BEST CASE: timestamp is provided in tx_search response (many RPCs do)
+      // Many RPCs include timestamp here; if present and too old, stop hard
       const tsStr = tx?.timestamp || tx?.tx_result?.timestamp || null;
       const tsMs = tsStr ? Date.parse(tsStr) : null;
-
-      // If we have a timestamp and it's older than window -> we can stop hard
       if (tsMs && tsMs < cutoffMs) {
         page = LIMIT_PAGES + 1;
         break;
@@ -141,66 +219,113 @@ async function tryRpc(rpcBase) {
 
       if (!amount_atom || amount_atom < MIN_ATOM) continue;
 
-      items.push({
-        amount_atom,
-        delegator,
-        validator,
-        height,
-        txhash,
-        timestamp: tsMs ? new Date(tsMs).toISOString() : null,
-      });
+      items.push(
+        normalizeItem({
+          amount_atom,
+          delegator,
+          validator,
+          height,
+          txhash,
+          timestamp: tsMs ? new Date(tsMs).toISOString() : null,
+        })
+      );
     }
   }
 
-  items.sort((a, b) => b.amount_atom - a.amount_atom);
-
   return {
-    generated_at: new Date().toISOString(),
-    window_hours: WINDOW_HOURS,
-    min_atom: MIN_ATOM,
-    source: { rpc: base, query: EVENT_QUERY },
-    items,
+    now_iso: new Date().toISOString(),
+    items: uniqueByTxhash(items),
   };
+}
+
+function mergeTopByAmount(prevList, newItems, filterFn, keepN) {
+  const prev = Array.isArray(prevList) ? prevList.map(normalizeItem) : [];
+  const incoming = newItems.filter(filterFn).map(normalizeItem);
+
+  // Merge + dedupe by txhash
+  const merged = uniqueByTxhash([...incoming, ...prev]);
+
+  // Keep biggest ever seen
+  return sortByBiggest(merged).slice(0, keepN);
+}
+
+function buildTicker(freshItems, whalesTop, midsTop) {
+  // Mixed: new delegations (fresh) + some top lists
+  const combined = uniqueByTxhash([
+    ...(freshItems || []),
+    ...(whalesTop || []),
+    ...(midsTop || []),
+  ]);
+
+  // Newest first
+  return sortByNewest(combined).slice(0, TICKER_KEEP);
 }
 
 async function main() {
-  let lastErr = null;
+  await ensureOutDir();
 
-  for (const rpc of FALLBACK_RPCS) {
-    try {
-      const snap = await tryRpc(rpc);
-      await writeSnapshot(snap);
-      console.log(`✅ Wrote ${snap.items.length} items using ${snap.source.rpc}`);
-      return;
-    } catch (e) {
-      lastErr = e;
-      console.warn(`⚠️ RPC failed (${rpc}): ${e?.message || e}`);
-    }
+  const prev = await readPrev();
+  const prevWhales = prev?.whales_top || prev?.featured?.whales_top || [];
+  const prevMids = prev?.mids_top || prev?.featured?.mids_top || [];
+
+  try {
+    const { items: freshItems } = await fetchRecentDelegations();
+
+    const whales_top = mergeTopByAmount(
+      prevWhales,
+      freshItems,
+      (it) => it.amount_atom >= WHALE_MIN,
+      WHALES_KEEP
+    );
+
+    const mids_top = mergeTopByAmount(
+      prevMids,
+      freshItems,
+      (it) => it.amount_atom >= MIDS_MIN && it.amount_atom <= MIDS_MAX,
+      MIDS_KEEP
+    );
+
+    const ticker = buildTicker(freshItems, whales_top, mids_top);
+
+    const out = {
+      generated_at: new Date().toISOString(),
+      window_hours: WINDOW_HOURS,
+      min_atom: MIN_ATOM,
+      source: {
+        rpc: RPC_BASE,
+        query: EVENT_QUERY,
+        note: "fresh items are recent; whales_top/mids_top are persistent top-by-amount sets",
+      },
+
+      // Persistent leaderboards (what you asked)
+      whales_top, // Top 20 >= 25k ATOM (keeps biggest ever seen)
+      mids_top,   // Top 100 1k–24,999 ATOM (keeps biggest ever seen)
+
+      // Fresh feeds for UI
+      fresh: sortByNewest(freshItems).slice(0, 200), // optional, handy for debugging
+      ticker, // mixed, fresh allowed to change
+    };
+
+    await fs.writeFile(OUT_FILE, JSON.stringify(out, null, 2));
+    console.log(`✅ Wrote snapshot: whales=${whales_top.length}, mids=${mids_top.length}, ticker=${ticker.length}`);
+  } catch (e) {
+    // Preserve previous top lists even on failure, and write error so UI can degrade gracefully
+    const out = {
+      generated_at: new Date().toISOString(),
+      window_hours: WINDOW_HOURS,
+      min_atom: MIN_ATOM,
+      source: { rpc: RPC_BASE, query: EVENT_QUERY },
+      whales_top: Array.isArray(prevWhales) ? prevWhales : [],
+      mids_top: Array.isArray(prevMids) ? prevMids : [],
+      fresh: [],
+      ticker: [],
+      error: String(e?.message || e),
+    };
+
+    await fs.writeFile(OUT_FILE, JSON.stringify(out, null, 2));
+    console.error("❌ Snapshot failed:", out.error);
+    process.exit(1);
   }
-
-  const payload = {
-    generated_at: new Date().toISOString(),
-    window_hours: WINDOW_HOURS,
-    min_atom: MIN_ATOM,
-    source: { rpc: null, query: EVENT_QUERY },
-    items: [],
-    error: lastErr?.message || String(lastErr || "Unknown error"),
-  };
-  await writeSnapshot(payload);
-  console.error("❌ Wrote empty snapshot due to error:", payload.error);
-  process.exit(1);
 }
 
-main().catch(async (e) => {
-  const payload = {
-    generated_at: new Date().toISOString(),
-    window_hours: WINDOW_HOURS,
-    min_atom: MIN_ATOM,
-    source: { rpc: null, query: EVENT_QUERY },
-    items: [],
-    error: e?.message || String(e),
-  };
-  await writeSnapshot(payload);
-  console.error("❌ Fatal:", payload.error);
-  process.exit(1);
-});
+main();

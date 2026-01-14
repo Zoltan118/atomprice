@@ -1639,59 +1639,71 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             }
             updateChartData();
         }
+        // ===== Chart (Kraken OHLC) =====
+// Replace your current fetchChart() and helper with this version.
 
-        // Replace your current fetchChart() with this Kraken-based one.
 async function fetchChart(interval = '15m', limit = 96) {
-  try {
-    // Map your UI interval string to Kraken "interval" minutes
-    const krakenInterval = toKrakenIntervalMinutes(interval);
+    try {
+        const krakenInterval = toKrakenIntervalMinutes(interval);
 
-    // Kraken uses pairs like ATOMUSD / ATOMUSDT depending on availability.
-    // Start with ATOMUSD. If you need USDT, try "ATOMUSDT" (may not exist on Kraken).
-    const pair = 'ATOMUSD';
+        // Kraken pair: "ATOMUSD" works; Kraken's result key may be "XATOMZUSD"
+        const pair = 'ATOMUSD';
+        const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${krakenInterval}`;
 
-    // Kraken's OHLC returns newest first; we’ll slice and reverse later.
-    const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${krakenInterval}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Kraken OHLC HTTP ${res.status}`);
 
-    const json = await (await fetch(url)).json();
-    if (json.error && json.error.length) throw new Error(json.error.join(', '));
+        const json = await res.json();
+        if (Array.isArray(json.error) && json.error.length) {
+            throw new Error(json.error.join(', '));
+        }
 
-    // Result key is not always exactly the pair string; take the first key.
-    const resultKey = Object.keys(json.result).find(k => k !== 'last');
-    const rows = json.result[resultKey] || [];
+        // Kraken returns result under a key that often isn't exactly "ATOMUSD"
+        const resultKey = Object.keys(json.result || {}).find(k => k !== 'last');
+        const rows = (resultKey && json.result[resultKey]) ? json.result[resultKey] : [];
 
-    // rows format: [time, open, high, low, close, vwap, volume, count]
-    // time is seconds already.
-    const sliced = rows.slice(-limit);
+        // rows format: [time, open, high, low, close, vwap, volume, count]
+        // time is seconds (good for Lightweight Charts)
+        const sliced = rows.slice(-limit);
 
-    chartData = sliced.map(r => ({
-      time: Number(r[0]),
-      open: parseFloat(r[1]),
-      high: parseFloat(r[2]),
-      low: parseFloat(r[3]),
-      close: parseFloat(r[4]),
-      value: parseFloat(r[4])
-    }));
+        const mapped = sliced.map(r => ({
+            time: Number(r[0]),
+            open: Number(r[1]),
+            high: Number(r[2]),
+            low: Number(r[3]),
+            close: Number(r[4]),
+            value: Number(r[4]) // used by your "line" series
+        }));
 
-    updateChartData();
-  } catch (e) {
-    console.error('Chart fetch error (Kraken OHLC):', e);
-  }
+        // Ensure ascending time order
+        mapped.sort((a, b) => a.time - b.time);
+
+        chartData = mapped;
+        updateChartData();
+    } catch (e) {
+        console.error('Chart fetch error (Kraken OHLC):', e);
+    }
 }
 
 function toKrakenIntervalMinutes(interval) {
-  // Your defaults look like '15m'. Extend if you support more UI options.
-  const map = {
-    '1m': 1,
-    '5m': 5,
-    '15m': 15,
-    '30m': 30,
-    '1h': 60,
-    '4h': 240,
-    '1d': 1440,
-  };
-  return map[interval] ?? 15;
+    // Match your UI buttons:
+    // 1H: '1m', 1D: '15m', 1W: '1h', 1M: '4h', 1Y: '1d', ALL: '1w'
+    const map = {
+        '1m': 1,
+        '5m': 5,
+        '15m': 15,
+        '30m': 30,
+        '1h': 60,
+        '4h': 240,
+        '1d': 1440,
+        '1w': 10080
+    };
+
+    // Kraken allows 1,5,15,30,60,240,1440,10080 (and some others)
+    return map[interval] ?? 15;
 }
+
+        
 
         // Stats
         function updateStakePressure(ratio) {

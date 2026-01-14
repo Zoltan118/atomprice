@@ -704,148 +704,6 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
         }
         function shortTxHash(h) { return h ? h.slice(0,8) + '...' + h.slice(-6) : ''; }
 
-        // Silk Nodes WebSocket for real-time delegations
-        let cosmosWs = null;
-        let wsRetry = 0;
-        
-        function connectCosmos() {
-            const endpoint = 'wss://rpc.silknodes.io/cosmos/websocket';
-            console.log('🔌 Connecting to Silk Nodes:', endpoint);
-            
-            if (cosmosWs) {
-                try { cosmosWs.close(); } catch(e) {}
-            }
-            
-            cosmosWs = new WebSocket(endpoint);
-            
-            cosmosWs.onopen = () => {
-                console.log('✅ Silk Nodes connected');
-                wsRetry = 0;
-                document.getElementById('liveDot').classList.remove('disconnected');
-                
-                // Subscribe to all transactions
-                cosmosWs.send(JSON.stringify({
-                    jsonrpc: '2.0',
-                    method: 'subscribe',
-                    id: 0,
-                    params: {
-                        query: "tm.event='Tx'"
-                    }
-                }));
-            };
-            
-            cosmosWs.onmessage = (e) => {
-                try {
-                    const data = JSON.parse(e.data);
-                    
-                    // FULL DEBUG: Log raw data structure
-                    if (data.result?.data?.value) {
-                        const value = data.result.data.value;
-                        
-                        // Log FULL structure to find hash location
-                        console.log('📨 FULL WS DATA:', JSON.stringify(value).slice(0, 1000));
-                        
-                        if (value.TxResult) {
-                            // Pass the FULL TxResult object
-                            processTx(value.TxResult);
-                        }
-                    } else if (data.id !== undefined) {
-                        console.log('📨 Subscription confirmed');
-                    }
-                } catch(err) {
-                    console.error('WS parse error:', err);
-                }
-            };
-            
-            cosmosWs.onclose = () => {
-                console.log('⚠️ Silk Nodes disconnected, reconnecting...');
-                document.getElementById('liveDot').classList.add('disconnected');
-                wsRetry++;
-                setTimeout(connectCosmos, Math.min(3000 * wsRetry, 30000));
-            };
-            
-            cosmosWs.onerror = (err) => {
-                console.error('❌ WebSocket error:', err);
-            };
-        }
-        
-        function processTx(txResult) {
-            try {
-                let txHash = '';
-                let height = txResult.height || '';
-                const events = txResult.result?.events || [];
-                
-                // The hash needs to be computed from tx bytes using SHA256
-                // Or we can try to find it in the events
-                if (txResult.tx) {
-                    // Compute SHA256 hash of the tx bytes
-                    try {
-                        const txBytes = atob(txResult.tx);
-                        // Use SubtleCrypto to hash
-                        const encoder = new TextEncoder();
-                        const data = Uint8Array.from(txBytes, c => c.charCodeAt(0));
-                        crypto.subtle.digest('SHA-256', data).then(hashBuffer => {
-                            const hashArray = Array.from(new Uint8Array(hashBuffer));
-                            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-                            console.log('🔑 Computed hash:', hashHex);
-                            // Update existing delegations with this hash
-                            if (window._pendingDelegation) {
-                                window._pendingDelegation.txHash = hashHex;
-                                finalizeDelegation(window._pendingDelegation);
-                                window._pendingDelegation = null;
-                            }
-                        });
-                    } catch(e) {
-                        console.log('Hash compute error:', e);
-                    }
-                }
-                
-                // Find delegate events and amount
-                for (const ev of events) {
-                    if (ev.type === 'delegate') {
-                        let amount = 0;
-                        
-                        for (const attr of (ev.attributes || [])) {
-                            let key = attr.key;
-                            let value = attr.value;
-                            
-                            // Decode base64 if needed
-                            try { if (key && key.length > 10) key = atob(key); } catch(e) {}
-                            try { if (value && value.length > 10) value = atob(value); } catch(e) {}
-                            
-                            if (key === 'amount') {
-                                const match = value.match(/(\d+)uatom/i);
-                                if (match) {
-                                    amount = Number(match[1]) / 1000000;
-                                }
-                            }
-                        }
-                        
-                        if (amount > 0) {
-                            // Store pending delegation, hash will be computed async
-                            const delegation = {
-                                amount,
-                                txHash: '', // Will be filled by hash computation
-                                height,
-                                timestamp: new Date().toISOString()
-                            };
-                            
-                            // If we have tx data, compute hash async
-                            if (txResult.tx) {
-                                window._pendingDelegation = delegation;
-                            } else {
-                                // No tx data, skip this one
-                                console.log('⚠️ No tx data for hash computation');
-                            }
-                        }
-                    }
-                }
-            } catch(err) {
-                console.error('TX parse error:', err);
-            }
-        }
-        
-        
         // Maintain Top lists (whales/mids) and mixed ticker
         function upsertWhaleTop(d) {
             // Dedup by txHash for top list
@@ -1782,24 +1640,58 @@ const MAX_MIDS = 100;         // Keep top 100 mids in recent delegations
             updateChartData();
         }
 
-        async function fetchChart(interval = '15m', limit = 96) {
-            try {
-                const klines = await (await fetch(`https://api.binance.com/api/v3/klines?symbol=ATOMUSDT&interval=${interval}&limit=${limit}`)).json();
-                chartData = klines.map(k => ({ time: Math.floor(k[0]/1000), open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), value: parseFloat(k[4]) }));
-                updateChartData();
-            } catch(e) { console.error('Chart fetch error:', e); }
-        }
+        // Replace your current fetchChart() with this Kraken-based one.
+async function fetchChart(interval = '15m', limit = 96) {
+  try {
+    // Map your UI interval string to Kraken "interval" minutes
+    const krakenInterval = toKrakenIntervalMinutes(interval);
 
-        function updateChartData() {
-            if (!series || !chartData.length) return;
-            const rate = getConversionRate();
-            if (chartType === 'line') {
-                series.setData(chartData.map(d => ({ time: d.time, value: d.value * rate })));
-            } else {
-                series.setData(chartData.map(d => ({ time: d.time, open: d.open * rate, high: d.high * rate, low: d.low * rate, close: d.close * rate })));
-            }
-            chart.timeScale().fitContent();
-        }
+    // Kraken uses pairs like ATOMUSD / ATOMUSDT depending on availability.
+    // Start with ATOMUSD. If you need USDT, try "ATOMUSDT" (may not exist on Kraken).
+    const pair = 'ATOMUSD';
+
+    // Kraken's OHLC returns newest first; we’ll slice and reverse later.
+    const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${krakenInterval}`;
+
+    const json = await (await fetch(url)).json();
+    if (json.error && json.error.length) throw new Error(json.error.join(', '));
+
+    // Result key is not always exactly the pair string; take the first key.
+    const resultKey = Object.keys(json.result).find(k => k !== 'last');
+    const rows = json.result[resultKey] || [];
+
+    // rows format: [time, open, high, low, close, vwap, volume, count]
+    // time is seconds already.
+    const sliced = rows.slice(-limit);
+
+    chartData = sliced.map(r => ({
+      time: Number(r[0]),
+      open: parseFloat(r[1]),
+      high: parseFloat(r[2]),
+      low: parseFloat(r[3]),
+      close: parseFloat(r[4]),
+      value: parseFloat(r[4])
+    }));
+
+    updateChartData();
+  } catch (e) {
+    console.error('Chart fetch error (Kraken OHLC):', e);
+  }
+}
+
+function toKrakenIntervalMinutes(interval) {
+  // Your defaults look like '15m'. Extend if you support more UI options.
+  const map = {
+    '1m': 1,
+    '5m': 5,
+    '15m': 15,
+    '30m': 30,
+    '1h': 60,
+    '4h': 240,
+    '1d': 1440,
+  };
+  return map[interval] ?? 15;
+}
 
         // Stats
         function updateStakePressure(ratio) {

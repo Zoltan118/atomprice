@@ -6,31 +6,34 @@
 //    2) mids_top:   Top 100 delegations 1,000–24,999 ATOM (persistent, keeps biggest ever seen)
 //    3) ticker:     Fresh mixed feed (recent fetched + some whales/mids), always allowed to change
 //
-// Output file: data/delegations_24h.json
+// Output files:
+//   - data/delegations_24h.json (main file, keeps name for compatibility)
+//   - data/recent-delegations.json
+//   - data/top-delegations.json
 //
 // Env (optional):
 //   RPC_BASE        default: https://rpc.silknodes.io/cosmos
-//   WINDOW_HOURS    default: 24
+//   WINDOW_HOURS    default: 48 (changed from 24)
 //   MIN_ATOM        default: 1
-//   LIMIT_PAGES     default: 3
-//   PER_PAGE        default: 50
+//   LIMIT_PAGES     default: 5 (increased for 48h window)
+//   PER_PAGE        default: 100 (increased for more coverage)
 //   WHALE_MIN       default: 25000
 //   WHALES_KEEP     default: 20
 //   MIDS_MIN        default: 1000
 //   MIDS_MAX        default: 24999.999999
 //   MIDS_KEEP       default: 100
-//   TICKER_KEEP     default: 120
+//   TICKER_KEEP     default: 200 (increased for more ticker items)
 
 import fs from "node:fs/promises";
 
-const OUT_FILE = "data/delegations_24h.json";
+const OUT_FILE = "data/delegations_24h.json";  // Keep filename for compatibility
 
 const RPC_BASE = (process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos").replace(/\/+$/, "");
-const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? "24");
+const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? "48");  // Changed to 48 hours
 const MIN_ATOM = Number(process.env.MIN_ATOM ?? "1");
 
-const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "3");
-const PER_PAGE = Number(process.env.PER_PAGE ?? "50");
+const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");    // Increased for 48h
+const PER_PAGE = Number(process.env.PER_PAGE ?? "100");        // Increased for coverage
 
 const WHALE_MIN = Number(process.env.WHALE_MIN ?? "25000");
 const WHALES_KEEP = Number(process.env.WHALES_KEEP ?? "20");
@@ -39,7 +42,7 @@ const MIDS_MIN = Number(process.env.MIDS_MIN ?? "1000");
 const MIDS_MAX = Number(process.env.MIDS_MAX ?? "24999.999999");
 const MIDS_KEEP = Number(process.env.MIDS_KEEP ?? "100");
 
-const TICKER_KEEP = Number(process.env.TICKER_KEEP ?? "120");
+const TICKER_KEEP = Number(process.env.TICKER_KEEP ?? "200");  // Increased
 
 const MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
 const EVENT_QUERY = `message.action='${MSG_DELEGATE}'`;
@@ -86,7 +89,6 @@ function getAttr(event, key) {
 }
 
 function parseAmountAtom(amountStr) {
-  // expects "1234567uatom"
   if (!amountStr || typeof amountStr !== "string") return null;
   const m = amountStr.match(/^(\d+)\s*uatom$/i);
   if (!m) return null;
@@ -100,7 +102,6 @@ function toTsMs(iso) {
 }
 
 function normalizeItem(it) {
-  // Ensure consistent shape; keep only what you need for UI
   return {
     amount_atom: Number(it.amount_atom),
     delegator: it.delegator || null,
@@ -129,7 +130,6 @@ function sortByBiggest(items) {
     const db = Number(b.amount_atom || 0);
     if (db !== da) return db - da;
 
-    // tie-break: newer timestamp, then height
     const ta = toTsMs(a.timestamp) ?? 0;
     const tb = toTsMs(b.timestamp) ?? 0;
     if (tb !== ta) return tb - ta;
@@ -143,18 +143,15 @@ function sortByNewest(items) {
     const ta = toTsMs(a.timestamp);
     const tb = toTsMs(b.timestamp);
 
-    // Prefer timestamp if present
     if (ta != null && tb != null) return tb - ta;
     if (ta != null && tb == null) return -1;
     if (ta == null && tb != null) return 1;
 
-    // Fallback to height
     return (Number(b.height || 0) - Number(a.height || 0));
   });
 }
 
 async function fetchRecentDelegations() {
-  // 1) Get chain time for cutoff
   const status = await fetchJson(`${RPC_BASE}/status`);
   const latestTime = status?.result?.sync_info?.latest_block_time;
   if (!latestTime) throw new Error(`Bad /status from ${RPC_BASE}`);
@@ -181,7 +178,6 @@ async function fetchRecentDelegations() {
       data = await fetchJson(url);
     } catch (e) {
       const msg = String(e?.message || e);
-      // stop paging if this RPC has fewer pages
       if (msg.includes("page should be within")) break;
       throw e;
     }
@@ -196,7 +192,6 @@ async function fetchRecentDelegations() {
       if (seen.has(txhash)) continue;
       seen.add(txhash);
 
-      // Many RPCs include timestamp here; if present and too old, stop hard
       const tsStr = tx?.timestamp || tx?.tx_result?.timestamp || null;
       const tsMs = tsStr ? Date.parse(tsStr) : null;
       if (tsMs && tsMs < cutoffMs) {
@@ -242,22 +237,18 @@ function mergeTopByAmount(prevList, newItems, filterFn, keepN) {
   const prev = Array.isArray(prevList) ? prevList.map(normalizeItem) : [];
   const incoming = newItems.filter(filterFn).map(normalizeItem);
 
-  // Merge + dedupe by txhash
   const merged = uniqueByTxhash([...incoming, ...prev]);
 
-  // Keep biggest ever seen
   return sortByBiggest(merged).slice(0, keepN);
 }
 
 function buildTicker(freshItems, whalesTop, midsTop) {
-  // Mixed: new delegations (fresh) + some top lists
   const combined = uniqueByTxhash([
     ...(freshItems || []),
     ...(whalesTop || []),
     ...(midsTop || []),
   ]);
 
-  // Newest first
   return sortByNewest(combined).slice(0, TICKER_KEEP);
 }
 
@@ -297,42 +288,49 @@ async function main() {
         note: "fresh items are recent; whales_top/mids_top are persistent top-by-amount sets",
       },
 
-      // Persistent leaderboards (what you asked)
-      whales_top, // Top 20 >= 25k ATOM (keeps biggest ever seen)
-      mids_top,   // Top 100 1k–24,999 ATOM (keeps biggest ever seen)
+      // Persistent leaderboards
+      whales_top,
+      mids_top,
 
       // Fresh feeds for UI
-      fresh: sortByNewest(freshItems).slice(0, 200), // optional, handy for debugging
-      ticker, // mixed, fresh allowed to change
+      fresh: sortByNewest(freshItems).slice(0, 200),
+      ticker,
     };
 
-    await fs.writeFile(
-  "data/recent-delegations.json",
-  JSON.stringify(
-    {
-      updated_at: new Date().toISOString(),
-      delegations: out.fresh || []
-    },
-    null,
-    2
-  )
-);
-    await fs.writeFile(
-  "data/top-delegations.json",
-  JSON.stringify(
-    {
-      updated_at: new Date().toISOString(),
-      threshold_atom: WHALE_MIN,
-      delegations: whales_top || []
-    },
-    null,
-    2
-  )
-);
+    // Write main file
+    await fs.writeFile(OUT_FILE, JSON.stringify(out, null, 2));
 
-    console.log(`✅ Wrote snapshot: whales=${whales_top.length}, mids=${mids_top.length}, ticker=${ticker.length}`);
+    // Write recent-delegations.json
+    await fs.writeFile(
+      "data/recent-delegations.json",
+      JSON.stringify(
+        {
+          updated_at: new Date().toISOString(),
+          window_hours: WINDOW_HOURS,
+          delegations: out.fresh || []
+        },
+        null,
+        2
+      )
+    );
+
+    // Write top-delegations.json
+    await fs.writeFile(
+      "data/top-delegations.json",
+      JSON.stringify(
+        {
+          updated_at: new Date().toISOString(),
+          threshold_atom: WHALE_MIN,
+          delegations: whales_top || []
+        },
+        null,
+        2
+      )
+    );
+
+    console.log(`✅ Wrote snapshot: whales=${whales_top.length}, mids=${mids_top.length}, ticker=${ticker.length}, fresh=${freshItems.length}`);
   } catch (e) {
-    // Preserve previous top lists even on failure, and write error so UI can degrade gracefully
+    // Preserve previous top lists even on failure
     const out = {
       generated_at: new Date().toISOString(),
       window_hours: WINDOW_HOURS,

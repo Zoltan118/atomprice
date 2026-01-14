@@ -306,7 +306,6 @@ async function main() {
       ticker, // mixed, fresh allowed to change
     };
 
-    await fs.writeFile(OUT_FILE, JSON.stringify(out, null, 2));
     await fs.writeFile(
   "data/recent-delegations.json",
   JSON.stringify(
@@ -318,6 +317,19 @@ async function main() {
     2
   )
 );
+    await fs.writeFile(
+  "data/top-delegations.json",
+  JSON.stringify(
+    {
+      updated_at: new Date().toISOString(),
+      threshold_atom: WHALE_MIN,
+      delegations: whales_top || []
+    },
+    null,
+    2
+  )
+);
+
     console.log(`✅ Wrote snapshot: whales=${whales_top.length}, mids=${mids_top.length}, ticker=${ticker.length}`);
   } catch (e) {
     // Preserve previous top lists even on failure, and write error so UI can degrade gracefully

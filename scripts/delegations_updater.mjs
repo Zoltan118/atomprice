@@ -307,6 +307,17 @@ async function main() {
     };
 
     await fs.writeFile(OUT_FILE, JSON.stringify(out, null, 2));
+    await fs.writeFile(
+  "data/recent-delegations.json",
+  JSON.stringify(
+    {
+      updated_at: new Date().toISOString(),
+      delegations: out.fresh || []
+    },
+    null,
+    2
+  )
+);
     console.log(`✅ Wrote snapshot: whales=${whales_top.length}, mids=${mids_top.length}, ticker=${ticker.length}`);
   } catch (e) {
     // Preserve previous top lists even on failure, and write error so UI can degrade gracefully

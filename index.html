@@ -928,21 +928,26 @@
                 return;
             }
 
-            // Start with biggest whale
+            // Start with biggest whale (no animation on first load)
             currentWhaleIndex = 0;
             showWhaleAtIndex(0, false);
 
+            // Cycle every 5 seconds with flip-flap animation
             whaleCycleTimer = setInterval(() => {
                 if (!whaleDelegations.length) return;
 
-                const n = Math.min(MAX_WHALES, whaleDelegations.length);
-                if (n <= 1) return;
-
-                // Pick random different index
-                let next = Math.floor(Math.random() * n);
-                if (next === currentWhaleIndex) next = (next + 1) % n;
-
-                showWhaleAtIndex(next, true);
+                const n = whaleDelegations.length;
+                
+                // Even with just 1 whale, re-animate it (keeps it "alive")
+                // With 2+ whales, cycle to the next one
+                if (n === 1) {
+                    // Re-animate the same whale for visual "live" effect
+                    showWhaleAtIndex(0, true);
+                } else {
+                    // Cycle to next whale (sequential for predictability, or random)
+                    let next = (currentWhaleIndex + 1) % n;
+                    showWhaleAtIndex(next, true);
+                }
             }, WHALE_CYCLE_MS);
         }
 

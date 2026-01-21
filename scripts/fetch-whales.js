@@ -2,7 +2,7 @@ const fs = require('fs');
 const https = require('https');
 
 const COSMOS_REST = 'https://rest.cosmos.directory/cosmoshub';
-const MIN_DELEGATION = 25000; // 25K ATOM minimum
+const MIN_DELEGATION = 50000; // 50K ATOM minimum
 const OUTPUT_FILE = 'data/whales.json';
 
 // Helper function to make HTTPS GET requests

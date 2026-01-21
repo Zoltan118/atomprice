@@ -35,11 +35,11 @@ const MIN_ATOM = Number(process.env.MIN_ATOM ?? "1");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");    // Increased for 48h
 const PER_PAGE = Number(process.env.PER_PAGE ?? "100");        // Increased for coverage
 
-const WHALE_MIN = Number(process.env.WHALE_MIN ?? "25000");
+const WHALE_MIN = Number(process.env.WHALE_MIN ?? "50000");
 const WHALES_KEEP = Number(process.env.WHALES_KEEP ?? "20");
 
 const MIDS_MIN = Number(process.env.MIDS_MIN ?? "1000");
-const MIDS_MAX = Number(process.env.MIDS_MAX ?? "24999.999999");
+const MIDS_MAX = Number(process.env.MIDS_MAX ?? "49999.999999");
 const MIDS_KEEP = Number(process.env.MIDS_KEEP ?? "100");
 
 const TICKER_KEEP = Number(process.env.TICKER_KEEP ?? "200");  // Increased

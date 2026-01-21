@@ -804,20 +804,24 @@
                 const mids = Array.isArray(snap.mids_top) ? snap.mids_top : [];
                 const tick = Array.isArray(snap.ticker) ? snap.ticker : [];
 
-                // Map into local UI shape
-                whaleDelegations = whales.slice(0, MAX_WHALES).map(it => ({
+                // Combine ALL delegations from both sources, then re-filter with new thresholds
+                const allDelegations = [...whales, ...mids].map(it => ({
                     amount: Number(it.amount_atom || 0),
                     txHash: it.txhash || it.txHash || '',
                     height: it.height || '',
                     timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
-                })).filter(d => d.txHash && d.amount >= WHALE_MIN);
+                })).filter(d => d.txHash);
 
-                notableDelegations = mids.slice(0, MAX_MIDS).map(it => ({
-                    amount: Number(it.amount_atom || 0),
-                    txHash: it.txhash || it.txHash || '',
-                    height: it.height || '',
-                    timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
-                })).filter(d => d.txHash && d.amount >= NOTABLE_MIN && d.amount < WHALE_MIN);
+                // Filter with NEW thresholds (50K+ for whales, 1K-49,999 for notable)
+                whaleDelegations = allDelegations
+                    .filter(d => d.amount >= WHALE_MIN)
+                    .sort((a, b) => b.amount - a.amount)
+                    .slice(0, MAX_WHALES);
+
+                notableDelegations = allDelegations
+                    .filter(d => d.amount >= NOTABLE_MIN && d.amount < WHALE_MIN)
+                    .sort((a, b) => b.amount - a.amount)
+                    .slice(0, MAX_NOTABLE);
 
                 tickerDelegations = tick.slice(0, MAX_TICKER).map(it => ({
                     amount: Number(it.amount_atom || 0),
@@ -825,10 +829,6 @@
                     height: it.height || '',
                     timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
                 })).filter(d => d.txHash && d.amount >= TICKER_MIN);
-
-                // Sort by amount descending
-                whaleDelegations.sort((a, b) => b.amount - a.amount);
-                notableDelegations.sort((a, b) => b.amount - a.amount);
 
                 // UI updates
                 updateWhaleWatch();

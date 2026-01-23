@@ -52,14 +52,15 @@ async function main() {
         const totalSupply = parseInt(totalSupplyAmount) / 1e6;
         const stakingRatio = (bondedTokens / totalSupply) * 100;
 
-        // Calculate APR: inflation * (total_supply / bonded_tokens)
-        // This is the gross APR from on-chain data (before validator commission)
+        // Calculate APR: inflation * (total_supply / bonded_tokens) * (1 - community_tax)
+        // Community tax is 2% on Cosmos Hub (deducted before distribution)
         const inflation = parseFloat(inflationRes.inflation) * 100;
-        const apr = inflation * (totalSupply / bondedTokens);
+        const communityTax = 0.02; // 2% community tax
+        const apr = inflation * (totalSupply / bondedTokens) * (1 - communityTax);
 
         console.log(`Staking Ratio: ${stakingRatio.toFixed(2)}%`);
         console.log(`Inflation: ${inflation.toFixed(2)}%`);
-        console.log(`Calculated APR (gross): ${apr.toFixed(2)}%`);
+        console.log(`Calculated APR (after ${communityTax * 100}% community tax): ${apr.toFixed(2)}%`);
 
         // Get today's date in YYYY-MM-DD format
         const today = new Date().toISOString().split('T')[0];

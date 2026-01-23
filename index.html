@@ -1666,6 +1666,16 @@
                 // Don't allow switching timeframes for 1H and 1D in staking/APR modes
                 if (btn.classList.contains('disabled')) return;
 
+                // Only fetch chart data in price mode
+                if (currentDataMode !== 'price') {
+                    // In staking/APR mode, just update active state but don't fetch
+                    document.querySelector('.time-btn.active').classList.remove('active');
+                    btn.classList.add('active');
+                    currentTimeframe = btn.dataset.d;
+                    return;
+                }
+
+                // Price mode: fetch new data
                 document.querySelector('.time-btn.active').classList.remove('active');
                 btn.classList.add('active');
                 currentTimeframe = btn.dataset.d;
@@ -1823,8 +1833,33 @@
             }
 
             if (data.length > 0) {
-                series.setData(data);
-                console.log(`✅ Chart data set successfully. First: ${JSON.stringify(data[0])}, Last: ${JSON.stringify(data[data.length - 1])}`);
+                // Sort data by time (LightweightCharts requires chronological order)
+                data.sort((a, b) => {
+                    if (a.time < b.time) return -1;
+                    if (a.time > b.time) return 1;
+                    return 0;
+                });
+
+                // Remove duplicates (keep last value for each date)
+                const uniqueData = [];
+                const seenDates = new Set();
+                for (let i = data.length - 1; i >= 0; i--) {
+                    if (!seenDates.has(data[i].time)) {
+                        uniqueData.unshift(data[i]);
+                        seenDates.add(data[i].time);
+                    }
+                }
+
+                series.setData(uniqueData);
+                console.log(`✅ Chart data set successfully. ${uniqueData.length} unique points. First: ${JSON.stringify(uniqueData[0])}, Last: ${JSON.stringify(uniqueData[uniqueData.length - 1])}`);
+
+                // Force immediate visual update
+                chart.timeScale().fitContent();
+
+                // Also try scrolling to make sure it's visible
+                setTimeout(() => {
+                    chart.timeScale().fitContent();
+                }, 50);
             } else {
                 console.warn('⚠️ No data available. Historical files may not be loaded yet.');
             }
@@ -1852,8 +1887,6 @@
                     tooltip.style.opacity = '0';
                 }
             });
-
-            chart.timeScale().fitContent();
         }
 
         // ========== INIT ==========
@@ -1911,3 +1944,4 @@
     </script>
 </body>
 </html>
+

@@ -52,13 +52,17 @@ async function main() {
         const totalSupply = parseInt(totalSupplyAmount) / 1e6;
         const stakingRatio = (bondedTokens / totalSupply) * 100;
 
-        // Calculate APR: inflation * (total_supply / bonded_tokens)
+        // Calculate APR: inflation * (total_supply / bonded_tokens) * (1 - avg_commission)
+        // Using 8% average validator commission to match SmartStake's calculation
         const inflation = parseFloat(inflationRes.inflation) * 100;
-        const apr = inflation * (totalSupply / bondedTokens);
+        const grossApr = inflation * (totalSupply / bondedTokens);
+        const avgCommission = 0.08; // 8% average commission
+        const apr = grossApr * (1 - avgCommission); // Net APR after commission
 
         console.log(`Staking Ratio: ${stakingRatio.toFixed(2)}%`);
         console.log(`Inflation: ${inflation.toFixed(2)}%`);
-        console.log(`Calculated APR: ${apr.toFixed(2)}%`);
+        console.log(`Gross APR: ${grossApr.toFixed(2)}%`);
+        console.log(`Net APR (after ${avgCommission * 100}% commission): ${apr.toFixed(2)}%`);
 
         // Get today's date in YYYY-MM-DD format
         const today = new Date().toISOString().split('T')[0];

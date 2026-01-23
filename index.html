@@ -1666,20 +1666,17 @@
                 // Don't allow switching timeframes for 1H and 1D in staking/APR modes
                 if (btn.classList.contains('disabled')) return;
 
-                // Only fetch chart data in price mode
-                if (currentDataMode !== 'price') {
-                    // In staking/APR mode, just update active state but don't fetch
-                    document.querySelector('.time-btn.active').classList.remove('active');
-                    btn.classList.add('active');
-                    currentTimeframe = btn.dataset.d;
-                    return;
-                }
-
-                // Price mode: fetch new data
                 document.querySelector('.time-btn.active').classList.remove('active');
                 btn.classList.add('active');
                 currentTimeframe = btn.dataset.d;
-                fetchChart(parseInt(btn.dataset.interval), parseInt(btn.dataset.limit));
+
+                if (currentDataMode !== 'price') {
+                    // In staking/APR mode, filter and redisplay historical data
+                    showHistoricalChart(currentDataMode);
+                } else {
+                    // Price mode: fetch new data
+                    fetchChart(parseInt(btn.dataset.interval), parseInt(btn.dataset.limit));
+                }
             };
         });
 
@@ -1825,11 +1822,9 @@
             if (mode === 'staking') {
                 data = [...historicalStaking.map(d => ({ time: d.date, value: d.ratio }))];
                 dailyMetrics.forEach(d => data.push({ time: d.date, value: d.ratio }));
-                console.log(`📊 Staking chart: ${historicalStaking.length} historical + ${dailyMetrics.length} daily = ${data.length} total points`);
             } else if (mode === 'apr') {
                 data = [...historicalApr.map(d => ({ time: d.date, value: d.apr }))];
                 dailyMetrics.forEach(d => data.push({ time: d.date, value: d.apr }));
-                console.log(`📊 APR chart: ${historicalApr.length} historical + ${dailyMetrics.length} daily = ${data.length} total points`);
             }
 
             if (data.length > 0) {
@@ -1850,8 +1845,24 @@
                     }
                 }
 
-                series.setData(uniqueData);
-                console.log(`✅ Chart data set successfully. ${uniqueData.length} unique points. First: ${JSON.stringify(uniqueData[0])}, Last: ${JSON.stringify(uniqueData[uniqueData.length - 1])}`);
+                // Filter data based on selected timeframe
+                let filteredData = uniqueData;
+                const now = new Date();
+
+                if (currentTimeframe === '1w') {
+                    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    filteredData = uniqueData.filter(d => new Date(d.time) >= weekAgo);
+                } else if (currentTimeframe === '1m') {
+                    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    filteredData = uniqueData.filter(d => new Date(d.time) >= monthAgo);
+                } else if (currentTimeframe === '1y') {
+                    const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+                    filteredData = uniqueData.filter(d => new Date(d.time) >= yearAgo);
+                }
+                // 'all' timeframe shows everything (no filter)
+
+                series.setData(filteredData);
+                console.log(`✅ ${mode.toUpperCase()} chart [${currentTimeframe}]: ${filteredData.length} points (from ${uniqueData.length} total)`);
 
                 // Force immediate visual update
                 chart.timeScale().fitContent();
@@ -1944,4 +1955,3 @@
     </script>
 </body>
 </html>
-

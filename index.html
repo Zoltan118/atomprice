@@ -86,15 +86,10 @@
         .chart-type-btn:hover svg { stroke: #666; }
         .chart-type-btn.active { background: #111; border-color: #222; }
         .chart-type-btn.active svg { stroke: #fff; }
-        .data-mode-toggle { display: flex; gap: 4px; background: #0a0a0a; padding: 4px; border-radius: 8px; }
-        .data-mode-btn { padding: 6px 12px; font-size: 10px; font-weight: 500; color: #555; background: none; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
-        .data-mode-btn:hover { color: #888; }
-        .data-mode-btn.active { color: #fff; background: #1a1a1a; }
         .time-buttons { display: flex; gap: 4px; background: #0a0a0a; padding: 4px; border-radius: 8px; }
         .time-btn { padding: 6px 10px; font-size: 11px; font-weight: 500; color: #555; background: none; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
-        .time-btn:hover:not(.disabled) { color: #888; }
+        .time-btn:hover { color: #888; }
         .time-btn.active { color: #fff; background: #1a1a1a; }
-        .time-btn.disabled { opacity: 0.3; cursor: not-allowed; }
         .chart-area { height: 280px; margin-bottom: 32px; position: relative; }
         #chartContainer { width: 100%; height: 100%; }
         .chart-tooltip { 
@@ -388,33 +383,24 @@
             <button class="currency-btn" data-currency="cny">元</button>
         </div>
         <div class="chart-controls">
-            <div style="display: flex; gap: 12px; align-items: center;">
-                <div class="data-mode-toggle">
-                    <button class="data-mode-btn active" data-mode="price">Price</button>
-                    <button class="data-mode-btn" data-mode="staking">Staking</button>
-                    <button class="data-mode-btn" data-mode="apr">APR</button>
-                </div>
+            <div class="chart-type-toggle">
+                <button class="chart-type-btn active" data-type="line">
+                    <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><polyline points="3 17 9 11 13 15 21 7"></polyline></svg>
+                </button>
+                <button class="chart-type-btn" data-type="candle">
+                    <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round">
+                        <line x1="9" y1="4" x2="9" y2="8"></line><rect x="7" y="8" width="4" height="8" rx="0.5"></rect><line x1="9" y1="16" x2="9" y2="20"></line>
+                        <line x1="15" y1="6" x2="15" y2="10"></line><rect x="13" y="10" width="4" height="6" rx="0.5"></rect><line x1="15" y1="16" x2="15" y2="18"></line>
+                    </svg>
+                </button>
             </div>
-            <div style="display: flex; gap: 12px; align-items: center;">
-                <div class="chart-type-toggle">
-                    <button class="chart-type-btn active" data-type="line">
-                        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><polyline points="3 17 9 11 13 15 21 7"></polyline></svg>
-                    </button>
-                    <button class="chart-type-btn" data-type="candle">
-                        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round">
-                            <line x1="9" y1="4" x2="9" y2="8"></line><rect x="7" y="8" width="4" height="8" rx="0.5"></rect><line x1="9" y1="16" x2="9" y2="20"></line>
-                            <line x1="15" y1="6" x2="15" y2="10"></line><rect x="13" y="10" width="4" height="6" rx="0.5"></rect><line x1="15" y1="16" x2="15" y2="18"></line>
-                        </svg>
-                    </button>
-                </div>
-                <div class="time-buttons">
-                    <button class="time-btn" data-d="1h" data-interval="1" data-limit="60">1H</button>
-                    <button class="time-btn active" data-d="1d" data-interval="15" data-limit="96">1D</button>
-                    <button class="time-btn" data-d="1w" data-interval="60" data-limit="168">1W</button>
-                    <button class="time-btn" data-d="1m" data-interval="240" data-limit="180">1M</button>
-                    <button class="time-btn" data-d="1y" data-interval="1440" data-limit="365">1Y</button>
-                    <button class="time-btn" data-d="all" data-interval="10080" data-limit="500">ALL</button>
-                </div>
+            <div class="time-buttons">
+                <button class="time-btn" data-d="1h" data-interval="1" data-limit="60">1H</button>
+                <button class="time-btn active" data-d="1d" data-interval="15" data-limit="96">1D</button>
+                <button class="time-btn" data-d="1w" data-interval="60" data-limit="168">1W</button>
+                <button class="time-btn" data-d="1m" data-interval="240" data-limit="180">1M</button>
+                <button class="time-btn" data-d="1y" data-interval="1440" data-limit="365">1Y</button>
+                <button class="time-btn" data-d="all" data-interval="10080" data-limit="500">ALL</button>
             </div>
         </div>
         <div class="chart-area">
@@ -516,12 +502,6 @@
         let chart = null;
         let series = null;
         let currentTimeframe = '1d';
-        let currentDataMode = 'price'; // 'price', 'staking', or 'apr'
-
-        // Historical data for staking/APR
-        let historicalStaking = [];
-        let historicalApr = [];
-        let dailyMetrics = [];
 
         // Whale watch state
         let whaleCycleTimer = null;
@@ -1464,14 +1444,6 @@
         // ========== CHART (Kraken OHLC) ==========
         function initChart() {
             const container = document.getElementById('chartContainer');
-
-            // Remove existing chart if any
-            if (chart) {
-                chart.remove();
-                chart = null;
-                series = null;
-            }
-
             chart = LightweightCharts.createChart(container, {
                 width: container.clientWidth, 
                 height: 280,
@@ -1655,9 +1627,6 @@
 
         document.querySelectorAll('.time-btn').forEach(btn => {
             btn.onclick = () => {
-                // Don't allow switching timeframes for 1H and 1D in staking/APR modes
-                if (btn.classList.contains('disabled')) return;
-
                 document.querySelector('.time-btn.active').classList.remove('active');
                 btn.classList.add('active');
                 currentTimeframe = btn.dataset.d;
@@ -1665,158 +1634,17 @@
             };
         });
 
-        // Data mode toggle (Price / Staking / APR)
-        document.querySelectorAll('.data-mode-btn').forEach(btn => {
-            btn.onclick = async () => {
-                const mode = btn.dataset.mode;
-
-                // Update active button
-                document.querySelectorAll('.data-mode-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentDataMode = mode;
-
-                // Handle timeframe button states
-                const timeButtons = document.querySelectorAll('.time-btn');
-                if (mode === 'price') {
-                    // Enable all timeframes for price mode
-                    timeButtons.forEach(b => b.classList.remove('disabled'));
-
-                    // Restore price chart with current timeframe
-                    initChart();
-                    createSeries();
-
-                    // Get the active timeframe button to restore the correct view
-                    const activeTimeBtn = document.querySelector('.time-btn.active');
-                    if (activeTimeBtn) {
-                        const interval = parseInt(activeTimeBtn.dataset.interval);
-                        const limit = parseInt(activeTimeBtn.dataset.limit);
-                        fetchChart(interval, limit);
-                    } else {
-                        fetchChart(15, 96); // Default to 1D
-                    }
-                } else {
-                    // Disable 1H and 1D for staking/APR modes
-                    timeButtons.forEach(b => {
-                        if (b.dataset.d === '1h' || b.dataset.d === '1d') {
-                            b.classList.add('disabled');
-                            // If currently selected, switch to 1W
-                            if (b.classList.contains('active')) {
-                                b.classList.remove('active');
-                                const weekBtn = document.querySelector('.time-btn[data-d="1w"]');
-                                if (weekBtn) weekBtn.classList.add('active');
-                            }
-                        }
-                    });
-
-                    // Show historical chart for staking or APR
-                    showHistoricalChart(mode);
-                }
-            };
-        });
-
-        // ========== HISTORICAL DATA ==========
-        async function loadHistoricalData() {
-            try {
-                const [stakingRes, aprRes, metricsRes] = await Promise.all([
-                    fetch('./data/historical-staking.json'),
-                    fetch('./data/historical-apr.json'),
-                    fetch('./data/daily-metrics.json').catch(() => ({ ok: false }))
-                ]);
-
-                if (stakingRes.ok) historicalStaking = await stakingRes.json();
-                if (aprRes.ok) historicalApr = await aprRes.json();
-                if (metricsRes.ok) dailyMetrics = await metricsRes.json();
-
-                console.log(`✅ Historical: ${historicalStaking.length} staking, ${historicalApr.length} APR, ${dailyMetrics.length} daily`);
-            } catch (err) {
-                console.log('⚠️ Historical data:', err.message);
-            }
-        }
-
-        function showHistoricalChart(mode) {
-            const container = document.getElementById('chartContainer');
-
-            if (chart) {
-                chart.remove();
-                chart = null;
-                series = null;
-            }
-
-            chart = LightweightCharts.createChart(container, {
-                width: container.clientWidth,
-                height: 280,
-                layout: { background: { type: 'solid', color: '#000' }, textColor: '#444' },
-                grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)', style: 1 } },
-                crosshair: {
-                    mode: LightweightCharts.CrosshairMode.Magnet,
-                    vertLine: { visible: false, labelVisible: false },
-                    horzLine: { visible: false, labelVisible: false }
-                },
-                rightPriceScale: { visible: false },
-                timeScale: { visible: false },
-                handleScroll: true,
-                handleScale: true
-            });
-
-            series = chart.addLineSeries({
-                color: '#fff',
-                lineWidth: 2,
-                lastValueVisible: false,
-                priceLineVisible: false
-            });
-
-            let data = [];
-            if (mode === 'staking') {
-                data = [...historicalStaking.map(d => ({ time: d.date, value: d.ratio }))];
-                dailyMetrics.forEach(d => data.push({ time: d.date, value: d.ratio }));
-            } else if (mode === 'apr') {
-                data = [...historicalApr.map(d => ({ time: d.date, value: d.apr }))];
-                dailyMetrics.forEach(d => data.push({ time: d.date, value: d.apr }));
-            }
-
-            if (data.length > 0) series.setData(data);
-
-            const tooltip = document.getElementById('chartTooltip');
-            chart.subscribeCrosshairMove((p) => {
-                if (!p.time || !p.point || !p.seriesData.get(series)) {
-                    tooltip.style.opacity = '0';
-                    return;
-                }
-
-                const val = p.seriesData.get(series);
-                if (val) {
-                    const time = new Date(p.time * 1000 || p.time);
-                    const label = mode === 'staking' ? 'Staking' : 'APR';
-
-                    tooltip.innerHTML = `
-                        <div class="tooltip-time">${time.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                        <div class="tooltip-price">${label}: ${val.value.toFixed(2)}%</div>
-                    `;
-                    tooltip.style.opacity = '1';
-                    tooltip.style.left = Math.min(p.point.x + 10, container.clientWidth - 140) + 'px';
-                    tooltip.style.top = Math.max(10, p.point.y - 60) + 'px';
-                } else {
-                    tooltip.style.opacity = '0';
-                }
-            });
-
-            chart.timeScale().fitContent();
-        }
-
         // ========== INIT ==========
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
-
+            
             // 1) Restore from cache first
             const hadCache = restoreFromCache();
             restorePriceCache();
-
+            
             // 2) Initialize chart
             initChart();
-
-            // 2.5) Load historical data for staking/APR charts
-            await loadHistoricalData();
-
+            
             // 3) Show initial UI state
             updateStakingDisplay();
             

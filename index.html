@@ -92,6 +92,7 @@
         .data-mode-btn { padding: 6px 12px; font-size: 10px; font-weight: 500; color: #555; background: none; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
         .data-mode-btn:hover { color: #888; }
         .data-mode-btn.active { color: #fff; background: #1a1a1a; }
+        .staking-sub-toggle { display: flex; gap: 4px; background: #0a0a0a; padding: 4px; border-radius: 8px; }
         .time-buttons { display: flex; gap: 4px; background: #0a0a0a; padding: 4px; border-radius: 8px; }
         .time-btn { padding: 6px 10px; font-size: 11px; font-weight: 500; color: #555; background: none; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
         .time-btn:hover:not(.disabled) { color: #888; }
@@ -396,6 +397,10 @@
                     <button class="data-mode-btn" data-mode="staking">Staking</button>
                     <button class="data-mode-btn" data-mode="apr">APR</button>
                 </div>
+                <div class="staking-sub-toggle" id="stakingSubToggle" style="display: none;">
+                    <button class="data-mode-btn active" data-submode="ratio">Ratio</button>
+                    <button class="data-mode-btn" data-submode="total">Total</button>
+                </div>
             </div>
             <div style="display: flex; gap: 12px; align-items: center;">
                 <div class="chart-type-toggle">
@@ -428,7 +433,8 @@
         </div>
         <div class="stats-row">
             <div class="stat"><div class="stat-value" id="stakingRatio">—</div><div class="stat-label">staking ratio</div></div>
-            <div class="stat center"><div class="stat-value" id="stakePressure">—</div><div class="stat-label">stake pressure</div></div>
+            <div class="stat"><div class="stat-value" id="totalStaked">—</div><div class="stat-label">total staked</div></div>
+            <div class="stat"><div class="stat-value" id="stakePressure">—</div><div class="stat-label">stake pressure</div></div>
             <div class="stat right"><div class="stat-value" id="inflationRate">—</div><div class="stat-label">inflation rate</div></div>
         </div>
         <div class="divider"></div>
@@ -519,10 +525,12 @@
         let series = null;
         let currentTimeframe = '1d';
         let currentDataMode = 'price'; // 'price', 'staking', or 'apr'
+        let currentStakingSubMode = 'ratio'; // 'ratio' or 'total'
 
         // Historical data for staking/APR
         let historicalStaking = [];
         let historicalApr = [];
+        let historicalTotalStaked = [];
         let dailyMetrics = [];
 
         // Whale watch state
@@ -764,6 +772,13 @@
                 document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(2) + '%';
                 updateStakePressure(stakingRatio);
             }
+
+            // Update total staked display if we have the data
+            if (historicalTotalStaked.length > 0) {
+                const latestTotal = historicalTotalStaked[historicalTotalStaked.length - 1];
+                document.getElementById('totalStaked').textContent = latestTotal.total.toFixed(1) + 'M';
+            }
+
             const inflEl = document.getElementById('inflationRate');
             if (inflEl.textContent === '—') {
                 inflEl.textContent = '10.00%';
@@ -1672,7 +1687,11 @@
 
                 if (currentDataMode !== 'price') {
                     // In staking/APR mode, filter and redisplay historical data
-                    showHistoricalChart(currentDataMode);
+                    if (currentDataMode === 'staking') {
+                        showHistoricalChart('staking', currentStakingSubMode);
+                    } else {
+                        showHistoricalChart(currentDataMode);
+                    }
                 } else {
                     // Price mode: fetch new data
                     fetchChart(parseInt(btn.dataset.interval), parseInt(btn.dataset.limit));
@@ -1684,11 +1703,32 @@
         document.querySelectorAll('.data-mode-btn').forEach(btn => {
             btn.onclick = async () => {
                 const mode = btn.dataset.mode;
+                const submode = btn.dataset.submode;
 
-                // Update active button
-                document.querySelectorAll('.data-mode-btn').forEach(b => b.classList.remove('active'));
+                // Handle sub-toggle clicks (for staking ratio/total)
+                if (submode) {
+                    // This is a sub-toggle button
+                    document.querySelectorAll('.staking-sub-toggle .data-mode-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentStakingSubMode = submode;
+
+                    // Redraw chart with new submode
+                    showHistoricalChart('staking', submode);
+                    return;
+                }
+
+                // Update active button for main toggles
+                document.querySelectorAll('.data-mode-toggle .data-mode-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentDataMode = mode;
+
+                // Show/hide sub-toggle based on mode
+                const subToggle = document.getElementById('stakingSubToggle');
+                if (mode === 'staking') {
+                    subToggle.style.display = 'flex';
+                } else {
+                    subToggle.style.display = 'none';
+                }
 
                 // Handle timeframe and chart type button states
                 const timeButtons = document.querySelectorAll('.time-btn');
@@ -1724,6 +1764,7 @@
                                 b.classList.remove('active');
                                 const weekBtn = document.querySelector('.time-btn[data-d="1w"]');
                                 if (weekBtn) weekBtn.classList.add('active');
+                                currentTimeframe = '1w';
                             }
                         }
                     });
@@ -1740,7 +1781,20 @@
                     });
 
                     // Show historical chart for staking or APR
-                    showHistoricalChart(mode);
+                    if (mode === 'staking') {
+                        // Reset to ratio submode when entering staking mode
+                        currentStakingSubMode = 'ratio';
+                        document.querySelectorAll('.staking-sub-toggle .data-mode-btn').forEach(b => {
+                            if (b.dataset.submode === 'ratio') {
+                                b.classList.add('active');
+                            } else {
+                                b.classList.remove('active');
+                            }
+                        });
+                        showHistoricalChart('staking', 'ratio');
+                    } else {
+                        showHistoricalChart(mode);
+                    }
                 }
             };
         });
@@ -1749,15 +1803,17 @@
         async function loadHistoricalData() {
             console.log('🔄 Loading historical data...');
             try {
-                const [stakingRes, aprRes, metricsRes] = await Promise.all([
+                const [stakingRes, aprRes, totalStakedRes, metricsRes] = await Promise.all([
                     fetch('./data/historical-staking.json'),
                     fetch('./data/historical-apr.json'),
+                    fetch('./data/historical-total-staked.json'),
                     fetch('./data/daily-metrics.json').catch(() => ({ ok: false }))
                 ]);
 
                 console.log('Fetch responses:', {
                     staking: stakingRes.ok ? 'OK' : `Error ${stakingRes.status}`,
                     apr: aprRes.ok ? 'OK' : `Error ${aprRes.status}`,
+                    totalStaked: totalStakedRes.ok ? 'OK' : `Error ${totalStakedRes.status}`,
                     metrics: metricsRes.ok ? 'OK' : 'Not found (optional)'
                 });
 
@@ -1775,18 +1831,28 @@
                     console.error('❌ Failed to load historical-apr.json:', aprRes.status, aprRes.statusText);
                 }
 
+                if (totalStakedRes.ok) {
+                    historicalTotalStaked = await totalStakedRes.json();
+                    console.log(`✅ Loaded ${historicalTotalStaked.length} historical total staked records`);
+                } else {
+                    console.error('❌ Failed to load historical-total-staked.json:', totalStakedRes.status, totalStakedRes.statusText);
+                }
+
                 if (metricsRes.ok) {
                     dailyMetrics = await metricsRes.json();
                     console.log(`✅ Loaded ${dailyMetrics.length} daily metrics records`);
                 }
 
-                console.log(`📊 Total data available: ${historicalStaking.length} staking, ${historicalApr.length} APR, ${dailyMetrics.length} daily`);
+                console.log(`📊 Total data available: ${historicalStaking.length} staking, ${historicalApr.length} APR, ${historicalTotalStaked.length} total staked, ${dailyMetrics.length} daily`);
+
+                // Update static display with latest total staked
+                updateStakingDisplay();
             } catch (err) {
                 console.error('⚠️ Historical data error:', err);
             }
         }
 
-        function showHistoricalChart(mode) {
+        function showHistoricalChart(mode, submode = null) {
             const container = document.getElementById('chartContainer');
 
             if (chart) {
@@ -1819,12 +1885,27 @@
             });
 
             let data = [];
+            let label = '';
+            let unit = '%';
+
             if (mode === 'staking') {
-                data = [...historicalStaking.map(d => ({ time: d.date, value: d.ratio }))];
-                dailyMetrics.forEach(d => data.push({ time: d.date, value: d.ratio }));
+                if (submode === 'total') {
+                    // Show total staked amount
+                    data = [...historicalTotalStaked.map(d => ({ time: d.date, value: d.total }))];
+                    label = 'Total Staked';
+                    unit = 'M ATOM';
+                } else {
+                    // Show staking ratio (default)
+                    data = [...historicalStaking.map(d => ({ time: d.date, value: d.ratio }))];
+                    dailyMetrics.forEach(d => data.push({ time: d.date, value: d.ratio }));
+                    label = 'Staking Ratio';
+                    unit = '%';
+                }
             } else if (mode === 'apr') {
                 data = [...historicalApr.map(d => ({ time: d.date, value: d.apr }))];
                 dailyMetrics.forEach(d => data.push({ time: d.date, value: d.apr }));
+                label = 'APR';
+                unit = '%';
             }
 
             if (data.length > 0) {
@@ -1862,7 +1943,7 @@
                 // 'all' timeframe shows everything (no filter)
 
                 series.setData(filteredData);
-                console.log(`✅ ${mode.toUpperCase()} chart [${currentTimeframe}]: ${filteredData.length} points (from ${uniqueData.length} total)`);
+                console.log(`✅ ${label} chart [${currentTimeframe}]: ${filteredData.length} points (from ${uniqueData.length} total)`);
 
                 // Force immediate visual update
                 chart.timeScale().fitContent();
@@ -1885,11 +1966,11 @@
                 const val = p.seriesData.get(series);
                 if (val) {
                     const time = new Date(p.time * 1000 || p.time);
-                    const label = mode === 'staking' ? 'Staking' : 'APR';
+                    const displayValue = unit === '%' ? `${val.value.toFixed(2)}%` : `${val.value.toFixed(2)} ${unit}`;
 
                     tooltip.innerHTML = `
                         <div class="tooltip-time">${time.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                        <div class="tooltip-price">${label}: ${val.value.toFixed(2)}%</div>
+                        <div class="tooltip-price">${label}: ${displayValue}</div>
                     `;
                     tooltip.style.opacity = '1';
                     tooltip.style.left = Math.min(p.point.x + 10, container.clientWidth - 140) + 'px';

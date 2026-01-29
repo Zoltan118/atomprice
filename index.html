@@ -1755,19 +1755,14 @@
                         fetchChart(15, 96); // Default to 1D
                     }
                 } else {
-                    // Disable 1H and 1D for staking/APR modes
-                    timeButtons.forEach(b => {
-                        if (b.dataset.d === '1h' || b.dataset.d === '1d') {
-                            b.classList.add('disabled');
-                            // If currently selected, switch to 1W
-                            if (b.classList.contains('active')) {
-                                b.classList.remove('active');
-                                const allBtn = document.querySelector('.time-btn[data-d="all"]');
-                                if (weekBtn) weekBtn.classList.add('active');
-                                currentTimeframe = 'all';
-                            }
-                        }
-                    });
+                    
+                    // For staking/APR modes, set ALL as default
+                    if (currentTimeframe === '1h' || currentTimeframe === '1d') {
+                        timeButtons.forEach(b => b.classList.remove('active'));
+                        const allBtn = document.querySelector('.time-btn[data-d="all"]');
+                        if (allBtn) allBtn.classList.add('active');
+                        currentTimeframe = 'all';
+                    }
 
                     // Disable chart type buttons (only line chart for historical data)
                     chartTypeButtons.forEach(b => {

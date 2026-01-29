@@ -370,6 +370,7 @@
             .time-btn { padding: 5px 8px; font-size: 10px; }
             .currency-btn { width: 32px; height: 32px; font-size: 14px; }
             .chart-controls { flex-wrap: wrap; gap: 8px; }
+            .chart-type-toggle { display: none; } /* Hide chart type buttons on mobile */
             .cta-link { padding: 14px 24px; }
             .cta-text { font-size: 13px; }
         }
@@ -1755,14 +1756,19 @@
                         fetchChart(15, 96); // Default to 1D
                     }
                 } else {
-                    
-                    // For staking/APR modes, set ALL as default
-                    if (currentTimeframe === '1h' || currentTimeframe === '1d') {
-                        timeButtons.forEach(b => b.classList.remove('active'));
-                        const allBtn = document.querySelector('.time-btn[data-d="all"]');
-                        if (allBtn) allBtn.classList.add('active');
-                        currentTimeframe = 'all';
-                    }
+                    // Disable 1H and 1D for staking/APR modes
+                    timeButtons.forEach(b => {
+                        if (b.dataset.d === '1h' || b.dataset.d === '1d') {
+                            b.classList.add('disabled');
+                            // If currently selected, switch to 1W
+                            if (b.classList.contains('active')) {
+                                b.classList.remove('active');
+                                const weekBtn = document.querySelector('.time-btn[data-d="1w"]');
+                                if (weekBtn) weekBtn.classList.add('active');
+                                currentTimeframe = '1w';
+                            }
+                        }
+                    });
 
                     // Disable chart type buttons (only line chart for historical data)
                     chartTypeButtons.forEach(b => {

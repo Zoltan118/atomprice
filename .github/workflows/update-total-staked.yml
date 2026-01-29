@@ -1,0 +1,33 @@
+name: Update Total Staked
+
+on:
+  schedule:
+    # Run every day at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  update-total-staked:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Fetch and update total staked data
+        run: node scripts/fetch-total-staked.js
+
+      - name: Commit and push if changed
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/historical-total-staked.json
+          git diff --staged --quiet || git commit -m "Update total staked data for $(date -u +%Y-%m-%d)"
+          git push

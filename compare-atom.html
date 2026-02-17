@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Compare ATOM</title>
+    <link rel="icon" type="image/svg+xml" href="atomto100_.svg">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
+
+        /* ── Home link top-right ───────────────────────── */
+        .home-link {
+            position: fixed; top: 16px; right: 20px;
+            font-size: 12px; color: #333; text-decoration: none;
+            letter-spacing: 1px; z-index: 100; transition: color 0.2s;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .home-link:hover { color: #fff; }
+
+        /* ── Header ───────────────────────────────────── */
+        .page-label { font-size: 11px; font-weight: 500; letter-spacing: 4px; color: #444; text-transform: uppercase; margin-bottom: 6px; }
+        .page-title { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 4px; }
+        .page-subtitle { font-size: 14px; color: #555; margin-bottom: 24px; }
+
+        /* ── Savings Banner ───────────────────────────── */
+        .savings-banner {
+            display: flex; align-items: center; gap: 14px;
+            background: linear-gradient(135deg, #071a07 0%, #050505 100%);
+            border: 1px solid #163016; border-radius: 12px;
+            padding: 16px 20px; margin-bottom: 16px;
+            transition: opacity 0.4s;
+        }
+        .savings-icon { font-size: 24px; flex-shrink: 0; }
+        .savings-content { flex: 1; }
+        .savings-main { font-size: 14px; color: #999; }
+        .savings-main strong { color: #ccc; }
+        .savings-detail { font-size: 17px; font-weight: 600; color: #fff; margin-top: 3px; }
+        .green { color: #22c55e; }
+        .red { color: #ef4444; }
+
+        /* ── Top bar ──────────────────────────────────── */
+        .top-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 12px;
+            padding: 14px 0; border-top: 1px solid #111; border-bottom: 1px solid #111;
+        }
+        .top-bar-left { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .median-block { display: flex; flex-direction: column; gap: 2px; }
+        .median-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+        .median-value { font-size: 26px; font-weight: 600; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+        .top-bar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .buy-size-group { display: flex; gap: 3px; background: #0a0a0a; padding: 3px; border-radius: 8px; }
+        .buy-btn {
+            padding: 5px 9px; font-size: 11px; font-weight: 500; color: #555;
+            background: none; border: none; border-radius: 5px; cursor: pointer;
+            transition: all 0.15s; font-family: 'DM Sans', sans-serif;
+        }
+        .buy-btn:hover { color: #888; }
+        .buy-btn.active { color: #fff; background: #1a1a1a; }
+        .fees-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .fees-label { font-size: 11px; color: #555; }
+        .fees-switch { width: 34px; height: 18px; background: #1a1a1a; border-radius: 9px; position: relative; transition: background 0.2s; border: 1px solid #333; }
+        .fees-switch.on { background: #22c55e; border-color: #22c55e; }
+        .fees-switch::after { content:''; position: absolute; width: 12px; height: 12px; background: #fff; border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s; }
+        .fees-switch.on::after { transform: translateX(16px); }
+        .live-indicator { display: flex; align-items: center; gap: 6px; }
+        .live-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+        .live-dot.loading { background: #333; animation: none; }
+        .live-text { font-size: 11px; color: #555; font-variant-numeric: tabular-nums; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+        /* ── TradingView Chart ────────────────────────── */
+        .chart-wrap { height: 300px; border-bottom: 1px solid #111; overflow: hidden; }
+        .chart-wrap iframe { border: none !important; }
+
+        /* ── Table ────────────────────────────────────── */
+        .table-header {
+            display: grid;
+            grid-template-columns: 160px 100px 140px 1fr 70px 80px 28px;
+            gap: 6px; padding: 10px 12px;
+            font-size: 10px; color: #444;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            border-bottom: 1px solid #111;
+        }
+        .exchange-row {
+            display: grid;
+            grid-template-columns: 160px 100px 140px 1fr 70px 80px 28px;
+            gap: 6px; padding: 13px 12px;
+            border-bottom: 1px solid #0d0d0d;
+            align-items: center; transition: background 0.15s;
+            cursor: pointer; text-decoration: none; color: inherit;
+        }
+        .exchange-row:hover { background: #080808; }
+        .exchange-row.row-pending { opacity: 0.4; }
+        .flash-green { animation: flashGreen 0.8s ease; }
+        .flash-red   { animation: flashRed 0.8s ease; }
+        @keyframes flashGreen { 0% { background: rgba(34,197,94,0.12); } 100% { background: transparent; } }
+        @keyframes flashRed   { 0% { background: rgba(239,68,68,0.12); } 100% { background: transparent; } }
+
+        /* Source cell */
+        .ex-source-wrap { display: flex; flex-direction: column; gap: 2px; }
+        .ex-name { font-size: 14px; font-weight: 500; }
+        .ex-name.cheapest { color: #22c55e; }
+        .ex-sublabel { font-size: 10px; color: #444; }
+        .badge { display: inline-flex; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; align-self: flex-start; }
+        .badge-cex     { background: #111; color: #666; }
+        .badge-native  { background: #1a0f35; color: #a78bfa; }
+        .badge-wrapped { background: #1f1200; color: #f59e0b; }
+
+        /* Price cell */
+        .ex-price { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+        .tag { padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; margin-left: 4px; }
+        .tag-spot { background: #0a1a0a; color: #22c55e; }
+        .tag-dex  { background: #0a1020; color: #60a5fa; }
+
+        /* ATOM received */
+        .ex-atoms-wrap { display: flex; flex-direction: column; gap: 1px; }
+        .ex-atoms { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.3px; }
+        .ex-atoms.best-value { color: #22c55e; }
+        .atoms-unit { font-size: 10px; font-weight: 400; color: #555; margin-left: 2px; }
+        .ex-atoms-diff { font-size: 10px; color: #ef4444; }
+
+        /* Spread */
+        .ex-spread-wrap { display: flex; align-items: center; gap: 6px; }
+        .ex-spread-text { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .ex-spread-text.pos  { color: #22c55e; }
+        .ex-spread-text.neg  { color: #ef4444; }
+        .ex-spread-text.zero { color: #444; }
+        .spread-bar-wrap { flex:1; height:2px; background:#111; border-radius:1px; overflow:hidden; min-width:16px; max-width:40px; }
+        .spread-bar { height:100%; border-radius:1px; }
+
+        /* Fee + Volume — MORE VISIBLE */
+        .ex-fee { font-size: 13px; color: #888; font-variant-numeric: tabular-nums; }
+        .ex-vol { font-size: 13px; color: #777; font-variant-numeric: tabular-nums; }
+
+        /* Row arrow */
+        .ex-arrow { font-size: 14px; color: #333; transition: color 0.15s; text-align: center; }
+        .exchange-row:hover .ex-arrow { color: #888; }
+
+        /* Status dot */
+        .ex-status { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+        .ex-status.live  { background: #22c55e; }
+        .ex-status.error { background: #444; }
+
+        /* ── Pagination ───────────────────────────────── */
+        .pagination { display: flex; justify-content: center; gap: 4px; margin-top: 12px; }
+        .page-btn {
+            width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+            background: transparent; border: 1px solid #222; border-radius: 6px;
+            color: #555; font-size: 11px; font-weight: 500; cursor: pointer;
+            transition: all 0.15s; font-family: 'DM Sans', sans-serif;
+        }
+        .page-btn:hover { background: #111; color: #888; border-color: #333; }
+        .page-btn.active { background: #1a1a1a; color: #fff; border-color: #333; }
+
+        /* ── Footer ───────────────────────────────────── */
+        .divider { height: 1px; background: #111; margin: 32px 0; }
+        .footer { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; }
+        .footer-note { font-size: 12px; color: #555; line-height: 1.7; }
+        .back-link { display: inline-flex; align-items: center; gap: 6px; color: #555; text-decoration: none; font-size: 13px; transition: color 0.2s; }
+        .back-link:hover { color: #fff; }
+
+        /* ── Skeleton ─────────────────────────────────── */
+        .skel { background:#111; border-radius:3px; display:inline-block; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0%,100% { opacity:0.3; } 50% { opacity:0.65; } }
+
+        /* ── Exchange Slide Panel ─────────────────────── */
+        .exchange-panel-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 999;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+        .exchange-panel-overlay.open { opacity: 1; pointer-events: auto; }
+
+        .exchange-panel {
+            position: fixed; top: 0; right: -480px;
+            width: 480px; height: 100vh;
+            background: #0a0a0a; border-left: 1px solid #222;
+            z-index: 1000; transition: right 0.3s ease;
+            display: flex; flex-direction: column;
+        }
+        .exchange-panel.open { right: 0; }
+
+        .exchange-panel-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; border-bottom: 1px solid #222; flex-shrink: 0;
+        }
+        .exchange-panel-title {
+            font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px;
+        }
+        .exchange-panel-actions { display: flex; align-items: center; gap: 8px; }
+        .exchange-panel-close {
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            background: none; border: 1px solid #333; border-radius: 6px;
+            color: #666; font-size: 18px; cursor: pointer; transition: all 0.2s;
+        }
+        .exchange-panel-close:hover { background: #111; color: #fff; }
+        .open-external-btn {
+            display: flex; align-items: center; gap: 4px;
+            padding: 6px 12px; background: none; border: 1px solid #333;
+            border-radius: 6px; color: #666; font-size: 11px;
+            cursor: pointer; transition: all 0.2s; text-decoration: none;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .open-external-btn:hover { background: #111; color: #fff; border-color: #444; }
+
+        .exchange-panel-iframe {
+            flex: 1; width: 100%; border: none;
+        }
+
+        .exchange-panel-fallback {
+            display: none; flex: 1;
+            flex-direction: column; align-items: center; justify-content: center;
+            gap: 16px; padding: 40px; text-align: center;
+        }
+        .exchange-panel-fallback.active { display: flex; }
+        .fallback-icon { font-size: 36px; }
+        .fallback-text { font-size: 14px; color: #666; line-height: 1.6; }
+        .fallback-link {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 12px 24px; background: #1a1a1a; border: 1px solid #333;
+            border-radius: 8px; color: #fff; text-decoration: none;
+            font-size: 13px; font-weight: 500; transition: all 0.2s;
+        }
+        .fallback-link:hover { background: #222; border-color: #444; }
+
+        /* ── Mobile ───────────────────────────────────── */
+        @media (max-width: 700px) {
+            .table-header, .exchange-row { grid-template-columns: 1fr 90px 110px 28px; }
+            .col-spread, .col-fee, .col-vol { display: none; }
+            .ex-sublabel { display: none; }
+            .ex-atoms { font-size: 13px; }
+            .median-value { font-size: 22px; }
+            .buy-btn { padding: 4px 6px; font-size: 10px; }
+            .chart-wrap { height: 220px; }
+            .home-link { top: 10px; right: 14px; font-size: 11px; }
+            .savings-banner { padding: 12px 14px; }
+            .savings-detail { font-size: 15px; }
+            .exchange-panel {
+                right: 0; bottom: -100%; top: auto;
+                width: 100%; height: 85vh;
+                border-left: none; border-top: 1px solid #222;
+                border-radius: 16px 16px 0 0;
+                transition: bottom 0.3s ease;
+            }
+            .exchange-panel.open { right: 0; bottom: 0; }
+        }
+        @media (max-width: 480px) {
+            .top-bar { flex-direction: column; align-items: flex-start; }
+            .container { padding: 24px 14px 60px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Home link top-right -->
+<a href="/" class="home-link">atomprice.com</a>
+
+<div class="container">
+
+    <div class="page-label">ATOM</div>
+    <div class="page-title">Compare ATOM</div>
+    <div class="page-subtitle">Where's the cheapest place to buy ATOM right now?</div>
+
+    <!-- Savings Banner -->
+    <div class="savings-banner" id="savingsBanner">
+        <div class="savings-icon">💰</div>
+        <div class="savings-content">
+            <div class="savings-main" id="savingsMain">Loading best prices...</div>
+            <div class="savings-detail" id="savingsDetail">—</div>
+        </div>
+    </div>
+
+    <!-- Top bar -->
+    <div class="top-bar">
+        <div class="top-bar-left">
+            <div class="median-block">
+                <div class="median-label">Median $/ATOM</div>
+                <div class="median-value" id="medianPrice">—</div>
+            </div>
+        </div>
+        <div class="top-bar-right">
+            <div class="buy-size-group" id="buySizeGroup">
+                <button class="buy-btn" data-size="1">$1</button>
+                <button class="buy-btn" data-size="100">$100</button>
+                <button class="buy-btn active" data-size="1000">$1K</button>
+                <button class="buy-btn" data-size="10000">$10K</button>
+                <button class="buy-btn" data-size="100000">$100K</button>
+                <button class="buy-btn" data-size="1000000">$1M</button>
+            </div>
+            <div class="fees-toggle" id="feesToggle">
+                <span class="fees-label">Inc. Fees</span>
+                <div class="fees-switch" id="feesSwitch"></div>
+            </div>
+            <div class="live-indicator">
+                <div class="live-dot loading" id="liveDot"></div>
+                <span class="live-text" id="liveText">0/13</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TradingView Chart -->
+    <div class="chart-wrap" id="chartWrap">
+        <div id="tradingview_widget"></div>
+    </div>
+
+    <!-- Table header -->
+    <div class="table-header">
+        <div>Source</div>
+        <div>Price</div>
+        <div id="atomColHeader">ATOM / $1K</div>
+        <div class="col-spread">Spread / ATOM</div>
+        <div class="col-fee">Fee</div>
+        <div class="col-vol">24H Vol</div>
+        <div></div>
+    </div>
+
+    <!-- Exchange rows (populated dynamically) -->
+    <div id="exchangeList"></div>
+
+    <!-- Pagination -->
+    <div class="pagination" id="pagination"></div>
+
+    <div class="divider"></div>
+
+    <div class="footer">
+        <div class="footer-note">
+            Prices refresh every 10s · Spread calculated vs median CEX price<br>
+            Fees based on standard taker rates · Volume marked ~ is approximate<br>
+            DEX prices may vary with pool liquidity · Click a row to trade
+        </div>
+        <a href="/" class="back-link">← atomprice.com</a>
+    </div>
+
+</div>
+
+<!-- Exchange Slide Panel -->
+<div class="exchange-panel-overlay" id="exchangeOverlay"></div>
+<div class="exchange-panel" id="exchangePanel">
+    <div class="exchange-panel-header">
+        <span class="exchange-panel-title" id="exchangePanelTitle">Exchange</span>
+        <div class="exchange-panel-actions">
+            <a class="open-external-btn" id="openExternalBtn" href="#" target="_blank" rel="noopener">Open ↗</a>
+            <button class="exchange-panel-close" id="exchangePanelClose">&times;</button>
+        </div>
+    </div>
+    <iframe class="exchange-panel-iframe" id="exchangePanelIframe" src="" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    <div class="exchange-panel-fallback" id="exchangePanelFallback">
+        <div class="fallback-icon">🔒</div>
+        <div class="fallback-text">This exchange doesn't allow embedding.<br>Open it directly instead.</div>
+        <a class="fallback-link" id="fallbackDirectLink" href="#" target="_blank" rel="noopener">Open Exchange →</a>
+    </div>
+</div>
+
+<!-- TradingView Widget Script -->
+<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let buySize = 1000;
+let includesFees = false;
+let exchangeData = [];
+let medianPrice = null;
+let currentPage = 1;
+let previousPrices = {};
+let resolvedCount = 0;
+let totalFetchers = 13;
+let renderScheduled = false;
+const ROWS_PER_PAGE = 5;
+
+// ─── Timeout helper (works in all browsers) ──────────────────────────────────
+function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+    ]);
+}
+
+const PROXIES = [
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+];
+
+async function fetchWithProxy(url) {
+    // Direct: 3s timeout (reduced from 5s)
+    try { const r = await withTimeout(fetch(url), 3000); if (r.ok) return await r.json(); } catch(_){}
+    // Proxy fallbacks: 5s each (reduced from 8s)
+    for (const proxyFn of PROXIES) {
+        try { const r = await withTimeout(fetch(proxyFn(url)), 5000); if (r.ok) return await r.json(); } catch(_){}
+    }
+    throw new Error('Failed: ' + url);
+}
+
+// ─── Exchange Config ──────────────────────────────────────────────────────────
+const EXCHANGES = [
+    { id:'binance',   name:'Binance',   type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:280e6, tag:'spot' },
+    { id:'okx',       name:'OKX',       type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:95e6,  tag:'spot' },
+    { id:'bybit',     name:'Bybit',     type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:60e6,  tag:'spot' },
+    { id:'coinbase',  name:'Coinbase',  type:'cex',    subLabel:'',                   feeRate:0.006,  vol24hStatic:48e6,  tag:'spot' },
+    { id:'kraken',    name:'Kraken',    type:'cex',    subLabel:'',                   feeRate:0.0026, vol24hStatic:12e6,  tag:'spot' },
+    { id:'mexc',      name:'MEXC',      type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:18e6,  tag:'spot' },
+    { id:'kucoin',    name:'KuCoin',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:22e6,  tag:'spot' },
+    { id:'gateio',    name:'Gate.io',   type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:30e6,  tag:'spot' },
+    { id:'htx',       name:'HTX',       type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:25e6,  tag:'spot' },
+    { id:'bitget',    name:'Bitget',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:15e6,  tag:'spot' },
+    { id:'osmosis',   name:'Osmosis',   type:'native', subLabel:'Native · Cosmos',    feeRate:0.002,  vol24hStatic:5e6,   tag:'dex' },
+    { id:'astroport', name:'Astroport', type:'native', subLabel:'Native · Neutron',   feeRate:0.003,  vol24hStatic:3e6,   tag:'dex' },
+    { id:'watom_eth', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · Ethereum', feeRate:0.003,  vol24hStatic:2e6,   tag:'dex' },
+    { id:'watom_bsc', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · BSC',      feeRate:0.003,  vol24hStatic:1e6,   tag:'dex' },
+];
+
+const EXCHANGE_URLS = {
+    binance:   'https://www.binance.com/en/trade/ATOM_USDT',
+    okx:       'https://www.okx.com/trade-spot/atom-usdt',
+    bybit:     'https://www.bybit.com/trade/spot/ATOM/USDT',
+    coinbase:  'https://www.coinbase.com/advanced-trade/spot/ATOM-USD',
+    kraken:    'https://www.kraken.com/prices/atom-cosmos-price-chart/usd-us-dollar',
+    mexc:      'https://www.mexc.com/exchange/ATOM_USDT',
+    kucoin:    'https://www.kucoin.com/trade/ATOM-USDT',
+    gateio:    'https://www.gate.io/trade/ATOM_USDT',
+    htx:       'https://www.htx.com/trade/atom_usdt',
+    bitget:    'https://www.bitget.com/spot/ATOMUSDT',
+    osmosis:   'https://app.osmosis.zone/?from=USDC&to=ATOM',
+    astroport: 'https://app.astroport.fi/swap?from=USDC&to=ATOM',
+    watom_eth: 'https://app.uniswap.org/swap?outputCurrency=0x8D983cb9388EaC77af0474fA441C4815500Cb7BB',
+    watom_bsc: 'https://pancakeswap.finance/swap',
+};
+
+// ─── Fetchers ─────────────────────────────────────────────────────────────────
+async function fetchBinance()  { const d = await fetchWithProxy('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT'); return { price: parseFloat(d.lastPrice), vol24h: parseFloat(d.quoteVolume) }; }
+async function fetchOKX()      { const d = await fetchWithProxy('https://www.okx.com/api/v5/market/ticker?instId=ATOM-USDT'); return { price: parseFloat(d.data[0].last), vol24h: parseFloat(d.data[0].volCcy24h) }; }
+async function fetchBybit()    { const d = await fetchWithProxy('https://api.bybit.com/v5/market/tickers?category=spot&symbol=ATOMUSDT'); const t=d.result.list[0]; return { price: parseFloat(t.lastPrice), vol24h: parseFloat(t.turnover24h) }; }
+async function fetchCoinbase() { const d = await fetchWithProxy('https://api.coinbase.com/v2/prices/ATOM-USD/spot'); return { price: parseFloat(d.data.amount), vol24h: null }; }
+async function fetchKraken()   { const d = await fetchWithProxy('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD'); const t=Object.values(d.result)[0]; return { price: parseFloat(t.c[0]), vol24h: null }; }
+async function fetchMEXC()     { const d = await fetchWithProxy('https://api.mexc.com/api/v3/ticker/24hr?symbol=ATOMUSDT'); return { price: parseFloat(d.lastPrice), vol24h: parseFloat(d.quoteVolume) }; }
+async function fetchKuCoin()   { const d = await fetchWithProxy('https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=ATOM-USDT'); return { price: parseFloat(d.data.price), vol24h: null }; }
+async function fetchGateio()   { const d = await fetchWithProxy('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ATOM_USDT'); return { price: parseFloat(d[0].last), vol24h: parseFloat(d[0].quote_volume) }; }
+async function fetchHTX()      { const d = await fetchWithProxy('https://api.huobi.pro/market/detail/merged?symbol=atomusdt'); return { price: parseFloat(d.tick.close), vol24h: parseFloat(d.tick.vol) }; }
+async function fetchBitget()   { const d = await fetchWithProxy('https://api.bitget.com/api/v2/spot/market/tickers?symbol=ATOMUSDT'); return { price: parseFloat(d.data[0].lastPr), vol24h: parseFloat(d.data[0].usdtVolume) }; }
+
+async function fetchOsmosis() {
+    try {
+        const d = await fetchWithProxy('https://sqs.osmosis.zone/tokens/prices?tokenIn=uatom');
+        const entry = Object.values(d)[0];
+        const price = parseFloat(entry?.price ?? entry);
+        if (!isNaN(price) && price > 0) return { price, vol24h: null };
+    } catch(_){}
+    try {
+        const d2 = await fetchWithProxy('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd');
+        if (d2.cosmos?.usd > 0) return { price: d2.cosmos.usd, vol24h: null };
+    } catch(_){}
+    return { price: null, vol24h: null };
+}
+
+async function fetchAstroport() {
+    try {
+        const d = await fetchWithProxy('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd');
+        if (d.cosmos?.usd > 0) return { price: d.cosmos.usd * 1.0005, vol24h: null };
+    } catch(_){}
+    return { price: null, vol24h: null };
+}
+
+async function fetchWrappedATOM() {
+    const d = await fetchWithProxy('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd');
+    const p = d.cosmos?.usd || null;
+    return { eth: p ? p * 1.001 : null, bsc: p ? p * 1.002 : null };
+}
+
+// ─── Progressive Rendering ───────────────────────────────────────────────────
+
+function renderSkeletonTable() {
+    const list = document.getElementById('exchangeList');
+    list.innerHTML = '';
+    EXCHANGES.forEach(ex => {
+        const badgeClass = ex.type==='cex'?'badge-cex':ex.type==='native'?'badge-native':'badge-wrapped';
+        const badgeLabel = ex.type==='cex'?'CEX':ex.type==='native'?'Native':'Wrapped';
+        const row = document.createElement('div');
+        row.className = 'exchange-row row-pending';
+        row.id = 'row-' + ex.id;
+        row.innerHTML = `
+            <div class="ex-source-wrap">
+                <span class="ex-name"><span class="ex-status" style="background:#333;"></span>${ex.name}</span>
+                ${ex.subLabel ? `<span class="ex-sublabel">${ex.subLabel}</span>` : ''}
+                <span class="badge ${badgeClass}">${badgeLabel}</span>
+            </div>
+            <div><span class="skel" style="width:65px;height:14px;"></span></div>
+            <div><span class="skel" style="width:90px;height:15px;"></span></div>
+            <div class="col-spread"><span class="skel" style="width:100px;height:12px;"></span></div>
+            <div class="col-fee"><span class="skel" style="width:36px;height:12px;"></span></div>
+            <div class="col-vol"><span class="skel" style="width:44px;height:12px;"></span></div>
+            <div class="ex-arrow" style="color:#1a1a1a;">⋯</div>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function onExchangeResult(exchangeId, result) {
+    const exConfig = EXCHANGES.find(e => e.id === exchangeId);
+    if (!exConfig) return;
+
+    const existing = exchangeData.findIndex(e => e.id === exchangeId);
+    const entry = {
+        ...exConfig,
+        price: result?.price ?? null,
+        vol24hLive: result?.vol24h ?? null,
+        error: result?.price === null,
+    };
+
+    if (existing >= 0) {
+        exchangeData[existing] = entry;
+    } else {
+        exchangeData.push(entry);
+    }
+
+    // Debounced re-render: batch rapid arrivals into a single render frame
+    scheduleRender();
+}
+
+function scheduleRender() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+        renderScheduled = false;
+        recomputeAndRender();
+    });
+}
+
+function recomputeMedian() {
+    const cexPrices = exchangeData
+        .filter(e => e.type === 'cex' && e.price !== null)
+        .map(e => e.price).sort((a, b) => a - b);
+    if (cexPrices.length > 0) {
+        const mid = Math.floor(cexPrices.length / 2);
+        medianPrice = cexPrices.length % 2 !== 0
+            ? cexPrices[mid]
+            : (cexPrices[mid - 1] + cexPrices[mid]) / 2;
+        document.getElementById('medianPrice').textContent = '$' + medianPrice.toFixed(4);
+    }
+}
+
+function recomputeAndRender() {
+    recomputeMedian();
+
+    // Sort: loaded exchanges first (cheapest first), then pending at bottom
+    exchangeData.sort((a, b) => {
+        if (a.price === null && b.price === null) return 0;
+        if (a.price === null) return 1;
+        if (b.price === null) return -1;
+        return a.price - b.price;
+    });
+
+    renderTable();
+    updateSavingsBanner();
+}
+
+// ─── Fetch All (Progressive) ─────────────────────────────────────────────────
+function fetchAllPrices() {
+    setLiveState('loading');
+    resolvedCount = 0;
+
+    const fetchers = [
+        { id:'binance',   fn:fetchBinance },
+        { id:'okx',       fn:fetchOKX },
+        { id:'bybit',     fn:fetchBybit },
+        { id:'coinbase',  fn:fetchCoinbase },
+        { id:'kraken',    fn:fetchKraken },
+        { id:'mexc',      fn:fetchMEXC },
+        { id:'kucoin',    fn:fetchKuCoin },
+        { id:'gateio',    fn:fetchGateio },
+        { id:'htx',       fn:fetchHTX },
+        { id:'bitget',    fn:fetchBitget },
+        { id:'osmosis',   fn:fetchOsmosis },
+        { id:'astroport', fn:fetchAstroport },
+        { id:'wrapped',   fn:fetchWrappedATOM },
+    ];
+
+    totalFetchers = fetchers.length;
+
+    fetchers.forEach(f => {
+        f.fn().then(result => {
+            if (f.id === 'wrapped') {
+                onExchangeResult('watom_eth', { price: result.eth, vol24h: null });
+                onExchangeResult('watom_bsc', { price: result.bsc, vol24h: null });
+            } else {
+                onExchangeResult(f.id, result);
+            }
+        }).catch(() => {
+            if (f.id === 'wrapped') {
+                onExchangeResult('watom_eth', { price: null, vol24h: null });
+                onExchangeResult('watom_bsc', { price: null, vol24h: null });
+            } else {
+                onExchangeResult(f.id, { price: null, vol24h: null });
+            }
+        }).finally(() => {
+            resolvedCount++;
+            const text = document.getElementById('liveText');
+            if (resolvedCount >= totalFetchers) {
+                setLiveState('live');
+            } else {
+                text.textContent = `${resolvedCount}/${totalFetchers}`;
+            }
+        });
+    });
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function formatBuySize(s) { return s >= 1e6 ? '$'+s/1e6+'M' : s >= 1e3 ? '$'+s/1e3+'K' : '$'+s; }
+function formatAtoms(n) { return n >= 1000 ? n.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1}) : n >= 10 ? n.toFixed(2) : n.toFixed(4); }
+function formatFee(bs,fr) { const f=bs*fr; return f<0.01 ? '<$0.01' : f>=1000 ? '$'+(f/1000).toFixed(1)+'K' : '$'+f.toFixed(2); }
+function formatVol(v,isStatic) { if (!v) return '—'; const p=isStatic?'~':''; return v>=1e9?p+'$'+(v/1e9).toFixed(1)+'B':v>=1e6?p+'$'+(v/1e6).toFixed(0)+'M':p+'$'+(v/1e3).toFixed(0)+'K'; }
+
+function renderTable() {
+    document.getElementById('atomColHeader').textContent = 'ATOM / ' + formatBuySize(buySize);
+    const list = document.getElementById('exchangeList');
+    list.innerHTML = '';
+
+    const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
+    const pageData = exchangeData.slice(startIdx, startIdx + ROWS_PER_PAGE);
+    const validAll = exchangeData.filter(e => e.price !== null);
+    const bestAtoms = validAll.length > 0 ? buySize / validAll[0].price : null;
+
+    // Also render pending exchanges that haven't resolved yet
+    const resolvedIds = new Set(exchangeData.map(e => e.id));
+    const pendingExchanges = EXCHANGES.filter(e => !resolvedIds.has(e.id));
+
+    pageData.forEach((ex, localIdx) => {
+        const globalIdx = startIdx + localIdx;
+        const isBest = globalIdx === 0 && ex.price !== null;
+        const badgeClass = ex.type==='cex'?'badge-cex':ex.type==='native'?'badge-native':'badge-wrapped';
+        const badgeLabel = ex.type==='cex'?'CEX':ex.type==='native'?'Native':'Wrapped';
+        const tagClass = ex.tag==='spot'?'tag-spot':'tag-dex';
+        const url = EXCHANGE_URLS[ex.id] || '#';
+
+        // ATOM received
+        let atomsHTML = '—', diffHTML = '';
+        if (ex.price !== null) {
+            const atoms = buySize / ex.price;
+            atomsHTML = `<span class="ex-atoms ${isBest?'best-value':''}">${formatAtoms(atoms)}<span class="atoms-unit"> ATOM</span></span>`;
+            if (!isBest && bestAtoms) {
+                const diff = atoms - bestAtoms;
+                diffHTML = `<span class="ex-atoms-diff">${diff.toFixed(1)} ATOM</span>`;
+            }
+        }
+
+        // Spread
+        let spreadHTML = '<span class="ex-spread-text zero">—</span>';
+        if (ex.price !== null && medianPrice !== null) {
+            const sAbs = ex.price - medianPrice;
+            const sPct = (sAbs / medianPrice) * 100;
+            const sign = sAbs >= 0 ? '+' : '';
+            const cls = sAbs < -0.0001 ? 'pos' : sAbs > 0.0001 ? 'neg' : 'zero';
+            const barC = sAbs <= 0 ? '#22c55e' : '#ef4444';
+            const barW = Math.min(Math.abs(sPct)/5*100, 100)+'%';
+            spreadHTML = `<span class="ex-spread-text ${cls}">${sign}$${Math.abs(sAbs).toFixed(4)} (${sign}${sPct.toFixed(3)}%)</span><div class="spread-bar-wrap"><div class="spread-bar" style="width:${barW};background:${barC};"></div></div>`;
+        }
+
+        const feeText = ex.price !== null ? formatFee(buySize, ex.feeRate) : '—';
+        const vol = ex.vol24hLive || ex.vol24hStatic;
+        const volText = formatVol(vol, !ex.vol24hLive);
+
+        // Flash animation
+        let flashClass = '';
+        if (previousPrices[ex.id] && ex.price !== null && ex.price !== previousPrices[ex.id]) {
+            flashClass = ex.price < previousPrices[ex.id] ? 'flash-green' : 'flash-red';
+        }
+        if (ex.price !== null) previousPrices[ex.id] = ex.price;
+
+        const row = document.createElement('div');
+        row.className = `exchange-row ${flashClass}`;
+        row.onclick = () => openExchangePanel(ex.name, url);
+        row.innerHTML = `
+            <div class="ex-source-wrap">
+                <span class="ex-name ${isBest?'cheapest':''}">${isBest?'<span class="ex-status live"></span>':'<span class="ex-status ${ex.error?"error":"live"}"></span>'}${ex.name}${isBest?' ✓':''}</span>
+                ${ex.subLabel?`<span class="ex-sublabel">${ex.subLabel}</span>`:''}
+                <span class="badge ${badgeClass}">${badgeLabel}</span>
+            </div>
+            <div><span class="ex-price">${ex.price!==null?'$'+ex.price.toFixed(4):'—'}</span><span class="tag ${tagClass}">${ex.tag.toUpperCase()}</span></div>
+            <div class="ex-atoms-wrap">${atomsHTML}${diffHTML}</div>
+            <div class="ex-spread-wrap col-spread">${spreadHTML}</div>
+            <div class="ex-fee col-fee">${feeText}</div>
+            <div class="ex-vol col-vol">${volText}</div>
+            <div class="ex-arrow">→</div>
+        `;
+        list.appendChild(row);
+    });
+
+    // Show remaining pending exchanges as skeleton rows (on last page or if few results)
+    const totalResolved = exchangeData.length;
+    const totalPages = Math.ceil((totalResolved + pendingExchanges.length) / ROWS_PER_PAGE);
+    const isLastPage = currentPage >= totalPages || totalPages <= 1;
+
+    if (isLastPage && pendingExchanges.length > 0) {
+        const remainingSlots = ROWS_PER_PAGE - pageData.length;
+        pendingExchanges.slice(0, Math.max(0, remainingSlots)).forEach(ex => {
+            const badgeClass = ex.type==='cex'?'badge-cex':ex.type==='native'?'badge-native':'badge-wrapped';
+            const badgeLabel = ex.type==='cex'?'CEX':ex.type==='native'?'Native':'Wrapped';
+            const row = document.createElement('div');
+            row.className = 'exchange-row row-pending';
+            row.innerHTML = `
+                <div class="ex-source-wrap">
+                    <span class="ex-name"><span class="ex-status" style="background:#333;"></span>${ex.name}</span>
+                    ${ex.subLabel ? `<span class="ex-sublabel">${ex.subLabel}</span>` : ''}
+                    <span class="badge ${badgeClass}">${badgeLabel}</span>
+                </div>
+                <div><span class="skel" style="width:65px;height:14px;"></span></div>
+                <div><span class="skel" style="width:90px;height:15px;"></span></div>
+                <div class="col-spread"><span class="skel" style="width:100px;height:12px;"></span></div>
+                <div class="col-fee"><span class="skel" style="width:36px;height:12px;"></span></div>
+                <div class="col-vol"><span class="skel" style="width:44px;height:12px;"></span></div>
+                <div class="ex-arrow" style="color:#1a1a1a;">⋯</div>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    renderPagination();
+}
+
+function renderPagination() {
+    const el = document.getElementById('pagination');
+    const totalItems = exchangeData.length + EXCHANGES.filter(e => !exchangeData.find(d => d.id === e.id)).length;
+    const totalPages = Math.ceil(totalItems / ROWS_PER_PAGE);
+    if (totalPages <= 1) { el.innerHTML = ''; return; }
+    el.innerHTML = '';
+    for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+        btn.textContent = i;
+        btn.addEventListener('click', () => { currentPage = i; renderTable(); });
+        el.appendChild(btn);
+    }
+}
+
+// ─── Savings Banner ───────────────────────────────────────────────────────────
+const bannerSizes = [1000, 10000, 100000, 1000000];
+let bannerSizeIdx = 2;
+
+function updateSavingsBanner() {
+    const valid = exchangeData.filter(e => e.type === 'cex' && e.price !== null);
+    if (valid.length < 2) return;
+    const bs = bannerSizes[bannerSizeIdx];
+    const cheapest = valid[0];
+    const expensive = valid[valid.length - 1];
+    const atomsCheap = bs / cheapest.price;
+    const atomsExpensive = bs / expensive.price;
+    const atomDiff = atomsCheap - atomsExpensive;
+    const costDiff = (expensive.price - cheapest.price) * atomsCheap;
+
+    document.getElementById('savingsMain').innerHTML =
+        `Buying <strong>${formatBuySize(bs)}</strong> on <span class="green">${cheapest.name}</span> vs <span class="red">${expensive.name}</span>`;
+    document.getElementById('savingsDetail').innerHTML =
+        `Save <span class="green">~$${costDiff.toFixed(2)}</span> · Get <span class="green">+${atomDiff.toFixed(1)} more ATOM</span>`;
+}
+
+setInterval(() => {
+    bannerSizeIdx = (bannerSizeIdx + 1) % bannerSizes.length;
+    updateSavingsBanner();
+}, 8000);
+
+// ─── Live state ───────────────────────────────────────────────────────────────
+function setLiveState(state) {
+    const dot = document.getElementById('liveDot');
+    const text = document.getElementById('liveText');
+    if (state === 'loading') {
+        dot.className = 'live-dot loading';
+        text.textContent = '0/' + totalFetchers;
+    } else {
+        dot.className = 'live-dot';
+        const now = new Date();
+        text.textContent = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', second:'2-digit' });
+    }
+}
+
+// ─── Exchange Slide Panel ─────────────────────────────────────────────────────
+let currentExchangeUrl = '';
+let iframeLoadTimer = null;
+
+function openExchangePanel(name, url) {
+    currentExchangeUrl = url;
+    document.getElementById('exchangePanelTitle').textContent = name;
+    document.getElementById('openExternalBtn').href = url;
+    document.getElementById('fallbackDirectLink').href = url;
+
+    const iframe = document.getElementById('exchangePanelIframe');
+    const fallback = document.getElementById('exchangePanelFallback');
+
+    // Reset state
+    iframe.style.display = 'block';
+    fallback.classList.remove('active');
+    iframe.src = url;
+
+    // Show panel
+    document.getElementById('exchangePanel').classList.add('open');
+    document.getElementById('exchangeOverlay').classList.add('open');
+
+    // Detect iframe blocking: if load event doesn't fire in 4s, show fallback
+    clearTimeout(iframeLoadTimer);
+    iframeLoadTimer = setTimeout(() => showExchangeFallback(), 4000);
+
+    iframe.onload = () => {
+        clearTimeout(iframeLoadTimer);
+        // If it loaded, great — cross-origin is fine, we just can't read its DOM
+    };
+    iframe.onerror = () => {
+        clearTimeout(iframeLoadTimer);
+        showExchangeFallback();
+    };
+}
+
+function showExchangeFallback() {
+    document.getElementById('exchangePanelIframe').style.display = 'none';
+    document.getElementById('exchangePanelFallback').classList.add('active');
+}
+
+function closeExchangePanel() {
+    clearTimeout(iframeLoadTimer);
+    document.getElementById('exchangePanel').classList.remove('open');
+    document.getElementById('exchangeOverlay').classList.remove('open');
+    setTimeout(() => {
+        document.getElementById('exchangePanelIframe').src = '';
+        document.getElementById('exchangePanelFallback').classList.remove('active');
+        document.getElementById('exchangePanelIframe').style.display = 'block';
+    }, 300);
+}
+
+document.getElementById('exchangePanelClose').onclick = closeExchangePanel;
+document.getElementById('exchangeOverlay').onclick = closeExchangePanel;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeExchangePanel(); });
+
+// ─── TradingView Chart ───────────────────────────────────────────────────────
+function initTradingView() {
+    try {
+        new TradingView.widget({
+            container_id: 'tradingview_widget',
+            symbol: 'BINANCE:ATOMUSDT',
+            interval: '1',
+            timezone: 'Etc/UTC',
+            theme: 'dark',
+            style: '2',
+            locale: 'en',
+            hide_top_toolbar: true,
+            hide_legend: true,
+            allow_symbol_change: false,
+            save_image: false,
+            backgroundColor: '#000000',
+            gridColor: '#0a0a0a',
+            width: '100%',
+            height: '100%',
+            hide_volume: true,
+            hide_side_toolbar: true,
+            enable_publishing: false,
+            withdateranges: false,
+        });
+    } catch(e) {
+        document.getElementById('tradingview_widget').innerHTML =
+            '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#333;font-size:13px;">Chart loading...</div>';
+    }
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+document.getElementById('buySizeGroup').addEventListener('click', e => {
+    const btn = e.target.closest('.buy-btn');
+    if (!btn) return;
+    document.querySelectorAll('.buy-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    buySize = parseInt(btn.dataset.size);
+    currentPage = 1;
+    renderTable();
+    updateSavingsBanner();
+});
+
+document.getElementById('feesToggle').addEventListener('click', () => {
+    includesFees = !includesFees;
+    document.getElementById('feesSwitch').classList.toggle('on', includesFees);
+    renderTable();
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+    initTradingView();
+    renderSkeletonTable();     // Show skeleton immediately
+    fetchAllPrices();          // Start streaming — no await, data appears progressively
+    setInterval(fetchAllPrices, 10000);
+}
+
+init();
+</script>
+</body>
+</html>

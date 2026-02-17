@@ -360,7 +360,21 @@
             transform: translateX(4px);
             color: #fff;
         }
-        
+
+        /* Compare CTA - between currency selector and chart */
+        .compare-cta-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
+        .compare-cta {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #0d1117 0%, #080808 100%);
+            border: 1px solid #1a1a1a; border-radius: 10px;
+            text-decoration: none; transition: all 0.25s ease; color: inherit;
+        }
+        .compare-cta:hover { border-color: #333; background: linear-gradient(135deg, #111922 0%, #0d0d0d 100%); transform: translateY(-1px); }
+        .compare-cta-text { font-size: 13px; font-weight: 400; color: #888; letter-spacing: 0.3px; }
+        .compare-cta-text strong { color: #ccc; font-weight: 500; }
+        .compare-cta-arrow { font-size: 14px; color: #444; transition: transform 0.2s ease, color 0.2s ease; }
+        .compare-cta:hover .compare-cta-arrow { transform: translateX(3px); color: #888; }
 
         @media (max-width: 500px) {
             .price-row { gap: 10px; }
@@ -373,6 +387,8 @@
             .chart-type-toggle { display: none; } /* Hide chart type buttons on mobile */
             .cta-link { padding: 14px 24px; }
             .cta-text { font-size: 13px; }
+            .compare-cta { padding: 8px 16px; }
+            .compare-cta-text { font-size: 12px; }
         }
     </style>
 </head>
@@ -390,6 +406,13 @@
             <button class="currency-btn" data-currency="try">₺</button>
             <button class="currency-btn" data-currency="jpy">¥</button>
             <button class="currency-btn" data-currency="cny">元</button>
+        </div>
+        <!-- Compare CTA -->
+        <div class="compare-cta-wrap">
+            <a href="compare-atom.html" class="compare-cta">
+                <span class="compare-cta-text">Compare ATOM prices across <strong>14 DEX & CEXs</strong></span>
+                <span class="compare-cta-arrow">→</span>
+            </a>
         </div>
         <div class="chart-controls">
             <div style="display: flex; gap: 12px; align-items: center;">

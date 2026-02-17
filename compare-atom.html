@@ -12,17 +12,9 @@
         body { font-family: 'DM Sans', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
         .container { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
 
-        /* ── Home link top-right ───────────────────────── */
-        .home-link {
-            position: fixed; top: 16px; right: 20px;
-            font-size: 12px; color: #333; text-decoration: none;
-            letter-spacing: 1px; z-index: 100; transition: color 0.2s;
-            font-family: 'DM Sans', sans-serif;
-        }
-        .home-link:hover { color: #fff; }
-
         /* ── Header ───────────────────────────────────── */
-        .page-label { font-size: 11px; font-weight: 500; letter-spacing: 4px; color: #444; text-transform: uppercase; margin-bottom: 6px; }
+        .page-brand { font-size: 16px; font-weight: 500; color: #666; text-decoration: none; letter-spacing: 0.5px; transition: color 0.2s; display: block; margin-bottom: 6px; }
+        .page-brand:hover { color: #fff; }
         .page-title { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 4px; }
         .page-subtitle { font-size: 14px; color: #555; margin-bottom: 24px; }
 
@@ -238,7 +230,7 @@
             .median-value { font-size: 22px; }
             .buy-btn { padding: 4px 6px; font-size: 10px; }
             .chart-wrap { height: 220px; }
-            .home-link { top: 10px; right: 14px; font-size: 11px; }
+            .page-brand { font-size: 14px; }
             .savings-banner { padding: 12px 14px; }
             .savings-detail { font-size: 15px; }
             .exchange-panel {
@@ -258,13 +250,10 @@
 </head>
 <body>
 
-<!-- Home link top-right -->
-<a href="/" class="home-link">atomprice.com</a>
-
 <div class="container">
 
-    <div class="page-label">ATOM</div>
-    <div class="page-title">Compare ATOM</div>
+    <a href="/" class="page-brand">atomprice.com</a>
+    <div class="page-title">Compare ATOM Prices</div>
     <div class="page-subtitle">Where's the cheapest place to buy ATOM right now?</div>
 
     <!-- Savings Banner -->
@@ -426,7 +415,7 @@ const EXCHANGE_URLS = {
     htx:       'https://www.htx.com/trade/atom_usdt',
     bitget:    'https://www.bitget.com/spot/ATOMUSDT',
     osmosis:   'https://app.osmosis.zone/?from=USDC&to=ATOM',
-    astroport: 'https://app.astroport.fi/swap?from=USDC&to=ATOM',
+    astroport: 'https://app.astroport.fi/swap?from=ibc%2FB559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E57F7&to=ibc%2FC4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9',
     watom_eth: 'https://app.uniswap.org/swap?outputCurrency=0x8D983cb9388EaC77af0474fA441C4815500Cb7BB',
     watom_bsc: 'https://pancakeswap.finance/swap',
 };
@@ -672,7 +661,7 @@ function renderTable() {
 
         const row = document.createElement('div');
         row.className = `exchange-row ${flashClass}`;
-        row.onclick = () => openExchangePanel(ex.name, url);
+        row.onclick = () => openExchangePanel(ex.name, url, ex.id);
         row.innerHTML = `
             <div class="ex-source-wrap">
                 <span class="ex-name ${isBest?'cheapest':''}">${isBest?'<span class="ex-status live"></span>':'<span class="ex-status ${ex.error?"error":"live"}"></span>'}${ex.name}${isBest?' ✓':''}</span>
@@ -780,7 +769,13 @@ function setLiveState(state) {
 let currentExchangeUrl = '';
 let iframeLoadTimer = null;
 
-function openExchangePanel(name, url) {
+// CEXs all block iframes (X-Frame-Options: DENY) — skip iframe, show fallback instantly
+const IFRAME_BLOCKED = new Set([
+    'binance', 'okx', 'bybit', 'coinbase', 'kraken',
+    'mexc', 'kucoin', 'gateio', 'htx', 'bitget'
+]);
+
+function openExchangePanel(name, url, exchangeId) {
     currentExchangeUrl = url;
     document.getElementById('exchangePanelTitle').textContent = name;
     document.getElementById('openExternalBtn').href = url;
@@ -789,22 +784,28 @@ function openExchangePanel(name, url) {
     const iframe = document.getElementById('exchangePanelIframe');
     const fallback = document.getElementById('exchangePanelFallback');
 
-    // Reset state
-    iframe.style.display = 'block';
-    fallback.classList.remove('active');
-    iframe.src = url;
-
     // Show panel
     document.getElementById('exchangePanel').classList.add('open');
     document.getElementById('exchangeOverlay').classList.add('open');
 
-    // Detect iframe blocking: if load event doesn't fire in 4s, show fallback
+    // CEXs: skip iframe entirely, go straight to fallback
+    if (IFRAME_BLOCKED.has(exchangeId)) {
+        iframe.style.display = 'none';
+        iframe.src = '';
+        fallback.classList.add('active');
+        return;
+    }
+
+    // DEXs: attempt iframe with timeout fallback
+    iframe.style.display = 'block';
+    fallback.classList.remove('active');
+    iframe.src = url;
+
     clearTimeout(iframeLoadTimer);
     iframeLoadTimer = setTimeout(() => showExchangeFallback(), 4000);
 
     iframe.onload = () => {
         clearTimeout(iframeLoadTimer);
-        // If it loaded, great — cross-origin is fine, we just can't read its DOM
     };
     iframe.onerror = () => {
         clearTimeout(iframeLoadTimer);

@@ -22,6 +22,11 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DM Sans', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
         .container { max-width: 700px; margin: 0 auto; padding: 50px 20px; }
+        .top-nav { display: flex; justify-content: space-between; align-items: center; padding-bottom: 32px; }
+        .top-nav-brand { font-size: 16px; font-weight: 500; color: #666; letter-spacing: 0.5px; text-decoration: none; transition: color 0.2s; }
+        .top-nav-brand:hover { color: #fff; }
+        .top-nav-link { font-size: 14px; font-weight: 500; color: #666; text-decoration: none; letter-spacing: 0.3px; transition: color 0.2s; }
+        .top-nav-link:hover { color: #fff; }
         .label { text-align: center; font-size: 18px; font-weight: 500; letter-spacing: 6px; color: #888; margin-bottom: 8px; text-transform: uppercase; }
         .price-row { display: flex; align-items: baseline; justify-content: center; gap: 16px; margin-bottom: 20px; }
         
@@ -389,11 +394,18 @@
             .cta-text { font-size: 13px; }
             .compare-cta { padding: 8px 16px; }
             .compare-cta-text { font-size: 12px; }
+            .top-nav { padding-bottom: 24px; }
+            .top-nav-brand { font-size: 14px; }
+            .top-nav-link { font-size: 12px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <nav class="top-nav">
+            <a href="/" class="top-nav-brand">atomprice.com</a>
+            <a href="compare-atom.html" class="top-nav-link">Where's the cheapest ATOM? →</a>
+        </nav>
         <div class="label">ATOM</div>
         <div class="price-row">
             <div class="price" id="price">—</div>
@@ -406,13 +418,6 @@
             <button class="currency-btn" data-currency="try">₺</button>
             <button class="currency-btn" data-currency="jpy">¥</button>
             <button class="currency-btn" data-currency="cny">元</button>
-        </div>
-        <!-- Compare CTA -->
-        <div class="compare-cta-wrap">
-            <a href="compare-atom.html" class="compare-cta">
-                <span class="compare-cta-text">Compare ATOM prices across <strong>14 DEX & CEXs</strong></span>
-                <span class="compare-cta-arrow">→</span>
-            </a>
         </div>
         <div class="chart-controls">
             <div style="display: flex; gap: 12px; align-items: center;">

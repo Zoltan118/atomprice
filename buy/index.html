@@ -11,6 +11,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DM Sans', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
         .container { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
+
         /* ── Header ───────────────────────────────────── */
         .page-header-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
         .page-brand { font-size: 16px; font-weight: 500; color: #666; text-decoration: none; letter-spacing: 0.5px; transition: color 0.2s; }
@@ -448,9 +449,9 @@ const EXCHANGES = [
     { id:'coinex',     name:'CoinEx',     type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
     { id:'crypto_com', name:'Crypto.com', type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
     // ── DEXs ──
-    { id:'osmosis',    name:'Osmosis',    type:'native', feeRate:0.002, tag:'dex', pair:'ATOM/OSMO', subLabel:'Native · Cosmos',  vol24hStatic:null },
-    { id:'astroport',  name:'Astroport',  type:'native', feeRate:0.003, tag:'dex', pair:'ATOM/NTRN', subLabel:'Native · Neutron', vol24hStatic:null },
-    { id:'thorchain',  name:'THORChain',  type:'native', feeRate:0.003, tag:'dex', pair:'ATOM/RUNE', subLabel:'DEX · THORChain',  vol24hStatic:null },
+    { id:'osmosis',    name:'Osmosis',    type:'native', feeRate:0.002, tag:'dex', pair:'ATOM/USDC', subLabel:'Native · Cosmos',  vol24hStatic:null },
+    { id:'astroport',  name:'Astroport',  type:'native', feeRate:0.003, tag:'dex', pair:'ATOM/USDC', subLabel:'Native · Neutron', vol24hStatic:null },
+    { id:'thorchain',  name:'THORChain',  type:'native', feeRate:0.003, tag:'dex', pair:'ATOM/USDC', subLabel:'DEX · THORChain',  vol24hStatic:null },
 ];
 
 const EXCHANGE_URLS = {
@@ -480,9 +481,9 @@ const EXCHANGE_URLS = {
     toobit:     'https://www.toobit.com/en-US/spot/ATOM_USDT',
     coinex:     'https://www.coinex.com/en/exchange/ATOM-USDT',
     crypto_com: 'https://crypto.com/exchange/trade/ATOM_USDT',
-    osmosis:    'https://app.osmosis.zone/?from=OSMO&to=ATOM',
-    astroport:  'https://app.astroport.fi/swap?from=untrn&to=ibc%2FC4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9',
-    thorchain:  'https://app.thorswap.finance/swap/GAIA.ATOM',
+    osmosis:    'https://app.osmosis.zone/?from=USDC&to=ATOM',
+    astroport:  'https://neutron.astroport.fi/swap?from=ibc%2FB559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81&to=ibc%2FC4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9',
+    thorchain:  'https://app.thorswap.finance/swap/GAIA.ATOM_ETH.USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48',
 };
 
 // ─── Individual Exchange Fetchers ─────────────────────────────────────────────

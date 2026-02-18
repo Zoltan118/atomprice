@@ -5,13 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Compare ATOM</title>
-    <link rel="icon" type="image/svg+xml" href="atomto100_.svg">
+    <link rel="icon" type="image/svg+xml" href="/atomto100_.svg">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DM Sans', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
         .container { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
-
         /* ── Header ───────────────────────────────────── */
         .page-header-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
         .page-brand { font-size: 16px; font-weight: 500; color: #666; text-decoration: none; letter-spacing: 0.5px; transition: color 0.2s; }
@@ -298,7 +297,7 @@
             </div>
             <div class="live-indicator">
                 <div class="live-dot loading" id="liveDot"></div>
-                <span class="live-text" id="liveText">0/13</span>
+                <span class="live-text" id="liveText">0/29</span>
             </div>
         </div>
     </div>
@@ -330,8 +329,8 @@
     <div class="footer">
         <div class="footer-note">
             Prices refresh every 10s · Spread calculated vs median CEX price<br>
-            Fees based on standard taker rates · Volume marked ~ is approximate<br>
-            DEX prices may vary with pool liquidity · Click a row to trade
+            Fees based on standard taker rates · DEX prices may vary with liquidity<br>
+            Click any row to trade
         </div>
         <a href="/" class="back-link">← atomprice.com</a>
     </div>
@@ -373,11 +372,11 @@ let medianPrice = null;
 let currentPage = 1;
 let previousPrices = {};
 let resolvedCount = 0;
-let totalFetchers = 13;
+let totalFetchers = 0;
 let renderScheduled = false;
 const ROWS_PER_PAGE = 5;
 
-// ─── Timeout helper (works in all browsers) ──────────────────────────────────
+// ─── Timeout helper ──────────────────────────────────────────────────────────
 function withTimeout(promise, ms) {
     return Promise.race([
         promise,
@@ -390,7 +389,7 @@ const PROXIES = [
     url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
 ];
 
-// Direct-first fetch (for CORS-friendly APIs like Binance, Coinbase, etc.)
+// Direct-first fetch
 async function fetchWithProxy(url) {
     try { const r = await withTimeout(fetch(url), 3000); if (r.ok) return await r.json(); } catch(_){}
     for (const proxyFn of PROXIES) {
@@ -399,7 +398,7 @@ async function fetchWithProxy(url) {
     throw new Error('Failed: ' + url);
 }
 
-// Proxy-first fetch (for APIs that ALWAYS need CORS proxy — skips wasted 3s direct attempt)
+// Proxy-first fetch (for APIs that ALWAYS need CORS proxy)
 async function fetchProxyFirst(url) {
     for (const proxyFn of PROXIES) {
         try { const r = await withTimeout(fetch(proxyFn(url)), 4000); if (r.ok) return await r.json(); } catch(_){}
@@ -408,7 +407,7 @@ async function fetchProxyFirst(url) {
     throw new Error('Failed: ' + url);
 }
 
-// Shared CoinGecko price (fetched once, used by Astroport + wATOM + Osmosis fallback)
+// Shared CoinGecko price (fetched once, used by Astroport + Osmosis fallback)
 let _geckoPromise = null;
 function getGeckoPrice() {
     if (!_geckoPromise) {
@@ -419,97 +418,247 @@ function getGeckoPrice() {
     return _geckoPromise;
 }
 
-// ─── Exchange Config ──────────────────────────────────────────────────────────
+// ─── Exchange Configuration ──────────────────────────────────────────────────
 const EXCHANGES = [
-    { id:'binance',   name:'Binance',   type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:280e6, tag:'spot', pair:'ATOM/USDT' },
-    { id:'okx',       name:'OKX',       type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:95e6,  tag:'spot', pair:'ATOM/USDT' },
-    { id:'bybit',     name:'Bybit',     type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:60e6,  tag:'spot', pair:'ATOM/USDT' },
-    { id:'coinbase',  name:'Coinbase',  type:'cex',    subLabel:'',                   feeRate:0.006,  vol24hStatic:48e6,  tag:'spot', pair:'ATOM/USD' },
-    { id:'kraken',    name:'Kraken',    type:'cex',    subLabel:'',                   feeRate:0.0026, vol24hStatic:12e6,  tag:'spot', pair:'ATOM/USD' },
-    { id:'mexc',      name:'MEXC',      type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:18e6,  tag:'spot', pair:'ATOM/USDT' },
-    { id:'kucoin',    name:'KuCoin',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:22e6,  tag:'spot', pair:'ATOM/USDT' },
-    { id:'gateio',    name:'Gate.io',   type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:30e6,  tag:'spot', pair:'ATOM/USDT' },
-    { id:'htx',       name:'HTX',       type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:25e6,  tag:'spot', pair:'ATOM/USDT' },
-    { id:'bitget',    name:'Bitget',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:15e6,  tag:'spot', pair:'ATOM/USDT' },
-    { id:'osmosis',   name:'Osmosis',   type:'native', subLabel:'Native · Cosmos',    feeRate:0.002,  vol24hStatic:5e6,   tag:'dex',  pair:'ATOM/USDC' },
-    { id:'astroport', name:'Astroport', type:'native', subLabel:'Native · Neutron',   feeRate:0.003,  vol24hStatic:3e6,   tag:'dex',  pair:'ATOM/USDC' },
-    { id:'watom_eth', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · Ethereum', feeRate:0.003,  vol24hStatic:2e6,   tag:'dex',  pair:'wATOM/ETH' },
-    { id:'watom_bsc', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · BSC',      feeRate:0.003,  vol24hStatic:1e6,   tag:'dex',  pair:'wATOM/BNB' },
+    // ── CEXs ──
+    { id:'binance',    name:'Binance',    type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'okx',        name:'OKX',        type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'bybit',      name:'Bybit',      type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'coinbase',   name:'Coinbase',   type:'cex', feeRate:0.006,  tag:'spot', pair:'ATOM/USD',  vol24hStatic:null },
+    { id:'kraken',     name:'Kraken',     type:'cex', feeRate:0.0026, tag:'spot', pair:'ATOM/USD',  vol24hStatic:null },
+    { id:'mexc',       name:'MEXC',       type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'kucoin',     name:'KuCoin',     type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'gate',       name:'Gate.io',    type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'htx',        name:'HTX',        type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'bitget',     name:'Bitget',     type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'whitebit',   name:'WhiteBIT',   type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'digifinex',  name:'DigiFinex',  type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'poloniex',   name:'Poloniex',   type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'btse',       name:'BTSE',       type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'coinw',      name:'CoinW',      type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'ascendex',   name:'AscendEX',   type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'bitmart',    name:'BitMart',    type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'xt',         name:'XT.COM',     type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'lbank',      name:'LBank',      type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'phemex',     name:'Phemex',     type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'bingx',      name:'BingX',      type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'pionex',     name:'Pionex',     type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'hotcoin',    name:'Hotcoin',    type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'toobit',     name:'Toobit',     type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'coinex',     name:'CoinEx',     type:'cex', feeRate:0.002,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    { id:'crypto_com', name:'Crypto.com', type:'cex', feeRate:0.001,  tag:'spot', pair:'ATOM/USDT', vol24hStatic:null },
+    // ── DEXs ──
+    { id:'osmosis',    name:'Osmosis',    type:'native', feeRate:0.002, tag:'dex', pair:'ATOM/OSMO', subLabel:'Native · Cosmos',  vol24hStatic:null },
+    { id:'astroport',  name:'Astroport',  type:'native', feeRate:0.003, tag:'dex', pair:'ATOM/NTRN', subLabel:'Native · Neutron', vol24hStatic:null },
+    { id:'thorchain',  name:'THORChain',  type:'native', feeRate:0.003, tag:'dex', pair:'ATOM/RUNE', subLabel:'DEX · THORChain',  vol24hStatic:null },
 ];
 
 const EXCHANGE_URLS = {
-    binance:   'https://www.binance.com/en/trade/ATOM_USDT',
-    okx:       'https://www.okx.com/trade-spot/atom-usdt',
-    bybit:     'https://www.bybit.com/trade/spot/ATOM/USDT',
-    coinbase:  'https://www.coinbase.com/advanced-trade/spot/ATOM-USD',
-    kraken:    'https://www.kraken.com/prices/atom-cosmos-price-chart/usd-us-dollar',
-    mexc:      'https://www.mexc.com/exchange/ATOM_USDT',
-    kucoin:    'https://www.kucoin.com/trade/ATOM-USDT',
-    gateio:    'https://www.gate.io/trade/ATOM_USDT',
-    htx:       'https://www.htx.com/trade/atom_usdt',
-    bitget:    'https://www.bitget.com/spot/ATOMUSDT',
-    osmosis:   'https://app.osmosis.zone/?from=USDC&to=ATOM',
-    astroport: 'https://app.astroport.fi/swap?from=ibc%2FB559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E57F7&to=ibc%2FC4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9',
-    watom_eth: 'https://app.uniswap.org/swap?outputCurrency=0x8D983cb9388EaC77af0474fA441C4815500Cb7BB',
-    watom_bsc: 'https://pancakeswap.finance/swap',
+    binance:    'https://www.binance.com/en/trade/ATOM_USDT?type=spot',
+    okx:        'https://www.okx.com/trade-spot/atom-usdt',
+    bybit:      'https://www.bybit.com/en/trade/spot/ATOM/USDT',
+    coinbase:   'https://www.coinbase.com/advanced-trade/spot/ATOM-USD',
+    kraken:     'https://pro.kraken.com/app/trade/atom-usd',
+    mexc:       'https://www.mexc.com/exchange/ATOM_USDT',
+    kucoin:     'https://www.kucoin.com/trade/ATOM-USDT',
+    gate:       'https://www.gate.com/trade/ATOM_USDT',
+    htx:        'https://www.htx.com/trade/atom_usdt',
+    bitget:     'https://www.bitget.com/spot/ATOMUSDT',
+    whitebit:   'https://whitebit.com/trade/ATOM-USDT',
+    digifinex:  'https://www.digifinex.com/en-ww/trade/USDT/ATOM',
+    poloniex:   'https://www.poloniex.com/trade/ATOM_USDT',
+    btse:       'https://www.btse.com/en/trading/ATOM-USD',
+    coinw:      'https://www.coinw.com/spot/atomusdt',
+    ascendex:   'https://ascendex.com/en/cashtrade-spottrading/usdt/atom',
+    bitmart:    'https://www.bitmart.com/trade/en-US?symbol=ATOM_USDT',
+    xt:         'https://www.xt.com/en/trade/atom_usdt',
+    lbank:      'https://www.lbank.com/trade/atom_usdt',
+    phemex:     'https://phemex.com/spot/trade/ATOMUSDT',
+    bingx:      'https://bingx.com/en/spot/ATOMUSDT/',
+    pionex:     'https://www.pionex.com/en/trade/ATOM_USDT/Bot',
+    hotcoin:    'https://www.hotcoin.com/currencyExchangeTwo/atom_usdt',
+    toobit:     'https://www.toobit.com/en-US/spot/ATOM_USDT',
+    coinex:     'https://www.coinex.com/en/exchange/ATOM-USDT',
+    crypto_com: 'https://crypto.com/exchange/trade/ATOM_USDT',
+    osmosis:    'https://app.osmosis.zone/?from=OSMO&to=ATOM',
+    astroport:  'https://app.astroport.fi/swap?from=untrn&to=ibc%2FC4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9',
+    thorchain:  'https://app.thorswap.finance/swap/GAIA.ATOM',
 };
 
-// ─── Fetchers ─────────────────────────────────────────────────────────────────
-// CORS-friendly APIs (direct fetch works): Binance, Coinbase, Kraken, MEXC
-async function fetchBinance()  { const d = await fetchWithProxy('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT'); return { price: parseFloat(d.lastPrice), vol24h: parseFloat(d.quoteVolume) }; }
-async function fetchCoinbase() { const d = await fetchWithProxy('https://api.coinbase.com/v2/prices/ATOM-USD/spot'); return { price: parseFloat(d.data.amount), vol24h: null }; }
-async function fetchKraken()   { const d = await fetchWithProxy('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD'); const t=Object.values(d.result)[0]; return { price: parseFloat(t.c[0]), vol24h: null }; }
-async function fetchMEXC()     { const d = await fetchWithProxy('https://api.mexc.com/api/v3/ticker/24hr?symbol=ATOMUSDT'); return { price: parseFloat(d.lastPrice), vol24h: parseFloat(d.quoteVolume) }; }
-// CORS-blocked APIs (proxy-first — saves 3s per call): OKX, Bybit, KuCoin, Gate.io, HTX, Bitget
-async function fetchOKX()      { const d = await fetchProxyFirst('https://www.okx.com/api/v5/market/ticker?instId=ATOM-USDT'); return { price: parseFloat(d.data[0].last), vol24h: parseFloat(d.data[0].volCcy24h) }; }
-async function fetchBybit()    { const d = await fetchProxyFirst('https://api.bybit.com/v5/market/tickers?category=spot&symbol=ATOMUSDT'); const t=d.result.list[0]; return { price: parseFloat(t.lastPrice), vol24h: parseFloat(t.turnover24h) }; }
-async function fetchKuCoin()   { const d = await fetchProxyFirst('https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=ATOM-USDT'); return { price: parseFloat(d.data.price), vol24h: null }; }
-async function fetchGateio()   { const d = await fetchProxyFirst('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ATOM_USDT'); return { price: parseFloat(d[0].last), vol24h: parseFloat(d[0].quote_volume) }; }
-async function fetchHTX()      { const d = await fetchProxyFirst('https://api.huobi.pro/market/detail/merged?symbol=atomusdt'); return { price: parseFloat(d.tick.close), vol24h: parseFloat(d.tick.vol) }; }
-async function fetchBitget()   { const d = await fetchProxyFirst('https://api.bitget.com/api/v2/spot/market/tickers?symbol=ATOMUSDT'); return { price: parseFloat(d.data[0].lastPr), vol24h: parseFloat(d.data[0].usdtVolume) }; }
+// ─── Individual Exchange Fetchers ─────────────────────────────────────────────
 
+async function fetchBinance() {
+    const d = await fetchWithProxy('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT');
+    return { price: parseFloat(d.lastPrice), vol: parseFloat(d.quoteVolume) };
+}
+async function fetchOKX() {
+    const d = await fetchWithProxy('https://www.okx.com/api/v5/market/ticker?instId=ATOM-USDT');
+    return { price: parseFloat(d.data[0].last), vol: parseFloat(d.data[0].volCcy24h) };
+}
+async function fetchBybit() {
+    const d = await fetchWithProxy('https://api.bybit.com/v5/market/tickers?category=spot&symbol=ATOMUSDT');
+    const t = d.result.list[0];
+    return { price: parseFloat(t.lastPrice), vol: parseFloat(t.turnover24h) };
+}
+async function fetchCoinbase() {
+    const [ticker, stats] = await Promise.all([
+        fetchWithProxy('https://api.coinbase.com/v2/prices/ATOM-USD/spot'),
+        fetchWithProxy('https://api.exchange.coinbase.com/products/ATOM-USD/stats').catch(() => null)
+    ]);
+    return { price: parseFloat(ticker.data.amount), vol: stats ? parseFloat(stats.volume) * parseFloat(ticker.data.amount) : null };
+}
+async function fetchKraken() {
+    const d = await fetchWithProxy('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD');
+    const key = Object.keys(d.result)[0];
+    const t = d.result[key];
+    return { price: parseFloat(t.c[0]), vol: parseFloat(t.v[1]) * parseFloat(t.c[0]) };
+}
+async function fetchMEXC() {
+    const d = await fetchWithProxy('https://api.mexc.com/api/v3/ticker/24hr?symbol=ATOMUSDT');
+    return { price: parseFloat(d.lastPrice), vol: parseFloat(d.quoteVolume) };
+}
+async function fetchKuCoin() {
+    const d = await fetchWithProxy('https://api.kucoin.com/api/v1/market/stats?symbol=ATOM-USDT');
+    return { price: parseFloat(d.data.last), vol: parseFloat(d.data.volValue) };
+}
+async function fetchGate() {
+    const d = await fetchWithProxy('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ATOM_USDT');
+    return { price: parseFloat(d[0].last), vol: parseFloat(d[0].quote_volume) };
+}
+async function fetchHTX() {
+    const d = await fetchWithProxy('https://api.huobi.pro/market/detail/merged?symbol=atomusdt');
+    return { price: d.tick.close, vol: d.tick.vol };
+}
+async function fetchBitget() {
+    const d = await fetchWithProxy('https://api.bitget.com/api/v2/spot/market/tickers?symbol=ATOMUSDT');
+    const t = d.data[0];
+    return { price: parseFloat(t.lastPr), vol: parseFloat(t.quoteVolume) };
+}
+async function fetchWhiteBIT() {
+    const d = await fetchWithProxy('https://whitebit.com/api/v4/public/ticker');
+    const t = d['ATOM_USDT'];
+    return { price: parseFloat(t.last_price), vol: parseFloat(t.quote_volume) };
+}
+async function fetchDigiFinex() {
+    const d = await fetchWithProxy('https://openapi.digifinex.com/v3/ticker?symbol=atom_usdt');
+    const t = d.ticker[0];
+    return { price: t.last, vol: t.base_vol * t.last };
+}
+async function fetchPoloniex() {
+    const d = await fetchWithProxy('https://api.poloniex.com/markets/ATOM_USDT/ticker24h');
+    return { price: parseFloat(d.close), vol: parseFloat(d.quantity) * parseFloat(d.close) };
+}
+async function fetchBTSE() {
+    const d = await fetchWithProxy('https://api.btse.com/spot/api/v3.2/market_summary?symbol=ATOM-USD');
+    const t = d[0];
+    return { price: t.last, vol: t.volume * t.last };
+}
+async function fetchCoinW() {
+    const d = await fetchProxyFirst('https://api.coinw.com/api/v1/public?command=returnTicker');
+    const t = d.data['ATOM_USDT'];
+    return { price: parseFloat(t.last), vol: parseFloat(t.quoteVolume) };
+}
+async function fetchAscendEX() {
+    const d = await fetchWithProxy('https://ascendex.com/api/pro/v1/spot/ticker?symbol=ATOM/USDT');
+    const t = d.data;
+    return { price: parseFloat(t.close), vol: parseFloat(t.volume) * parseFloat(t.close) };
+}
+async function fetchBitMart() {
+    const d = await fetchWithProxy('https://api-cloud.bitmart.com/spot/quotation/v3/ticker?symbol=ATOM_USDT');
+    const t = d.data;
+    return { price: parseFloat(t.last), vol: parseFloat(t.qv) };
+}
+async function fetchXT() {
+    const d = await fetchProxyFirst('https://sapi.xt.com/v4/public/ticker/24h?symbol=atom_usdt');
+    const t = d.result[0];
+    return { price: parseFloat(t.c), vol: parseFloat(t.q) };
+}
+async function fetchLBank() {
+    const d = await fetchWithProxy('https://api.lbkex.com/v2/ticker/24hr.do?symbol=atom_usdt');
+    const t = d.data[0];
+    return { price: parseFloat(t.ticker.latest), vol: parseFloat(t.ticker.turnover) };
+}
+async function fetchPhemex() {
+    const d = await fetchWithProxy('https://api.phemex.com/md/v3/ticker/24hr?symbol=sATOMUSDT');
+    const t = d.result;
+    return { price: parseFloat(t.lastEp) / 1e8, vol: parseFloat(t.turnoverEv) / 1e8 };
+}
+async function fetchBingX() {
+    const d = await fetchWithProxy('https://open-api.bingx.com/openApi/spot/v1/ticker/24hr?symbol=ATOM-USDT');
+    const t = d.data[0];
+    return { price: parseFloat(t.lastPrice), vol: parseFloat(t.quoteVolume) };
+}
+async function fetchPionex() {
+    const d = await fetchWithProxy('https://api.pionex.com/api/v1/market/tickers');
+    const t = d.data.tickers.find(x => x.symbol === 'ATOM_USDT');
+    return { price: parseFloat(t.close), vol: parseFloat(t.amount) };
+}
+async function fetchHotcoin() {
+    const d = await fetchProxyFirst('https://api.hotcoin.com/v1/market/ticker?symbol=atom_usdt');
+    const t = d.ticker;
+    return { price: parseFloat(t.last), vol: parseFloat(t.vol) * parseFloat(t.last) };
+}
+async function fetchToobit() {
+    const d = await fetchWithProxy('https://api.toobit.com/quote/v1/ticker/24hr?symbol=ATOMUSDT');
+    return { price: parseFloat(d.lastPrice), vol: parseFloat(d.volume) * parseFloat(d.lastPrice) };
+}
+async function fetchCoinEx() {
+    const d = await fetchWithProxy('https://api.coinex.com/v2/spot/ticker?market=ATOMUSDT');
+    const t = d.data[0];
+    return { price: parseFloat(t.last), vol: parseFloat(t.volume) * parseFloat(t.last) };
+}
+async function fetchCryptoCom() {
+    const d = await fetchWithProxy('https://api.crypto.com/exchange/v1/public/get-tickers?instrument_name=ATOM_USDT');
+    const t = d.result.data[0];
+    return { price: parseFloat(t.a), vol: parseFloat(t.vv) };
+}
+// ── DEX fetchers ──
 async function fetchOsmosis() {
-    // Race: Osmosis native API (proxy-first, it always needs CORS) vs CoinGecko
-    const osmosisDirect = fetchProxyFirst('https://sqs.osmosis.zone/tokens/prices?tokenIn=uatom')
-        .then(d => { const e = Object.values(d)[0]; const p = parseFloat(e?.price ?? e); return (!isNaN(p) && p > 0) ? p : null; })
-        .catch(() => null);
-    const geckoFallback = getGeckoPrice();
-
-    // Use whichever resolves first with a valid price
-    const price = await Promise.any([
-        osmosisDirect.then(p => { if (p) return p; throw new Error('no price'); }),
-        geckoFallback.then(p => { if (p) return p; throw new Error('no price'); }),
-    ]).catch(() => null);
-
-    return { price, vol24h: null };
+    try {
+        const d = await fetchWithProxy('https://api-osmosis.imperator.co/tokens/v2/ATOM');
+        if (d?.[0]?.price) return { price: d[0].price, vol: d[0].volume_24h || null };
+    } catch(_){}
+    // Fallback to CoinGecko
+    const price = await getGeckoPrice();
+    return price ? { price, vol: null } : null;
 }
-
 async function fetchAstroport() {
-    const p = await getGeckoPrice();
-    return { price: p ? p * 1.0005 : null, vol24h: null };
+    const price = await getGeckoPrice();
+    return price ? { price, vol: null } : null;
+}
+async function fetchTHORChain() {
+    try {
+        const d = await fetchWithProxy('https://midgard.ninerealms.com/v2/pools/GAIA.ATOM');
+        const price = parseFloat(d.assetPriceUSD);
+        const vol = parseFloat(d.volume24h) / 1e8;
+        return { price, vol };
+    } catch(_) {}
+    const price = await getGeckoPrice();
+    return price ? { price, vol: null } : null;
 }
 
-async function fetchWrappedATOM() {
-    const p = await getGeckoPrice();
-    return { eth: p ? p * 1.001 : null, bsc: p ? p * 1.002 : null };
-}
+const FETCHERS = {
+    binance: fetchBinance, okx: fetchOKX, bybit: fetchBybit, coinbase: fetchCoinbase,
+    kraken: fetchKraken, mexc: fetchMEXC, kucoin: fetchKuCoin, gate: fetchGate,
+    htx: fetchHTX, bitget: fetchBitget, whitebit: fetchWhiteBIT, digifinex: fetchDigiFinex,
+    poloniex: fetchPoloniex, btse: fetchBTSE, coinw: fetchCoinW, ascendex: fetchAscendEX,
+    bitmart: fetchBitMart, xt: fetchXT, lbank: fetchLBank, phemex: fetchPhemex,
+    bingx: fetchBingX, pionex: fetchPionex, hotcoin: fetchHotcoin, toobit: fetchToobit,
+    coinex: fetchCoinEx, crypto_com: fetchCryptoCom,
+    osmosis: fetchOsmosis, astroport: fetchAstroport, thorchain: fetchTHORChain,
+};
 
-// ─── Progressive Rendering ───────────────────────────────────────────────────
+// ─── Rendering ───────────────────────────────────────────────────────────────
 
 function renderSkeletonTable() {
     const list = document.getElementById('exchangeList');
     list.innerHTML = '';
-    EXCHANGES.forEach(ex => {
-        const badgeClass = ex.type==='cex'?'badge-cex':ex.type==='native'?'badge-native':'badge-wrapped';
-        const badgeLabel = ex.type==='cex'?'CEX':ex.type==='native'?'Native':'Wrapped';
+    for (let i = 0; i < ROWS_PER_PAGE; i++) {
         const row = document.createElement('div');
         row.className = 'exchange-row row-pending';
-        row.id = 'row-' + ex.id;
         row.innerHTML = `
             <div class="ex-source-wrap">
-                <span class="ex-name"><span class="ex-status" style="background:#333;"></span>${ex.name}</span>
-                ${ex.subLabel ? `<span class="ex-sublabel">${ex.subLabel}</span>` : ''}
-                <span class="badge ${badgeClass}">${badgeLabel}</span>
+                <span class="ex-name"><span class="ex-status" style="background:#333;"></span><span class="skel" style="width:80px;height:14px;"></span></span>
             </div>
             <div><span class="skel" style="width:65px;height:14px;"></span></div>
             <div><span class="skel" style="width:90px;height:15px;"></span></div>
@@ -519,29 +668,7 @@ function renderSkeletonTable() {
             <div class="ex-arrow" style="color:#1a1a1a;">⋯</div>
         `;
         list.appendChild(row);
-    });
-}
-
-function onExchangeResult(exchangeId, result) {
-    const exConfig = EXCHANGES.find(e => e.id === exchangeId);
-    if (!exConfig) return;
-
-    const existing = exchangeData.findIndex(e => e.id === exchangeId);
-    const entry = {
-        ...exConfig,
-        price: result?.price ?? null,
-        vol24hLive: result?.vol24h ?? null,
-        error: result?.price === null,
-    };
-
-    if (existing >= 0) {
-        exchangeData[existing] = entry;
-    } else {
-        exchangeData.push(entry);
     }
-
-    // Debounced re-render: batch rapid arrivals into a single render frame
-    scheduleRender();
 }
 
 function scheduleRender() {
@@ -563,13 +690,14 @@ function recomputeMedian() {
             ? cexPrices[mid]
             : (cexPrices[mid - 1] + cexPrices[mid]) / 2;
         document.getElementById('medianPrice').textContent = '$' + medianPrice.toFixed(4);
+        document.title = '$' + medianPrice.toFixed(4) + ' ATOM — Compare Prices';
     }
 }
 
 function recomputeAndRender() {
     recomputeMedian();
 
-    // Sort: loaded exchanges first (cheapest first), then pending at bottom
+    // Sort: cheapest first
     exchangeData.sort((a, b) => {
         if (a.price === null && b.price === null) return 0;
         if (a.price === null) return 1;
@@ -581,52 +709,46 @@ function recomputeAndRender() {
     updateSavingsBanner();
 }
 
-// ─── Fetch All (Progressive) ─────────────────────────────────────────────────
+// ─── Fetch All Prices (Individual Fetchers) ──────────────────────────────────
 function fetchAllPrices() {
-    setLiveState('loading');
     resolvedCount = 0;
-    _geckoPromise = null; // Reset shared CoinGecko cache for fresh data
+    _geckoPromise = null; // Reset shared CoinGecko cache each cycle
+    totalFetchers = EXCHANGES.length;
+    setLiveState('loading');
 
-    const fetchers = [
-        { id:'binance',   fn:fetchBinance },
-        { id:'okx',       fn:fetchOKX },
-        { id:'bybit',     fn:fetchBybit },
-        { id:'coinbase',  fn:fetchCoinbase },
-        { id:'kraken',    fn:fetchKraken },
-        { id:'mexc',      fn:fetchMEXC },
-        { id:'kucoin',    fn:fetchKuCoin },
-        { id:'gateio',    fn:fetchGateio },
-        { id:'htx',       fn:fetchHTX },
-        { id:'bitget',    fn:fetchBitget },
-        { id:'osmosis',   fn:fetchOsmosis },
-        { id:'astroport', fn:fetchAstroport },
-        { id:'wrapped',   fn:fetchWrappedATOM },
-    ];
+    // Initialize exchange data on first run
+    if (exchangeData.length === 0) {
+        exchangeData = EXCHANGES.map(ex => ({
+            ...ex, price: null, vol24hLive: null, error: false, subLabel: ex.subLabel || '',
+        }));
+    }
 
-    totalFetchers = fetchers.length;
+    // Store previous prices for flash animation
+    exchangeData.forEach(ex => {
+        if (ex.price !== null) previousPrices[ex.id] = ex.price;
+    });
 
-    fetchers.forEach(f => {
-        f.fn().then(result => {
-            if (f.id === 'wrapped') {
-                onExchangeResult('watom_eth', { price: result.eth, vol24h: null });
-                onExchangeResult('watom_bsc', { price: result.bsc, vol24h: null });
+    // Fire all fetchers in parallel
+    EXCHANGES.forEach((ex, idx) => {
+        const fetcher = FETCHERS[ex.id];
+        if (!fetcher) return;
+
+        fetcher().then(result => {
+            if (result && result.price) {
+                exchangeData[idx].price = result.price;
+                exchangeData[idx].vol24hLive = result.vol || null;
+                exchangeData[idx].error = false;
             } else {
-                onExchangeResult(f.id, result);
+                exchangeData[idx].error = true;
             }
         }).catch(() => {
-            if (f.id === 'wrapped') {
-                onExchangeResult('watom_eth', { price: null, vol24h: null });
-                onExchangeResult('watom_bsc', { price: null, vol24h: null });
-            } else {
-                onExchangeResult(f.id, { price: null, vol24h: null });
-            }
+            exchangeData[idx].error = true;
         }).finally(() => {
             resolvedCount++;
-            const text = document.getElementById('liveText');
+            document.getElementById('liveText').textContent = resolvedCount + '/' + totalFetchers;
+            scheduleRender();
             if (resolvedCount >= totalFetchers) {
                 setLiveState('live');
-            } else {
-                text.textContent = `${resolvedCount}/${totalFetchers}`;
             }
         });
     });
@@ -647,10 +769,6 @@ function renderTable() {
     const pageData = exchangeData.slice(startIdx, startIdx + ROWS_PER_PAGE);
     const validAll = exchangeData.filter(e => e.price !== null);
     const bestAtoms = validAll.length > 0 ? buySize / validAll[0].price : null;
-
-    // Also render pending exchanges that haven't resolved yet
-    const resolvedIds = new Set(exchangeData.map(e => e.id));
-    const pendingExchanges = EXCHANGES.filter(e => !resolvedIds.has(e.id));
 
     pageData.forEach((ex, localIdx) => {
         const globalIdx = startIdx + localIdx;
@@ -685,7 +803,11 @@ function renderTable() {
 
         const feeText = ex.price !== null ? formatFee(buySize, ex.feeRate) : '—';
         const vol = ex.vol24hLive || ex.vol24hStatic;
-        const volText = formatVol(vol, !ex.vol24hLive);
+        const isStatic = !ex.vol24hLive && !!ex.vol24hStatic;
+        const volText = formatVol(vol, isStatic);
+
+        // Status dot
+        const statusClass = ex.price !== null ? 'live' : (ex.error ? 'error' : '');
 
         // Flash animation
         let flashClass = '';
@@ -695,11 +817,11 @@ function renderTable() {
         if (ex.price !== null) previousPrices[ex.id] = ex.price;
 
         const row = document.createElement('div');
-        row.className = `exchange-row ${flashClass}`;
+        row.className = `exchange-row ${ex.price === null && !ex.error ? 'row-pending' : ''} ${flashClass}`;
         row.onclick = () => openExchangePanel(ex.name, url, ex.id);
         row.innerHTML = `
             <div class="ex-source-wrap">
-                <span class="ex-name ${isBest?'cheapest':''}">${isBest?'<span class="ex-status live"></span>':'<span class="ex-status ${ex.error?"error":"live"}"></span>'}${ex.name}${isBest?' ✓':''}</span>
+                <span class="ex-name ${isBest?'cheapest':''}">${statusClass?'<span class="ex-status '+statusClass+'"></span>':''}${ex.name}${isBest?' ✓':''}</span>
                 ${ex.subLabel?`<span class="ex-sublabel">${ex.subLabel}</span>`:''}
                 <span class="badge ${badgeClass}">${badgeLabel}</span>
             </div>
@@ -713,41 +835,12 @@ function renderTable() {
         list.appendChild(row);
     });
 
-    // Show remaining pending exchanges as skeleton rows (on last page or if few results)
-    const totalResolved = exchangeData.length;
-    const totalPages = Math.ceil((totalResolved + pendingExchanges.length) / ROWS_PER_PAGE);
-    const isLastPage = currentPage >= totalPages || totalPages <= 1;
-
-    if (isLastPage && pendingExchanges.length > 0) {
-        const remainingSlots = ROWS_PER_PAGE - pageData.length;
-        pendingExchanges.slice(0, Math.max(0, remainingSlots)).forEach(ex => {
-            const badgeClass = ex.type==='cex'?'badge-cex':ex.type==='native'?'badge-native':'badge-wrapped';
-            const badgeLabel = ex.type==='cex'?'CEX':ex.type==='native'?'Native':'Wrapped';
-            const row = document.createElement('div');
-            row.className = 'exchange-row row-pending';
-            row.innerHTML = `
-                <div class="ex-source-wrap">
-                    <span class="ex-name"><span class="ex-status" style="background:#333;"></span>${ex.name}</span>
-                    ${ex.subLabel ? `<span class="ex-sublabel">${ex.subLabel}</span>` : ''}
-                    <span class="badge ${badgeClass}">${badgeLabel}</span>
-                </div>
-                <div><span class="skel" style="width:65px;height:14px;"></span></div>
-                <div><span class="skel" style="width:90px;height:15px;"></span></div>
-                <div class="col-spread"><span class="skel" style="width:100px;height:12px;"></span></div>
-                <div class="col-fee"><span class="skel" style="width:36px;height:12px;"></span></div>
-                <div class="col-vol"><span class="skel" style="width:44px;height:12px;"></span></div>
-                <div class="ex-arrow" style="color:#1a1a1a;">⋯</div>
-            `;
-            list.appendChild(row);
-        });
-    }
-
     renderPagination();
 }
 
 function renderPagination() {
     const el = document.getElementById('pagination');
-    const totalItems = exchangeData.length + EXCHANGES.filter(e => !exchangeData.find(d => d.id === e.id)).length;
+    const totalItems = exchangeData.length;
     const totalPages = Math.ceil(totalItems / ROWS_PER_PAGE);
     if (totalPages <= 1) { el.innerHTML = ''; return; }
     el.innerHTML = '';
@@ -804,11 +897,7 @@ function setLiveState(state) {
 let currentExchangeUrl = '';
 let iframeLoadTimer = null;
 
-// CEXs block iframes — show branded CTA panel instead
-const CEX_EXCHANGES = new Set([
-    'binance', 'okx', 'bybit', 'coinbase', 'kraken',
-    'mexc', 'kucoin', 'gateio', 'htx', 'bitget'
-]);
+const DEX_IFRAME = new Set(['osmosis', 'astroport', 'thorchain']);
 
 function openExchangePanel(name, url, exchangeId) {
     currentExchangeUrl = url;
@@ -824,17 +913,15 @@ function openExchangePanel(name, url, exchangeId) {
     document.getElementById('exchangeOverlay').classList.add('open');
 
     // CEXs: show branded CTA (they block iframes)
-    if (CEX_EXCHANGES.has(exchangeId)) {
+    if (!DEX_IFRAME.has(exchangeId)) {
         iframe.style.display = 'none';
         iframe.src = '';
         fallback.classList.add('active');
 
-        // Populate with real data
-        const exConfig = EXCHANGES.find(e => e.id === exchangeId);
         const exData = exchangeData.find(e => e.id === exchangeId);
         document.getElementById('fallbackExName').textContent = name;
         document.getElementById('fallbackCtaName').textContent = name;
-        document.getElementById('fallbackPair').textContent = (exConfig?.pair || 'ATOM/USDT') + ' · Spot';
+        document.getElementById('fallbackPair').textContent = (exData?.pair || 'ATOM/USDT') + ' · Spot';
         document.getElementById('fallbackPrice').textContent = exData?.price ? '$' + exData.price.toFixed(4) : '—';
         return;
     }
@@ -927,8 +1014,8 @@ document.getElementById('feesToggle').addEventListener('click', () => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 function init() {
     initTradingView();
-    renderSkeletonTable();     // Show skeleton immediately
-    fetchAllPrices();          // Start streaming — no await, data appears progressively
+    renderSkeletonTable();
+    fetchAllPrices();
     setInterval(fetchAllPrices, 10000);
 }
 

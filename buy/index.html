@@ -109,6 +109,7 @@
         .tag { padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; margin-left: 4px; }
         .tag-spot { background: #0a1a0a; color: #22c55e; }
         .tag-dex  { background: #0a1020; color: #60a5fa; }
+        .ex-pair { display: block; font-size: 10px; color: #444; margin-top: 2px; }
 
         /* ATOM received */
         .ex-atoms-wrap { display: flex; flex-direction: column; gap: 1px; }
@@ -209,18 +210,23 @@
         .exchange-panel-fallback {
             display: none; flex: 1;
             flex-direction: column; align-items: center; justify-content: center;
-            gap: 16px; padding: 40px; text-align: center;
+            gap: 24px; padding: 40px; text-align: center;
         }
         .exchange-panel-fallback.active { display: flex; }
-        .fallback-icon { font-size: 36px; }
-        .fallback-text { font-size: 14px; color: #666; line-height: 1.6; }
-        .fallback-link {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 12px 24px; background: #1a1a1a; border: 1px solid #333;
-            border-radius: 8px; color: #fff; text-decoration: none;
-            font-size: 13px; font-weight: 500; transition: all 0.2s;
+        .fallback-exchange-name { font-size: 32px; font-weight: 600; letter-spacing: -0.5px; }
+        .fallback-pair { font-size: 14px; color: #555; margin-top: -8px; }
+        .fallback-price-row { display: flex; align-items: baseline; gap: 8px; }
+        .fallback-price { font-size: 42px; font-weight: 600; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+        .fallback-price-label { font-size: 12px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+        .fallback-cta {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 16px 40px; background: #22c55e; border: none;
+            border-radius: 12px; color: #000; text-decoration: none;
+            font-size: 16px; font-weight: 600; transition: all 0.2s;
+            font-family: 'DM Sans', sans-serif; cursor: pointer;
         }
-        .fallback-link:hover { background: #222; border-color: #444; }
+        .fallback-cta:hover { background: #16a34a; transform: translateY(-1px); }
+        .fallback-note { font-size: 12px; color: #444; }
 
         /* ── Mobile ───────────────────────────────────── */
         @media (max-width: 700px) {
@@ -344,9 +350,14 @@
     </div>
     <iframe class="exchange-panel-iframe" id="exchangePanelIframe" src="" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
     <div class="exchange-panel-fallback" id="exchangePanelFallback">
-        <div class="fallback-icon">🔒</div>
-        <div class="fallback-text">This exchange doesn't allow embedding.<br>Open it directly instead.</div>
-        <a class="fallback-link" id="fallbackDirectLink" href="#" target="_blank" rel="noopener">Open Exchange →</a>
+        <div class="fallback-exchange-name" id="fallbackExName">Exchange</div>
+        <div class="fallback-pair" id="fallbackPair">ATOM / USDT · Spot</div>
+        <div class="fallback-price-row">
+            <span class="fallback-price" id="fallbackPrice">—</span>
+            <span class="fallback-price-label">$/ATOM</span>
+        </div>
+        <a class="fallback-cta" id="fallbackDirectLink" href="#" target="_blank" rel="noopener">Buy ATOM on <span id="fallbackCtaName">Exchange</span> ↗</a>
+        <div class="fallback-note">Opens in a new tab</div>
     </div>
 </div>
 
@@ -379,32 +390,51 @@ const PROXIES = [
     url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
 ];
 
+// Direct-first fetch (for CORS-friendly APIs like Binance, Coinbase, etc.)
 async function fetchWithProxy(url) {
-    // Direct: 3s timeout (reduced from 5s)
     try { const r = await withTimeout(fetch(url), 3000); if (r.ok) return await r.json(); } catch(_){}
-    // Proxy fallbacks: 5s each (reduced from 8s)
     for (const proxyFn of PROXIES) {
-        try { const r = await withTimeout(fetch(proxyFn(url)), 5000); if (r.ok) return await r.json(); } catch(_){}
+        try { const r = await withTimeout(fetch(proxyFn(url)), 4000); if (r.ok) return await r.json(); } catch(_){}
     }
     throw new Error('Failed: ' + url);
 }
 
+// Proxy-first fetch (for APIs that ALWAYS need CORS proxy — skips wasted 3s direct attempt)
+async function fetchProxyFirst(url) {
+    for (const proxyFn of PROXIES) {
+        try { const r = await withTimeout(fetch(proxyFn(url)), 4000); if (r.ok) return await r.json(); } catch(_){}
+    }
+    try { const r = await withTimeout(fetch(url), 3000); if (r.ok) return await r.json(); } catch(_){}
+    throw new Error('Failed: ' + url);
+}
+
+// Shared CoinGecko price (fetched once, used by Astroport + wATOM + Osmosis fallback)
+let _geckoPromise = null;
+function getGeckoPrice() {
+    if (!_geckoPromise) {
+        _geckoPromise = fetchWithProxy('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd')
+            .then(d => d.cosmos?.usd ?? null)
+            .catch(() => null);
+    }
+    return _geckoPromise;
+}
+
 // ─── Exchange Config ──────────────────────────────────────────────────────────
 const EXCHANGES = [
-    { id:'binance',   name:'Binance',   type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:280e6, tag:'spot' },
-    { id:'okx',       name:'OKX',       type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:95e6,  tag:'spot' },
-    { id:'bybit',     name:'Bybit',     type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:60e6,  tag:'spot' },
-    { id:'coinbase',  name:'Coinbase',  type:'cex',    subLabel:'',                   feeRate:0.006,  vol24hStatic:48e6,  tag:'spot' },
-    { id:'kraken',    name:'Kraken',    type:'cex',    subLabel:'',                   feeRate:0.0026, vol24hStatic:12e6,  tag:'spot' },
-    { id:'mexc',      name:'MEXC',      type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:18e6,  tag:'spot' },
-    { id:'kucoin',    name:'KuCoin',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:22e6,  tag:'spot' },
-    { id:'gateio',    name:'Gate.io',   type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:30e6,  tag:'spot' },
-    { id:'htx',       name:'HTX',       type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:25e6,  tag:'spot' },
-    { id:'bitget',    name:'Bitget',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:15e6,  tag:'spot' },
-    { id:'osmosis',   name:'Osmosis',   type:'native', subLabel:'Native · Cosmos',    feeRate:0.002,  vol24hStatic:5e6,   tag:'dex' },
-    { id:'astroport', name:'Astroport', type:'native', subLabel:'Native · Neutron',   feeRate:0.003,  vol24hStatic:3e6,   tag:'dex' },
-    { id:'watom_eth', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · Ethereum', feeRate:0.003,  vol24hStatic:2e6,   tag:'dex' },
-    { id:'watom_bsc', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · BSC',      feeRate:0.003,  vol24hStatic:1e6,   tag:'dex' },
+    { id:'binance',   name:'Binance',   type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:280e6, tag:'spot', pair:'ATOM/USDT' },
+    { id:'okx',       name:'OKX',       type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:95e6,  tag:'spot', pair:'ATOM/USDT' },
+    { id:'bybit',     name:'Bybit',     type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:60e6,  tag:'spot', pair:'ATOM/USDT' },
+    { id:'coinbase',  name:'Coinbase',  type:'cex',    subLabel:'',                   feeRate:0.006,  vol24hStatic:48e6,  tag:'spot', pair:'ATOM/USD' },
+    { id:'kraken',    name:'Kraken',    type:'cex',    subLabel:'',                   feeRate:0.0026, vol24hStatic:12e6,  tag:'spot', pair:'ATOM/USD' },
+    { id:'mexc',      name:'MEXC',      type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:18e6,  tag:'spot', pair:'ATOM/USDT' },
+    { id:'kucoin',    name:'KuCoin',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:22e6,  tag:'spot', pair:'ATOM/USDT' },
+    { id:'gateio',    name:'Gate.io',   type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:30e6,  tag:'spot', pair:'ATOM/USDT' },
+    { id:'htx',       name:'HTX',       type:'cex',    subLabel:'',                   feeRate:0.002,  vol24hStatic:25e6,  tag:'spot', pair:'ATOM/USDT' },
+    { id:'bitget',    name:'Bitget',    type:'cex',    subLabel:'',                   feeRate:0.001,  vol24hStatic:15e6,  tag:'spot', pair:'ATOM/USDT' },
+    { id:'osmosis',   name:'Osmosis',   type:'native', subLabel:'Native · Cosmos',    feeRate:0.002,  vol24hStatic:5e6,   tag:'dex',  pair:'ATOM/USDC' },
+    { id:'astroport', name:'Astroport', type:'native', subLabel:'Native · Neutron',   feeRate:0.003,  vol24hStatic:3e6,   tag:'dex',  pair:'ATOM/USDC' },
+    { id:'watom_eth', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · Ethereum', feeRate:0.003,  vol24hStatic:2e6,   tag:'dex',  pair:'wATOM/ETH' },
+    { id:'watom_bsc', name:'wATOM',     type:'wrapped',subLabel:'Wrapped · BSC',      feeRate:0.003,  vol24hStatic:1e6,   tag:'dex',  pair:'wATOM/BNB' },
 ];
 
 const EXCHANGE_URLS = {
@@ -425,42 +455,42 @@ const EXCHANGE_URLS = {
 };
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
+// CORS-friendly APIs (direct fetch works): Binance, Coinbase, Kraken, MEXC
 async function fetchBinance()  { const d = await fetchWithProxy('https://api.binance.com/api/v3/ticker/24hr?symbol=ATOMUSDT'); return { price: parseFloat(d.lastPrice), vol24h: parseFloat(d.quoteVolume) }; }
-async function fetchOKX()      { const d = await fetchWithProxy('https://www.okx.com/api/v5/market/ticker?instId=ATOM-USDT'); return { price: parseFloat(d.data[0].last), vol24h: parseFloat(d.data[0].volCcy24h) }; }
-async function fetchBybit()    { const d = await fetchWithProxy('https://api.bybit.com/v5/market/tickers?category=spot&symbol=ATOMUSDT'); const t=d.result.list[0]; return { price: parseFloat(t.lastPrice), vol24h: parseFloat(t.turnover24h) }; }
 async function fetchCoinbase() { const d = await fetchWithProxy('https://api.coinbase.com/v2/prices/ATOM-USD/spot'); return { price: parseFloat(d.data.amount), vol24h: null }; }
 async function fetchKraken()   { const d = await fetchWithProxy('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD'); const t=Object.values(d.result)[0]; return { price: parseFloat(t.c[0]), vol24h: null }; }
 async function fetchMEXC()     { const d = await fetchWithProxy('https://api.mexc.com/api/v3/ticker/24hr?symbol=ATOMUSDT'); return { price: parseFloat(d.lastPrice), vol24h: parseFloat(d.quoteVolume) }; }
-async function fetchKuCoin()   { const d = await fetchWithProxy('https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=ATOM-USDT'); return { price: parseFloat(d.data.price), vol24h: null }; }
-async function fetchGateio()   { const d = await fetchWithProxy('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ATOM_USDT'); return { price: parseFloat(d[0].last), vol24h: parseFloat(d[0].quote_volume) }; }
-async function fetchHTX()      { const d = await fetchWithProxy('https://api.huobi.pro/market/detail/merged?symbol=atomusdt'); return { price: parseFloat(d.tick.close), vol24h: parseFloat(d.tick.vol) }; }
-async function fetchBitget()   { const d = await fetchWithProxy('https://api.bitget.com/api/v2/spot/market/tickers?symbol=ATOMUSDT'); return { price: parseFloat(d.data[0].lastPr), vol24h: parseFloat(d.data[0].usdtVolume) }; }
+// CORS-blocked APIs (proxy-first — saves 3s per call): OKX, Bybit, KuCoin, Gate.io, HTX, Bitget
+async function fetchOKX()      { const d = await fetchProxyFirst('https://www.okx.com/api/v5/market/ticker?instId=ATOM-USDT'); return { price: parseFloat(d.data[0].last), vol24h: parseFloat(d.data[0].volCcy24h) }; }
+async function fetchBybit()    { const d = await fetchProxyFirst('https://api.bybit.com/v5/market/tickers?category=spot&symbol=ATOMUSDT'); const t=d.result.list[0]; return { price: parseFloat(t.lastPrice), vol24h: parseFloat(t.turnover24h) }; }
+async function fetchKuCoin()   { const d = await fetchProxyFirst('https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=ATOM-USDT'); return { price: parseFloat(d.data.price), vol24h: null }; }
+async function fetchGateio()   { const d = await fetchProxyFirst('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ATOM_USDT'); return { price: parseFloat(d[0].last), vol24h: parseFloat(d[0].quote_volume) }; }
+async function fetchHTX()      { const d = await fetchProxyFirst('https://api.huobi.pro/market/detail/merged?symbol=atomusdt'); return { price: parseFloat(d.tick.close), vol24h: parseFloat(d.tick.vol) }; }
+async function fetchBitget()   { const d = await fetchProxyFirst('https://api.bitget.com/api/v2/spot/market/tickers?symbol=ATOMUSDT'); return { price: parseFloat(d.data[0].lastPr), vol24h: parseFloat(d.data[0].usdtVolume) }; }
 
 async function fetchOsmosis() {
-    try {
-        const d = await fetchWithProxy('https://sqs.osmosis.zone/tokens/prices?tokenIn=uatom');
-        const entry = Object.values(d)[0];
-        const price = parseFloat(entry?.price ?? entry);
-        if (!isNaN(price) && price > 0) return { price, vol24h: null };
-    } catch(_){}
-    try {
-        const d2 = await fetchWithProxy('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd');
-        if (d2.cosmos?.usd > 0) return { price: d2.cosmos.usd, vol24h: null };
-    } catch(_){}
-    return { price: null, vol24h: null };
+    // Race: Osmosis native API (proxy-first, it always needs CORS) vs CoinGecko
+    const osmosisDirect = fetchProxyFirst('https://sqs.osmosis.zone/tokens/prices?tokenIn=uatom')
+        .then(d => { const e = Object.values(d)[0]; const p = parseFloat(e?.price ?? e); return (!isNaN(p) && p > 0) ? p : null; })
+        .catch(() => null);
+    const geckoFallback = getGeckoPrice();
+
+    // Use whichever resolves first with a valid price
+    const price = await Promise.any([
+        osmosisDirect.then(p => { if (p) return p; throw new Error('no price'); }),
+        geckoFallback.then(p => { if (p) return p; throw new Error('no price'); }),
+    ]).catch(() => null);
+
+    return { price, vol24h: null };
 }
 
 async function fetchAstroport() {
-    try {
-        const d = await fetchWithProxy('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd');
-        if (d.cosmos?.usd > 0) return { price: d.cosmos.usd * 1.0005, vol24h: null };
-    } catch(_){}
-    return { price: null, vol24h: null };
+    const p = await getGeckoPrice();
+    return { price: p ? p * 1.0005 : null, vol24h: null };
 }
 
 async function fetchWrappedATOM() {
-    const d = await fetchWithProxy('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd');
-    const p = d.cosmos?.usd || null;
+    const p = await getGeckoPrice();
     return { eth: p ? p * 1.001 : null, bsc: p ? p * 1.002 : null };
 }
 
@@ -555,6 +585,7 @@ function recomputeAndRender() {
 function fetchAllPrices() {
     setLiveState('loading');
     resolvedCount = 0;
+    _geckoPromise = null; // Reset shared CoinGecko cache for fresh data
 
     const fetchers = [
         { id:'binance',   fn:fetchBinance },
@@ -672,7 +703,7 @@ function renderTable() {
                 ${ex.subLabel?`<span class="ex-sublabel">${ex.subLabel}</span>`:''}
                 <span class="badge ${badgeClass}">${badgeLabel}</span>
             </div>
-            <div><span class="ex-price">${ex.price!==null?'$'+ex.price.toFixed(4):'—'}</span><span class="tag ${tagClass}">${ex.tag.toUpperCase()}</span></div>
+            <div><span class="ex-price">${ex.price!==null?'$'+ex.price.toFixed(4):'—'}</span><span class="tag ${tagClass}">${ex.tag.toUpperCase()}</span>${ex.pair?`<span class="ex-pair">${ex.pair}</span>`:''}</div>
             <div class="ex-atoms-wrap">${atomsHTML}${diffHTML}</div>
             <div class="ex-spread-wrap col-spread">${spreadHTML}</div>
             <div class="ex-fee col-fee">${feeText}</div>
@@ -773,8 +804,8 @@ function setLiveState(state) {
 let currentExchangeUrl = '';
 let iframeLoadTimer = null;
 
-// CEXs all block iframes (X-Frame-Options: DENY) — skip iframe, show fallback instantly
-const IFRAME_BLOCKED = new Set([
+// CEXs block iframes — show branded CTA panel instead
+const CEX_EXCHANGES = new Set([
     'binance', 'okx', 'bybit', 'coinbase', 'kraken',
     'mexc', 'kucoin', 'gateio', 'htx', 'bitget'
 ]);
@@ -792,15 +823,23 @@ function openExchangePanel(name, url, exchangeId) {
     document.getElementById('exchangePanel').classList.add('open');
     document.getElementById('exchangeOverlay').classList.add('open');
 
-    // CEXs: skip iframe entirely, go straight to fallback
-    if (IFRAME_BLOCKED.has(exchangeId)) {
+    // CEXs: show branded CTA (they block iframes)
+    if (CEX_EXCHANGES.has(exchangeId)) {
         iframe.style.display = 'none';
         iframe.src = '';
         fallback.classList.add('active');
+
+        // Populate with real data
+        const exConfig = EXCHANGES.find(e => e.id === exchangeId);
+        const exData = exchangeData.find(e => e.id === exchangeId);
+        document.getElementById('fallbackExName').textContent = name;
+        document.getElementById('fallbackCtaName').textContent = name;
+        document.getElementById('fallbackPair').textContent = (exConfig?.pair || 'ATOM/USDT') + ' · Spot';
+        document.getElementById('fallbackPrice').textContent = exData?.price ? '$' + exData.price.toFixed(4) : '—';
         return;
     }
 
-    // DEXs: attempt iframe with timeout fallback
+    // DEXs: attempt iframe
     iframe.style.display = 'block';
     fallback.classList.remove('active');
     iframe.src = url;

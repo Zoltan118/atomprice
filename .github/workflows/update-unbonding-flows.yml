@@ -1,0 +1,43 @@
+name: Update unbonding flows
+
+on:
+  workflow_dispatch:
+  schedule:
+    # every 2 hours — flow analysis is retrospective
+    - cron: "0 */2 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run unbonding flows analyzer
+        env:
+          RPC_BASE: "https://rpc.silknodes.io/cosmos"
+          REST_BASE: "https://rest.cosmos.directory/cosmoshub"
+          FLOW_MIN_ATOM: "5000"
+          MEMO_MIN_ATOM: "5000"
+          MAX_DELEGATORS: "50"
+          LOOKBACK_DAYS: "3"
+        run: |
+          node scripts/fetch-unbonding-flows.mjs
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/unbonding-flows.json
+          git diff --cached --quiet || git commit -m "Update unbonding flows"
+          git push

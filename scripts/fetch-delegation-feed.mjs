@@ -1,0 +1,285 @@
+// scripts/fetch-delegation-feed.mjs
+// Fetches recent MsgDelegate + MsgUndelegate txs from Cosmos Hub
+// Resolves validator monikers, includes timestamps
+// Outputs: data/delegation_feed.json
+//
+// Env (optional):
+//   RPC_BASE      default: https://rpc.silknodes.io/cosmos
+//   REST_BASE     default: https://rest.cosmos.directory/cosmoshub
+//   FEED_MIN      default: 1000 (minimum ATOM to include)
+//   FEED_KEEP     default: 200 (max items to keep in feed)
+//   PER_PAGE      default: 100
+//   LIMIT_PAGES   default: 5
+
+import fs from "node:fs/promises";
+
+const OUT_FILE = "data/delegation_feed.json";
+
+const RPC_BASE = (process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos").replace(/\/+$/, "");
+const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
+const FEED_MIN = Number(process.env.FEED_MIN ?? "1000");
+const FEED_KEEP = Number(process.env.FEED_KEEP ?? "200");
+const PER_PAGE = Number(process.env.PER_PAGE ?? "100");
+const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");
+
+const MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
+const MSG_UNDELEGATE = "/cosmos.staking.v1beta1.MsgUndelegate";
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchJson(url, timeoutMs = 15000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ac.signal, headers: { accept: "application/json" } });
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch {}
+    if (!res.ok) {
+      const msg = json?.error?.data || json?.error?.message || json?.message || text?.slice(0, 200);
+      throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : ""}`);
+    }
+    return json;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// ── Validator moniker cache ──
+const validatorCache = {};
+
+async function loadValidatorCache() {
+  try {
+    const txt = await fs.readFile("data/validator_cache.json", "utf8");
+    const d = JSON.parse(txt);
+    Object.assign(validatorCache, d);
+    console.log(`📦 Loaded ${Object.keys(d).length} cached validators`);
+  } catch { /* no cache yet */ }
+}
+
+async function saveValidatorCache() {
+  await fs.writeFile("data/validator_cache.json", JSON.stringify(validatorCache, null, 2));
+}
+
+async function resolveMoniker(valoperAddr) {
+  if (!valoperAddr) return "";
+  if (validatorCache[valoperAddr]) return validatorCache[valoperAddr];
+  try {
+    const d = await fetchJson(`${REST_BASE}/cosmos/staking/v1beta1/validators/${valoperAddr}`);
+    const moniker = d?.validator?.description?.moniker || "";
+    if (moniker) {
+      validatorCache[valoperAddr] = moniker;
+      return moniker;
+    }
+  } catch (e) {
+    console.log(`  ⚠️ Could not resolve ${valoperAddr.slice(0, 24)}: ${e.message}`);
+  }
+  return "";
+}
+
+// ── Parse events ──
+function getAttr(event, key) {
+  for (const a of event?.attributes ?? []) {
+    if (a?.key === key) return a?.value;
+  }
+  return null;
+}
+
+function parseUatom(str) {
+  if (!str || typeof str !== "string") return 0;
+  const m = str.match(/^(\d+)\s*uatom$/i);
+  return m ? Number(m[1]) / 1_000_000 : 0;
+}
+
+function parseTxEvents(txs, actionType) {
+  const eventType = actionType === "delegate" ? "delegate" : "unbond";
+  const items = [];
+
+  for (const tx of txs) {
+    const txhash = tx?.hash;
+    const height = Number(tx?.height ?? 0);
+    if (!txhash || !height) continue;
+
+    for (const ev of tx?.tx_result?.events ?? []) {
+      if (ev?.type !== eventType) continue;
+
+      const amount = parseUatom(getAttr(ev, "amount"));
+      const validator = getAttr(ev, "validator") || "";
+      const delegator = getAttr(ev, "delegator") || "";
+
+      if (amount < FEED_MIN) continue;
+
+      items.push({
+        type: actionType,
+        amount_atom: amount,
+        delegator,
+        validator_addr: validator,
+        validator_name: "",
+        height,
+        txhash,
+        timestamp: null,
+      });
+    }
+  }
+
+  return items;
+}
+
+// ── Fetch txs from RPC ──
+async function fetchTxsByAction(msgAction) {
+  const query = `message.action='${msgAction}'`;
+  const allItems = [];
+  const seen = new Set();
+
+  for (let page = 1; page <= LIMIT_PAGES; page++) {
+    if (page > 1) await sleep(400);
+
+    const params = new URLSearchParams();
+    params.set("query", JSON.stringify(query));
+    params.set("prove", "false");
+    params.set("page", String(page));
+    params.set("per_page", String(PER_PAGE));
+    params.set("order_by", JSON.stringify("desc"));
+
+    const url = `${RPC_BASE}/tx_search?${params.toString()}`;
+
+    let data;
+    try {
+      data = await fetchJson(url);
+    } catch (e) {
+      if (String(e?.message || "").includes("page should be within")) break;
+      throw e;
+    }
+
+    const txs = data?.result?.txs ?? [];
+    if (!txs.length) break;
+
+    for (const tx of txs) {
+      if (!tx?.hash || seen.has(tx.hash)) continue;
+      seen.add(tx.hash);
+    }
+
+    // Parse events from this page
+    const actionType = msgAction === MSG_DELEGATE ? "delegate" : "undelegate";
+    const parsed = parseTxEvents(txs, actionType);
+    allItems.push(...parsed);
+
+    console.log(`  Page ${page}: ${txs.length} txs, ${parsed.length} qualifying ${actionType}s`);
+  }
+
+  return allItems;
+}
+
+// ── Resolve block timestamps ──
+async function resolveTimestamps(items) {
+  const heightsToResolve = [...new Set(items.filter(i => !i.timestamp).map(i => i.height))];
+  console.log(`⏱️  Resolving ${heightsToResolve.length} block timestamps...`);
+
+  const heightToTime = {};
+
+  // Batch resolve — do 5 at a time
+  for (let i = 0; i < heightsToResolve.length; i += 5) {
+    const batch = heightsToResolve.slice(i, i + 5);
+    const results = await Promise.allSettled(
+      batch.map(async (h) => {
+        const d = await fetchJson(`${RPC_BASE}/block?height=${h}`, 10000);
+        const time = d?.result?.block?.header?.time;
+        if (time) heightToTime[h] = new Date(time).toISOString();
+      })
+    );
+    if (i + 5 < heightsToResolve.length) await sleep(300);
+  }
+
+  // Apply timestamps
+  for (const item of items) {
+    if (!item.timestamp && heightToTime[item.height]) {
+      item.timestamp = heightToTime[item.height];
+    }
+  }
+
+  console.log(`  ✅ Resolved ${Object.keys(heightToTime).length} timestamps`);
+}
+
+// ── Main ──
+async function main() {
+  await fs.mkdir("data", { recursive: true });
+  await loadValidatorCache();
+
+  // Load previous feed for merging
+  let prevItems = [];
+  try {
+    const txt = await fs.readFile(OUT_FILE, "utf8");
+    const prev = JSON.parse(txt);
+    prevItems = prev?.items || [];
+    console.log(`📦 Previous feed: ${prevItems.length} items`);
+  } catch { /* fresh start */ }
+
+  // Fetch delegates and undelegates
+  console.log(`\n📥 Fetching MsgDelegate (min ${FEED_MIN} ATOM)...`);
+  const delegates = await fetchTxsByAction(MSG_DELEGATE);
+  console.log(`  → ${delegates.length} delegates\n`);
+
+  console.log(`📥 Fetching MsgUndelegate (min ${FEED_MIN} ATOM)...`);
+  const undelegates = await fetchTxsByAction(MSG_UNDELEGATE);
+  console.log(`  → ${undelegates.length} undelegates\n`);
+
+  const freshItems = [...delegates, ...undelegates];
+
+  // Merge with previous, dedupe by txhash+type
+  const seenKeys = new Set();
+  const merged = [];
+  for (const item of [...freshItems, ...prevItems]) {
+    const key = item.txhash + ":" + item.type;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    merged.push(item);
+  }
+
+  // Sort by height descending (newest first)
+  merged.sort((a, b) => Number(b.height) - Number(a.height));
+
+  // Keep top N
+  const feed = merged.slice(0, FEED_KEEP);
+
+  // Resolve timestamps for items that don't have them
+  await resolveTimestamps(feed);
+
+  // Resolve validator monikers
+  const unknownAddrs = [...new Set(feed.filter(i => i.validator_addr && !validatorCache[i.validator_addr]).map(i => i.validator_addr))];
+  console.log(`\n🏷️  Resolving ${unknownAddrs.length} validator monikers...`);
+  for (let i = 0; i < unknownAddrs.length; i += 5) {
+    const batch = unknownAddrs.slice(i, i + 5);
+    await Promise.allSettled(batch.map(addr => resolveMoniker(addr)));
+    if (i + 5 < unknownAddrs.length) await sleep(300);
+  }
+
+  // Apply resolved names
+  for (const item of feed) {
+    if (item.validator_addr && validatorCache[item.validator_addr]) {
+      item.validator_name = validatorCache[item.validator_addr];
+    }
+  }
+
+  // Count stats
+  const dCount = feed.filter(i => i.type === "delegate").length;
+  const uCount = feed.filter(i => i.type === "undelegate").length;
+
+  const output = {
+    generated_at: new Date().toISOString(),
+    min_atom: FEED_MIN,
+    total: feed.length,
+    delegates: dCount,
+    undelegates: uCount,
+    items: feed,
+  };
+
+  await fs.writeFile(OUT_FILE, JSON.stringify(output, null, 2));
+  await saveValidatorCache();
+
+  console.log(`\n✅ Feed saved: ${dCount} delegates + ${uCount} undelegates = ${feed.length} total`);
+  console.log(`   Output: ${OUT_FILE}`);
+}
+
+main();

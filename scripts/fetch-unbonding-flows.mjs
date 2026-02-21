@@ -30,8 +30,8 @@ const OUT_FILE = "data/unbonding-flows.json";
 
 const RPC_BASE = (process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos").replace(/\/+$/, "");
 const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
-const FLOW_MIN_ATOM = Number(process.env.FLOW_MIN_ATOM ?? "5000");
-const MEMO_MIN_ATOM = Number(process.env.MEMO_MIN_ATOM ?? "5000");
+const FLOW_MIN_ATOM = Number(process.env.FLOW_MIN_ATOM ?? "1000");
+const MEMO_MIN_ATOM = Number(process.env.MEMO_MIN_ATOM ?? "1000");
 const MAX_DELEGATORS = Number(process.env.MAX_DELEGATORS ?? "50");
 const LOOKBACK_DAYS = Number(process.env.LOOKBACK_DAYS ?? "3");
 

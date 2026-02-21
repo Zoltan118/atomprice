@@ -140,29 +140,76 @@
         }
         .whale-hero-label { font-size: 12px; color: #444; margin-top: 8px; text-transform: uppercase; letter-spacing: 2px; }
         .whale-hero-tx { font-size: 10px; color: #333; margin-top: 4px; font-family: 'Space Grotesk', monospace; }
-        .notable-section { margin-bottom: 32px; }
-        .notable-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .notable-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
-        .notable-list { display: flex; flex-direction: column; gap: 6px; }
-        .notable-item { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 10px 14px; 
-            background: #0a0a0a; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            transition: all 0.2s;
-            overflow: hidden;
+        /* Delegation Feed - Telegram-style scrollable */
+        .feed-section { margin-bottom: 32px; }
+        .feed-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .feed-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+        .feed-status { font-size: 10px; color: #333; letter-spacing: 0.5px; }
+        .feed-container {
+            max-height: 420px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            scrollbar-width: thin;
+            scrollbar-color: #222 transparent;
         }
-        .notable-item:hover { background: #111; }
-        .notable-amount { font-size: 16px; font-weight: 500; }
-        .notable-amount .amount-value { color: #e0e0e0; }
-        .notable-amount .amount-unit { color: #555; font-weight: 400; }
-        .notable-amount .flap-char { color: #e0e0e0; }
+        .feed-container::-webkit-scrollbar { width: 4px; }
+        .feed-container::-webkit-scrollbar-track { background: transparent; }
+        .feed-container::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+        .feed-container::-webkit-scrollbar-thumb:hover { background: #333; }
+        .feed-msg {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 12px;
+            background: #0a0a0a;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .feed-msg:hover { background: #111; }
+        .feed-msg.new-item { animation: feedFadeIn 0.4s ease; }
+        @keyframes feedFadeIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .feed-icon {
+            flex-shrink: 0;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            margin-top: 1px;
+        }
+        .feed-icon.delegate { background: rgba(34,197,94,0.12); color: #22c55e; }
+        .feed-icon.undelegate { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .feed-icon.redelegate { background: rgba(234,179,8,0.12); color: #eab308; }
+        .feed-body { flex: 1; min-width: 0; }
+        .feed-text { color: #999; }
+        .feed-text .feed-amount { color: #e0e0e0; font-weight: 500; }
+        .feed-text .feed-amount.delegate { color: #22c55e; }
+        .feed-text .feed-amount.undelegate { color: #ef4444; }
+        .feed-text .feed-amount.redelegate { color: #eab308; }
+        .feed-text .feed-validator { color: #666; }
+        .feed-meta {
+            display: flex;
+            gap: 8px;
+            margin-top: 2px;
+            font-size: 10px;
+            color: #333;
+        }
+        .feed-meta a { color: #333; text-decoration: none; transition: color 0.15s; }
+        .feed-meta a:hover { color: #888; }
+        .feed-empty { color: #333; font-size: 12px; padding: 30px 0; text-align: center; }
         .loading { color: #333; font-size: 12px; padding: 20px 0; }
-        
-        /* Split-flap character animation */
+
+        /* Split-flap character animation (whale watch) */
         .flap-char {
             display: inline-block;
             position: relative;
@@ -174,31 +221,6 @@
             0% { opacity: 0.7; }
             100% { opacity: 1; }
         }
-        
-        /* Pagination - compact inline */
-        .pagination {
-            display: flex;
-            justify-content: flex-end;
-            gap: 4px;
-            margin-top: 10px;
-        }
-        .page-btn {
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
-            border: 1px solid #222;
-            border-radius: 4px;
-            color: #444;
-            font-size: 10px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .page-btn:hover { background: #111; color: #888; border-color: #333; }
-        .page-btn.active { background: #1a1a1a; color: #fff; border-color: #333; }
         
         /* Mintscan Slide Panel */
         .slide-panel {
@@ -481,13 +503,15 @@
             </div>
         </div>
         
-        <!-- Recent Delegations (1K-24,999 ATOM) with pagination -->
-        <div class="notable-section" id="notableSection" style="display: none;">
-            <div class="notable-header">
-                <div class="notable-label">recent delegations (1K-49,999 ATOM)</div>
+        <!-- Delegation Feed - Telegram-style scrollable -->
+        <div class="feed-section" id="feedSection" style="display: none;">
+            <div class="feed-header">
+                <div class="feed-label">delegation feed</div>
+                <div class="feed-status" id="feedStatus">loading...</div>
             </div>
-            <div class="notable-list" id="notableList"></div>
-            <div class="pagination" id="notablePagination"></div>
+            <div class="feed-container" id="feedContainer">
+                <div class="feed-empty">Loading delegation feed...</div>
+            </div>
         </div>
         
         <!-- Staking Ticker -->
@@ -527,12 +551,10 @@
         
         // ========== CONFIG ==========
         const WHALE_MIN = 50000;      // 50K+ ATOM = whale
-        const NOTABLE_MIN = 1000;     // 1K-49,999 ATOM = notable (for list)
         const TICKER_MIN = 100;       // 100+ ATOM = ticker news
         const MAX_WHALES = 20;        // Top 20 whales for whale watch
         const MAX_MIDS = 100;         // Top 100 mids
-        const MAX_NOTABLE = 50;       // Show 50 mids (10 pages × 5)
-        const ITEMS_PER_PAGE = 5;     // 5 items per page
+        const MAX_FEED = 100;         // Keep last 100 feed items
         const MAX_TICKER = 200;       // Keep last 200 for ticker
         const WHALE_CYCLE_MS = 5000;  // Cycle whale watch every 5 seconds
         const CACHE_KEY = 'atomprice_cache_v5';
@@ -540,7 +562,7 @@
 
         // ========== STATE ==========
         let whaleDelegations = [];
-        let notableDelegations = [];
+        let feedItems = [];           // Delegation feed (delegates + undelegates)
         let tickerDelegations = [];
         let stakingRatio = null;
         let prices = { usd: null, eur: null };
@@ -566,8 +588,7 @@
         let whaleCycleTimer = null;
         let currentWhaleIndex = 0;
 
-        // Notable pagination
-        let currentNotablePage = 1;
+        // Feed state (loaded from data/delegation_feed.json)
 
         // ========== CURRENCIES ==========
         const currencies = {
@@ -647,7 +668,7 @@
             try {
                 const data = {
                     whaleDelegations: whaleDelegations.slice(0, MAX_WHALES),
-                    notableDelegations: notableDelegations.slice(0, MAX_MIDS),
+                    feedItems: feedItems.slice(0, MAX_FEED),
                     tickerDelegations: tickerDelegations.slice(0, MAX_TICKER),
                     stakingRatio
                 };
@@ -663,12 +684,12 @@
             if (cached) {
                 console.log('📦 Restoring from cache...');
                 whaleDelegations = cached.whaleDelegations || [];
-                notableDelegations = cached.notableDelegations || [];
+                feedItems = cached.feedItems || [];
                 tickerDelegations = cached.tickerDelegations || [];
                 if (cached.stakingRatio) stakingRatio = cached.stakingRatio;
-                
+
                 updateWhaleWatch();
-                updateNotableList(false);
+                renderFeed();
                 updateTicker();
                 updateStakingDisplay();
                 
@@ -870,7 +891,7 @@
                 const mids = Array.isArray(snap.mids_top) ? snap.mids_top : [];
                 const tick = Array.isArray(snap.ticker) ? snap.ticker : [];
 
-                // Combine ALL delegations from both sources, then re-filter with new thresholds
+                // Combine ALL delegations from both sources, then re-filter
                 const allDelegations = [...whales, ...mids].map(it => ({
                     amount: Number(it.amount_atom || 0),
                     txHash: it.txhash || it.txHash || '',
@@ -878,16 +899,11 @@
                     timestamp: it.timestamp || snap.generated_at || new Date().toISOString()
                 })).filter(d => d.txHash);
 
-                // Filter with NEW thresholds (50K+ for whales, 1K-49,999 for notable)
+                // 50K+ for whales
                 whaleDelegations = allDelegations
                     .filter(d => d.amount >= WHALE_MIN)
                     .sort((a, b) => b.amount - a.amount)
                     .slice(0, MAX_WHALES);
-
-                notableDelegations = allDelegations
-                    .filter(d => d.amount >= NOTABLE_MIN && d.amount < WHALE_MIN)
-                    .sort((a, b) => b.amount - a.amount)
-                    .slice(0, MAX_NOTABLE);
 
                 tickerDelegations = tick.slice(0, MAX_TICKER).map(it => ({
                     amount: Number(it.amount_atom || 0),
@@ -898,13 +914,12 @@
 
                 // UI updates
                 updateWhaleWatch();
-                updateNotableList(false);
                 updateTicker();
 
                 // Cache
                 saveCache();
 
-                console.log(`✅ Snapshot loaded: whales=${whaleDelegations.length}, mids=${notableDelegations.length}, ticker=${tickerDelegations.length}`);
+                console.log(`✅ Snapshot loaded: whales=${whaleDelegations.length}, feed=${feedItems.length}, ticker=${tickerDelegations.length}`);
                 return true;
             } catch (err) {
                 console.log('⚠️ Could not load snapshot:', err.message);
@@ -1043,85 +1058,106 @@
         document.getElementById('slidePanelClose').onclick = closeMintscanPanel;
         document.getElementById('slideOverlay').onclick = closeMintscanPanel;
 
-        // ========== NOTABLE LIST ==========
-        function updateNotableList(animate) {
-            renderNotablePage(currentNotablePage, animate);
-            renderNotablePagination();
+        // ========== DELEGATION FEED ==========
+        // Loads from data/delegation_feed.json (generated by scripts/fetch-delegation-feed.mjs)
+
+        function formatFeedTime(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            const now = new Date();
+            const diffMs = now - d;
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffHr = Math.floor(diffMs / 3600000);
+            const diffDay = Math.floor(diffMs / 86400000);
+            if (diffMin < 1) return 'just now';
+            if (diffMin < 60) return `${diffMin}m ago`;
+            if (diffHr < 24) return `${diffHr}h ago`;
+            if (diffDay < 7) return `${diffDay}d ago`;
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
 
-        function renderNotablePage(page, animate = false) {
-            const section = document.getElementById('notableSection');
-            const list = document.getElementById('notableList');
-            if (!list || !section) return;
+        async function fetchDelegationFeed() {
+            const statusEl = document.getElementById('feedStatus');
+            try {
+                if (statusEl) statusEl.textContent = 'loading...';
+                const cacheBuster = `?t=${Date.now()}`;
+                const res = await fetch('./data/delegation_feed.json' + cacheBuster, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
 
-            if (!notableDelegations.length) {
+                const items = data?.items || [];
+                if (items.length > 0) {
+                    feedItems = items.map(it => ({
+                        type: it.type || 'delegate',
+                        amount: Number(it.amount_atom || 0),
+                        txHash: it.txhash || '',
+                        height: it.height || '',
+                        timestamp: it.timestamp || null,
+                        validator: it.validator_name || '',
+                        validatorAddr: it.validator_addr || '',
+                    }));
+                }
+
+                renderFeed();
+
+                const dCount = feedItems.filter(i => i.type === 'delegate').length;
+                const uCount = feedItems.filter(i => i.type === 'undelegate').length;
+                if (statusEl) statusEl.textContent = `${dCount} delegates · ${uCount} undelegates`;
+
+                saveCache();
+                console.log(`✅ Feed loaded: ${feedItems.length} items`);
+            } catch (err) {
+                console.log('⚠️ Feed fetch error:', err.message);
+                if (statusEl) statusEl.textContent = feedItems.length ? `${feedItems.length} cached` : 'offline';
+                if (feedItems.length) renderFeed();
+            }
+        }
+
+        function renderFeed() {
+            const section = document.getElementById('feedSection');
+            const container = document.getElementById('feedContainer');
+            if (!container || !section) return;
+
+            if (!feedItems.length) {
                 setVisible(section, false);
-                list.innerHTML = '';
+                container.innerHTML = '<div class="feed-empty">No delegation activity yet</div>';
                 return;
             }
 
             setVisible(section, true);
 
-            const startIdx = (page - 1) * ITEMS_PER_PAGE;
-            const pageItems = notableDelegations.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+            const icons = { delegate: '↑', undelegate: '↓', redelegate: '↔' };
+            const labels = { delegate: 'delegated', undelegate: 'undelegated', redelegate: 'redelegated' };
 
-            if (!pageItems.length) {
-                list.innerHTML = '';
-                return;
-            }
+            container.innerHTML = feedItems.map(item => {
+                const icon = icons[item.type] || '·';
+                const label = labels[item.type] || item.type;
+                const valName = item.validator || (item.validatorAddr ? item.validatorAddr.slice(0, 16) + '…' : '');
+                const shortHash = item.txHash ? item.txHash.slice(0, 8) + '…' : '';
+                const amtStr = formatAmount(item.amount);
+                const timeStr = formatFeedTime(item.timestamp);
 
-            list.innerHTML = pageItems.map((d) =>
-                `<div class="notable-item" data-tx="${d.txHash}" data-height="${d.height || ''}" data-amount="${formatAmount(d.amount)}">
-                    <span class="notable-amount"><span class="amount-value">${animate ? '' : formatAmount(d.amount)}</span> <span class="amount-unit">ATOM</span></span>
-                </div>`
-            ).join('');
+                return `<div class="feed-msg" data-tx="${item.txHash}" data-height="${item.height || ''}">
+                    <div class="feed-icon ${item.type}">${icon}</div>
+                    <div class="feed-body">
+                        <div class="feed-text">
+                            <span class="feed-amount ${item.type}">${amtStr} ATOM</span>
+                            <span>${label}</span>${valName ? ` <span class="feed-validator">→ ${valName}</span>` : ''}
+                        </div>
+                        <div class="feed-meta">
+                            ${timeStr ? `<span>${timeStr}</span>` : ''}
+                            ${item.height ? `<span>block ${Number(item.height).toLocaleString()}</span>` : ''}
+                            ${shortHash ? `<a href="https://www.mintscan.io/cosmos/tx/${item.txHash}" target="_blank" rel="noopener">${shortHash}</a>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
 
-            list.querySelectorAll('.notable-item').forEach((el, i) => {
-                el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
-
-                if (animate) {
-                    const amountValueEl = el.querySelector('.amount-value');
-                    const finalAmount = el.dataset.amount;
-                    setTimeout(() => {
-                        splitFlapAnimate(amountValueEl, finalAmount, i * 80);
-                    }, i * 50);
-                }
-            });
-        }
-
-        function renderNotablePagination() {
-            const section = document.getElementById('notableSection');
-            const pagination = document.getElementById('notablePagination');
-            if (!pagination) return;
-
-            if (!notableDelegations.length) {
-                setVisible(section, false);
-                pagination.innerHTML = '';
-                return;
-            }
-
-            // 10 pages × 5 rows = 50 shown
-            const totalPages = Math.min(10, Math.ceil(Math.min(MAX_NOTABLE, notableDelegations.length) / ITEMS_PER_PAGE));
-
-            if (totalPages <= 1) {
-                pagination.innerHTML = '';
-                return;
-            }
-
-            let html = '';
-            for (let i = 1; i <= totalPages; i++) {
-                html += `<button class="page-btn${i === currentNotablePage ? ' active' : ''}" data-page="${i}">${i}</button>`;
-            }
-            pagination.innerHTML = html;
-
-            pagination.querySelectorAll('.page-btn').forEach(btn => {
-                btn.onclick = () => {
-                    const newPage = parseInt(btn.dataset.page);
-                    if (newPage !== currentNotablePage) {
-                        currentNotablePage = newPage;
-                        renderNotablePage(newPage, true);
-                        renderNotablePagination();
-                    }
+            // Click to open Mintscan panel
+            container.querySelectorAll('.feed-msg').forEach(el => {
+                el.onclick = (e) => {
+                    if (e.target.tagName === 'A') return;
+                    openMintscanPanel(el.dataset.tx, el.dataset.height);
                 };
             });
         }
@@ -2022,24 +2058,28 @@
             // 3) Show initial UI state
             updateStakingDisplay();
             
-            // 4) Load from JSON snapshot
+            // 4) Load from JSON snapshot (seeds whale watch + feed fallback)
             await loadDelegationSnapshot();
-            
-            // 5) Load FX rates
+
+            // 5) Fetch live delegation feed from chain
+            fetchDelegationFeed();
+
+            // 6) Load FX rates
             await loadFxRates();
-            
-            // 6) Connect Kraken WebSocket for live price
+
+            // 7) Connect Kraken WebSocket for live price
             connectKrakenWebSocket();
-            
-            // 7) Fetch fresh data
+
+            // 8) Fetch fresh data
             fetchPrice();
             fetchChart(15, 96);  // Default: 1D with 15min candles
             fetchStakingData();
-            
-            // 8) Refresh intervals
+
+            // 9) Refresh intervals
             setInterval(fetchPrice, 60000);           // Price every 60s
             setInterval(fetchStakingData, 300000);    // Staking every 5min
             setInterval(loadDelegationSnapshot, 300000);  // Delegations every 5min
+            setInterval(fetchDelegationFeed, 300000);       // Feed every 5min
             
             console.log('✅ Dashboard ready!');
         }
@@ -2053,6 +2093,7 @@
                 }
                 fetchPrice();
                 loadDelegationSnapshot();
+                fetchDelegationFeed();
             }
         });
         

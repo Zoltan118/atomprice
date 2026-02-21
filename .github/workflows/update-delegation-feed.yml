@@ -1,0 +1,42 @@
+name: Update delegation feed
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run delegation feed fetcher
+        env:
+          RPC_BASE: "https://rpc.silknodes.io/cosmos"
+          REST_BASE: "https://rest.cosmos.directory/cosmoshub"
+          FEED_MIN: "1000"
+          FEED_KEEP: "200"
+          PER_PAGE: "100"
+          LIMIT_PAGES: "5"
+        run: |
+          node scripts/fetch-delegation-feed.mjs
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/delegation_feed.json data/validator_cache.json
+          git diff --cached --quiet || git commit -m "Update delegation feed"
+          git push

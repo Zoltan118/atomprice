@@ -209,6 +209,78 @@
         .feed-empty { color: #333; font-size: 12px; padding: 30px 0; text-align: center; }
         .loading { color: #333; font-size: 12px; padding: 20px 0; }
 
+        /* Unbonding Intelligence Section */
+        .unbonding-section { margin-bottom: 32px; }
+        .unbonding-header { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+        .unbonding-cards { display: flex; gap: 12px; margin-bottom: 20px; }
+        .unbonding-card {
+            flex: 1;
+            padding: 14px 16px;
+            background: #0a0a0a;
+            border-radius: 8px;
+            border: 1px solid #1a1a1a;
+        }
+        .unbonding-card-value { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; color: #fff; }
+        .unbonding-card-label { font-size: 9px; color: #444; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+        .unbonding-card.today .unbonding-card-value { color: #ef4444; }
+        .unbonding-card.week .unbonding-card-value { color: #eab308; }
+        .unbonding-card.total .unbonding-card-value { color: #888; }
+        .unbonding-schedule { display: flex; flex-direction: column; gap: 6px; }
+        .unbonding-day {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+        .unbonding-day-date { width: 70px; flex-shrink: 0; font-size: 11px; color: #555; }
+        .unbonding-day-bar-wrap {
+            flex: 1;
+            height: 16px;
+            background: #111;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .unbonding-day-bar {
+            height: 100%;
+            background: #ef4444;
+            border-radius: 3px;
+            transition: width 0.4s ease;
+            min-width: 2px;
+        }
+        .unbonding-day-bar.hot { background: #ff2222; }
+        .unbonding-day-amount { width: 90px; text-align: right; flex-shrink: 0; font-size: 11px; color: #888; font-weight: 500; }
+
+        /* Flow Summary (Phase 2) */
+        .flow-section { margin-top: 24px; }
+        .flow-title { font-size: 11px; color: #444; text-transform: lowercase; margin-bottom: 10px; }
+        .flow-bar-wrap {
+            height: 24px;
+            display: flex;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .flow-bar-seg { height: 100%; transition: width 0.4s ease; min-width: 2px; }
+        .flow-bar-seg.restaked { background: #22c55e; }
+        .flow-bar-seg.held { background: #555; }
+        .flow-bar-seg.ibc { background: #eab308; }
+        .flow-bar-seg.exchange { background: #ef4444; }
+        .flow-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 11px;
+            color: #666;
+        }
+        .flow-legend-item { display: flex; align-items: center; gap: 5px; }
+        .flow-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .flow-legend-dot.restaked { background: #22c55e; }
+        .flow-legend-dot.held { background: #555; }
+        .flow-legend-dot.ibc { background: #eab308; }
+        .flow-legend-dot.exchange { background: #ef4444; }
+        .flow-ibc-list { margin-top: 8px; font-size: 10px; color: #444; }
+
         /* Split-flap character animation (whale watch) */
         .flap-char {
             display: inline-block;
@@ -447,6 +519,7 @@
                     <button class="data-mode-btn active" data-mode="price">Price</button>
                     <button class="data-mode-btn" data-mode="staking">Staking</button>
                     <button class="data-mode-btn" data-mode="apr">APR</button>
+                    <button class="data-mode-btn" data-mode="unbonding">Unbonding</button>
                 </div>
                 <div class="staking-sub-toggle" id="stakingSubToggle" style="display: none;">
                     <button class="data-mode-btn active" data-submode="ratio">Ratio</button>
@@ -514,6 +587,33 @@
             </div>
         </div>
         
+        <!-- Unbonding Intelligence -->
+        <div class="unbonding-section" id="unbondingSection" style="display: none;">
+            <div class="unbonding-header">unbonding schedule</div>
+            <div class="unbonding-cards">
+                <div class="unbonding-card today">
+                    <div class="unbonding-card-value" id="unbondToday">—</div>
+                    <div class="unbonding-card-label">unbonding today</div>
+                </div>
+                <div class="unbonding-card week">
+                    <div class="unbonding-card-value" id="unbondWeek">—</div>
+                    <div class="unbonding-card-label">next 7 days</div>
+                </div>
+                <div class="unbonding-card total">
+                    <div class="unbonding-card-value" id="unbondTotal">—</div>
+                    <div class="unbonding-card-label">total pending</div>
+                </div>
+            </div>
+            <div class="unbonding-schedule" id="unbondingSchedule"></div>
+            <!-- Flow Summary (populated by Phase 2 data) -->
+            <div class="flow-section" id="flowSection" style="display: none;">
+                <div class="flow-title" id="flowTitle">where did yesterday's unbonded atoms go?</div>
+                <div class="flow-bar-wrap" id="flowBar"></div>
+                <div class="flow-legend" id="flowLegend"></div>
+                <div class="flow-ibc-list" id="flowIbcList"></div>
+            </div>
+        </div>
+
         <!-- Staking Ticker -->
         <div class="ticker-section" id="tickerSection" style="display: none;">
             <div class="ticker-fade-left"></div>
@@ -575,7 +675,7 @@
         let chart = null;
         let series = null;
         let currentTimeframe = '1d';
-        let currentDataMode = 'price'; // 'price', 'staking', or 'apr'
+        let currentDataMode = 'price'; // 'price', 'staking', 'apr', or 'unbonding'
         let currentStakingSubMode = 'ratio'; // 'ratio' or 'total'
 
         // Historical data for staking/APR
@@ -583,6 +683,10 @@
         let historicalApr = [];
         let historicalTotalStaked = [];
         let dailyMetrics = [];
+
+        // Pending undelegations + flow data
+        let pendingUndelegations = null;
+        let unbondingFlows = null;
 
         // Whale watch state
         let whaleCycleTimer = null;
@@ -1751,9 +1855,11 @@
                 currentTimeframe = btn.dataset.d;
 
                 if (currentDataMode !== 'price') {
-                    // In staking/APR mode, filter and redisplay historical data
+                    // In staking/APR/unbonding mode, filter and redisplay
                     if (currentDataMode === 'staking') {
                         showHistoricalChart('staking', currentStakingSubMode);
+                    } else if (currentDataMode === 'unbonding') {
+                        showUnbondingChart();
                     } else {
                         showHistoricalChart(currentDataMode);
                     }
@@ -1840,7 +1946,7 @@
                         }
                     });
 
-                    // Show historical chart for staking or APR
+                    // Show historical chart for staking, APR, or unbonding
                     if (mode === 'staking') {
                         // Reset to ratio submode when entering staking mode
                         currentStakingSubMode = 'ratio';
@@ -1852,6 +1958,8 @@
                             }
                         });
                         showHistoricalChart('staking', 'ratio');
+                    } else if (mode === 'unbonding') {
+                        showUnbondingChart();
                     } else {
                         showHistoricalChart(mode);
                     }
@@ -2041,6 +2149,243 @@
             });
         }
 
+        // ========== UNBONDING INTELLIGENCE ==========
+        async function loadPendingUndelegations() {
+            try {
+                const cacheBuster = `?t=${Date.now()}`;
+                const res = await fetch('./data/pending-undelegations.json' + cacheBuster, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                pendingUndelegations = await res.json();
+                renderUnbondingSummary();
+                console.log(`✅ Pending undelegations loaded: ${pendingUndelegations.schedule?.length || 0} dates`);
+            } catch (err) {
+                console.log('⚠️ Pending undelegations fetch error:', err.message);
+            }
+        }
+
+        function renderUnbondingSummary() {
+            const section = document.getElementById('unbondingSection');
+            if (!pendingUndelegations || !pendingUndelegations.schedule?.length) {
+                setVisible(section, false);
+                return;
+            }
+            setVisible(section, true);
+
+            const schedule = pendingUndelegations.schedule;
+            const today = new Date().toISOString().slice(0, 10);
+
+            // Calculate summary values
+            const todayEntry = schedule.find(d => d.date === today);
+            const todayAtom = todayEntry ? todayEntry.atom : 0;
+
+            const next7 = schedule.filter(d => d.date >= today).slice(0, 7);
+            const weekAtom = next7.reduce((s, d) => s + d.atom, 0);
+            const totalAtom = pendingUndelegations.total_unbonding_atom || schedule.reduce((s, d) => s + d.atom, 0);
+
+            // Format with K/M suffix
+            function shortAtom(n) {
+                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+                if (n >= 1_000) return Math.round(n / 1_000).toLocaleString() + 'K';
+                return n.toLocaleString();
+            }
+
+            document.getElementById('unbondToday').textContent = shortAtom(todayAtom);
+            document.getElementById('unbondWeek').textContent = shortAtom(weekAtom);
+            document.getElementById('unbondTotal').textContent = shortAtom(totalAtom);
+
+            // 7-day breakdown with horizontal bars
+            const scheduleEl = document.getElementById('unbondingSchedule');
+            const maxAtom = Math.max(...next7.map(d => d.atom), 1);
+
+            scheduleEl.innerHTML = next7.map(d => {
+                const pct = (d.atom / maxAtom) * 100;
+                const isHot = d.atom >= 500000;
+                const dateStr = new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                return `<div class="unbonding-day">
+                    <span class="unbonding-day-date">${dateStr}</span>
+                    <div class="unbonding-day-bar-wrap">
+                        <div class="unbonding-day-bar${isHot ? ' hot' : ''}" style="width: ${pct}%"></div>
+                    </div>
+                    <span class="unbonding-day-amount">${formatAmount(d.atom)} ATOM</span>
+                </div>`;
+            }).join('');
+        }
+
+        function showUnbondingChart() {
+            const container = document.getElementById('chartContainer');
+
+            if (chart) {
+                chart.remove();
+                chart = null;
+                series = null;
+            }
+
+            chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: 280,
+                layout: { background: { type: 'solid', color: '#000' }, textColor: '#444' },
+                grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)', style: 1 } },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Magnet,
+                    vertLine: { visible: false, labelVisible: false },
+                    horzLine: { visible: false, labelVisible: false }
+                },
+                rightPriceScale: { visible: false },
+                timeScale: { visible: false },
+                handleScroll: false,
+                handleScale: false
+            });
+
+            series = chart.addHistogramSeries({
+                color: '#ef4444',
+                priceFormat: { type: 'volume' },
+                lastValueVisible: false,
+                priceLineVisible: false,
+            });
+
+            if (!pendingUndelegations?.schedule?.length) {
+                console.warn('⚠️ No pending undelegations data for chart');
+                return;
+            }
+
+            const data = pendingUndelegations.schedule.map(d => ({
+                time: d.date,
+                value: d.atom,
+                color: d.atom >= 500000 ? '#ff2222' : '#ef4444',
+            }));
+
+            // Filter by timeframe
+            let filteredData = data;
+            const now = new Date();
+            if (currentTimeframe === '1w') {
+                const cutoff = new Date(now.getTime() - 7 * 86400000);
+                filteredData = data.filter(d => new Date(d.time) >= cutoff);
+            } else if (currentTimeframe === '1m') {
+                const cutoff = new Date(now.getTime() - 30 * 86400000);
+                filteredData = data.filter(d => new Date(d.time) >= cutoff);
+            }
+            // 1y and all show everything (unbonding is ~21 days max)
+
+            series.setData(filteredData);
+            chart.timeScale().fitContent();
+            setTimeout(() => chart.timeScale().fitContent(), 50);
+
+            console.log(`✅ Unbonding chart: ${filteredData.length} bars`);
+
+            // Tooltip
+            const tooltip = document.getElementById('chartTooltip');
+            chart.subscribeCrosshairMove((p) => {
+                if (!p.time || !p.point || !p.seriesData.get(series)) {
+                    tooltip.style.opacity = '0';
+                    return;
+                }
+
+                const val = p.seriesData.get(series);
+                if (val) {
+                    const dateStr = typeof p.time === 'string' ? p.time : new Date(p.time * 1000).toISOString().slice(0, 10);
+                    const date = new Date(dateStr + 'T00:00:00');
+                    const entry = pendingUndelegations.schedule.find(d => d.date === dateStr);
+                    const delegators = entry?.delegator_count || '';
+
+                    tooltip.innerHTML = `
+                        <div class="tooltip-time">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                        <div class="tooltip-price">${formatAmount(val.value)} ATOM unbonding</div>
+                        ${delegators ? `<div style="font-size:11px;color:#666;margin-top:2px">${delegators} delegators</div>` : ''}
+                    `;
+                    tooltip.style.opacity = '1';
+                    tooltip.style.left = Math.min(p.point.x + 10, container.clientWidth - 160) + 'px';
+                    tooltip.style.top = Math.max(10, p.point.y - 70) + 'px';
+                } else {
+                    tooltip.style.opacity = '0';
+                }
+            });
+
+            window.addEventListener('resize', () => chart && chart.applyOptions({ width: container.clientWidth }));
+        }
+
+        async function loadUnbondingFlows() {
+            try {
+                const cacheBuster = `?t=${Date.now()}`;
+                const res = await fetch('./data/unbonding-flows.json' + cacheBuster, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                unbondingFlows = await res.json();
+                renderFlowSummary();
+                console.log(`✅ Unbonding flows loaded: ${unbondingFlows.daily_flows?.length || 0} days`);
+            } catch (err) {
+                // Phase 2 data might not exist yet — that's OK
+                console.log('ℹ️ Unbonding flows not available yet:', err.message);
+            }
+        }
+
+        function renderFlowSummary() {
+            const section = document.getElementById('flowSection');
+            if (!unbondingFlows?.daily_flows?.length) {
+                setVisible(section, false);
+                return;
+            }
+
+            // Find yesterday's or most recent entry
+            const today = new Date().toISOString().slice(0, 10);
+            const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+            let flow = unbondingFlows.daily_flows.find(d => d.date === yesterday);
+            if (!flow) flow = unbondingFlows.daily_flows[0]; // most recent
+            if (!flow || !flow.flows) {
+                setVisible(section, false);
+                return;
+            }
+
+            setVisible(section, true);
+
+            const f = flow.flows;
+            const total = flow.tracked_atom || 1;
+
+            // Update title
+            const titleEl = document.getElementById('flowTitle');
+            const dateLabel = new Date(flow.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            titleEl.textContent = `${dateLabel}: where did ${formatAmount(flow.total_matured_atom)} unbonded atoms go?`;
+
+            // Stacked bar
+            const barEl = document.getElementById('flowBar');
+            const segments = [
+                { key: 'restaked', label: 're-staked', cls: 'restaked' },
+                { key: 'held', label: 'held', cls: 'held' },
+                { key: 'ibc_transfer', label: 'to DEXs', cls: 'ibc' },
+                { key: 'exchange', label: 'to exchanges', cls: 'exchange' },
+            ];
+
+            barEl.innerHTML = segments
+                .filter(s => f[s.key]?.atom > 0)
+                .map(s => `<div class="flow-bar-seg ${s.cls}" style="width: ${f[s.key].pct}%"></div>`)
+                .join('');
+
+            // Legend
+            const legendEl = document.getElementById('flowLegend');
+            function shortAtom(n) {
+                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+                if (n >= 1_000) return Math.round(n / 1_000).toLocaleString() + 'K';
+                return n.toLocaleString();
+            }
+
+            legendEl.innerHTML = segments
+                .filter(s => f[s.key]?.atom > 0)
+                .map(s => `<span class="flow-legend-item">
+                    <span class="flow-legend-dot ${s.cls}"></span>
+                    ${shortAtom(f[s.key].atom)} ${s.label} (${f[s.key].pct.toFixed(0)}%)
+                </span>`)
+                .join('');
+
+            // IBC destinations
+            const ibcEl = document.getElementById('flowIbcList');
+            if (flow.top_ibc_destinations?.length) {
+                ibcEl.textContent = 'IBC: ' + flow.top_ibc_destinations
+                    .map(d => `${d.chain}: ${shortAtom(d.atom)}`)
+                    .join(' · ');
+                ibcEl.style.display = '';
+            } else {
+                ibcEl.style.display = 'none';
+            }
+        }
+
         // ========== INIT ==========
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
@@ -2064,6 +2409,10 @@
             // 5) Fetch live delegation feed from chain
             fetchDelegationFeed();
 
+            // 5.5) Load pending undelegations + flow data
+            loadPendingUndelegations();
+            loadUnbondingFlows();
+
             // 6) Load FX rates
             await loadFxRates();
 
@@ -2080,6 +2429,8 @@
             setInterval(fetchStakingData, 300000);    // Staking every 5min
             setInterval(loadDelegationSnapshot, 300000);  // Delegations every 5min
             setInterval(fetchDelegationFeed, 300000);       // Feed every 5min
+            setInterval(loadPendingUndelegations, 300000);   // Unbonding every 5min
+            setInterval(loadUnbondingFlows, 600000);         // Flows every 10min
             
             console.log('✅ Dashboard ready!');
         }
@@ -2094,6 +2445,7 @@
                 fetchPrice();
                 loadDelegationSnapshot();
                 fetchDelegationFeed();
+                loadPendingUndelegations();
             }
         });
         

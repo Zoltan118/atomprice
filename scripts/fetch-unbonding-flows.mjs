@@ -226,8 +226,29 @@ async function main() {
   const delegatorsByDate = undelegations.delegators_by_date || {};
   const today = new Date().toISOString().slice(0, 10);
 
-  // 2. Find matured dates (dates that have already passed = atoms now liquid)
-  const maturedDates = Object.keys(delegatorsByDate)
+  // 2. Archive delegators so they persist after on-chain maturation
+  //    Once unbonding completes, validators drop the entry → it disappears
+  //    from pending-undelegations.json. The archive preserves them for flow analysis.
+  const ARCHIVE_FILE = "data/undelegation-archive.json";
+  let archive = {};
+  try {
+    archive = JSON.parse(await fs.readFile(ARCHIVE_FILE, "utf8"));
+  } catch { /* fresh start */ }
+
+  // Merge current delegators into archive (keep whichever has more entries)
+  for (const [date, delegators] of Object.entries(delegatorsByDate)) {
+    if (!archive[date] || delegators.length > (archive[date] || []).length) {
+      archive[date] = delegators;
+    }
+  }
+
+  console.log(`📦 Archive: ${Object.keys(archive).length} dates preserved`);
+
+  // Use archive for matured date lookup (includes dates no longer on-chain)
+  const allDelegatorsByDate = archive;
+
+  // 3. Find matured dates (dates that have already passed = atoms now liquid)
+  const maturedDates = Object.keys(allDelegatorsByDate)
     .filter(d => d < today)
     .sort()
     .reverse()
@@ -235,6 +256,8 @@ async function main() {
 
   if (!maturedDates.length) {
     console.log("ℹ️ No matured undelegation dates found (all dates are in the future).");
+    // Still save the archive so current dates are preserved for next run
+    await fs.writeFile(ARCHIVE_FILE, JSON.stringify(archive, null, 2));
     await fs.writeFile(OUT_FILE, JSON.stringify({ generated_at: new Date().toISOString(), daily_flows: [] }, null, 2));
     return;
   }
@@ -260,7 +283,7 @@ async function main() {
       continue;
     }
 
-    const delegators = delegatorsByDate[date] || [];
+    const delegators = allDelegatorsByDate[date] || [];
     const totalMatured = delegators.reduce((s, d) => s + d.atom, 0);
 
     // Filter to top delegators by amount
@@ -341,7 +364,17 @@ async function main() {
 
   await fs.writeFile(OUT_FILE, JSON.stringify(output, null, 2));
 
+  // Prune archive entries older than 7 days to prevent unbounded growth
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  for (const date of Object.keys(archive)) {
+    if (date < cutoffStr) delete archive[date];
+  }
+  await fs.writeFile(ARCHIVE_FILE, JSON.stringify(archive, null, 2));
+
   console.log(`\n✅ Unbonding flows saved: ${dailyFlows.length} dates`);
+  console.log(`   Archive: ${Object.keys(archive).length} dates kept (pruned < ${cutoffStr})`);
   console.log(`   Output: ${OUT_FILE}`);
 }
 

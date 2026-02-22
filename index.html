@@ -281,6 +281,73 @@
         .flow-legend-dot.exchange { background: #ef4444; }
         .flow-ibc-list { margin-top: 8px; font-size: 10px; color: #444; }
 
+        /* Untracked bar segment */
+        .flow-bar-seg.untracked {
+            background: repeating-linear-gradient(45deg, #1a1a1a, #1a1a1a 2px, #111 2px, #111 4px);
+        }
+        .flow-legend-dot.untracked {
+            background: repeating-linear-gradient(45deg, #1a1a1a, #1a1a1a 1px, #111 1px, #111 2px);
+            border-radius: 2px;
+        }
+        .flow-legend-item.zero { opacity: 0.3; }
+        .flow-coverage { font-size: 10px; color: #333; margin: 12px 0; }
+
+        /* Proof table */
+        .proof-container {
+            display: flex; flex-direction: column; gap: 3px;
+            max-height: 400px; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: #222 transparent;
+        }
+        .proof-container::-webkit-scrollbar { width: 4px; }
+        .proof-container::-webkit-scrollbar-track { background: transparent; }
+        .proof-container::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+        .proof-container.collapsed .proof-row:nth-child(n+6) { display: none; }
+
+        .proof-row {
+            display: flex; flex-direction: column; gap: 2px;
+            padding: 10px 12px; background: #0a0a0a; border-radius: 6px;
+            border-left: 3px solid #333; transition: background 0.15s;
+        }
+        .proof-row:hover { background: #111; }
+        .proof-row.restaked { border-left-color: #22c55e; }
+        .proof-row.held { border-left-color: #333; }
+        .proof-row.ibc { border-left-color: #eab308; }
+        .proof-row.exchange { border-left-color: #ef4444; }
+
+        .proof-main { display: flex; align-items: center; gap: 8px; }
+        .proof-addr {
+            font-size: 11px; color: #555; font-family: 'DM Sans', monospace;
+            text-decoration: none; transition: color 0.15s;
+        }
+        .proof-addr:hover { color: #888; }
+        .proof-spacer { flex: 1; }
+        .proof-amount { font-size: 12px; font-weight: 500; color: #ccc; white-space: nowrap; }
+        .proof-badge {
+            font-size: 9px; font-weight: 500; text-transform: uppercase;
+            letter-spacing: 0.5px; padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+        }
+        .proof-badge.restaked { background: rgba(34,197,94,0.12); color: #22c55e; }
+        .proof-badge.held { background: rgba(85,85,85,0.15); color: #555; }
+        .proof-badge.ibc { background: rgba(234,179,8,0.12); color: #eab308; }
+        .proof-badge.exchange { background: rgba(239,68,68,0.12); color: #ef4444; }
+
+        .proof-evidence { font-size: 10px; color: #333; padding-left: 0; }
+        .proof-evidence .memo { color: #ef4444; }
+        .proof-evidence .chain { color: #eab308; }
+
+        .proof-show-more {
+            font-size: 10px; color: #333; text-align: center; padding: 10px 0 2px 0;
+            cursor: pointer; transition: color 0.15s; background: none; border: none;
+            width: 100%; font-family: 'DM Sans', sans-serif;
+        }
+        .proof-show-more:hover { color: #888; }
+
+        @media (max-width: 500px) {
+            .proof-main { flex-wrap: wrap; gap: 4px; }
+            .proof-addr { flex-basis: 100%; font-size: 10px; }
+            .proof-container.collapsed .proof-row:nth-child(n+4) { display: none; }
+        }
+
         /* Split-flap character animation (whale watch) */
         .flap-char {
             display: inline-block;
@@ -614,12 +681,15 @@
                 </div>
             </div>
             <div class="unbonding-schedule" id="unbondingSchedule"></div>
-            <!-- Flow Summary (populated by Phase 2 data) -->
+            <!-- Flow Analysis with Proof Layer -->
             <div class="flow-section" id="flowSection" style="display: none;">
-                <div class="flow-title" id="flowTitle">where did yesterday's unbonded atoms go?</div>
+                <div class="flow-title" id="flowTitle"></div>
                 <div class="flow-bar-wrap" id="flowBar"></div>
                 <div class="flow-legend" id="flowLegend"></div>
+                <div class="flow-coverage" id="flowCoverage"></div>
                 <div class="flow-ibc-list" id="flowIbcList"></div>
+                <div class="proof-container collapsed" id="proofContainer"></div>
+                <button class="proof-show-more" id="proofShowMore" style="display:none;"></button>
             </div>
         </div>
 
@@ -2327,6 +2397,8 @@
             }
         }
 
+        let flowExpanded = false;
+
         function renderFlowSummary() {
             const section = document.getElementById('flowSection');
             const allFlows = unbondingFlows?.daily_flows;
@@ -2337,9 +2409,16 @@
 
             setVisible(section, true);
 
-            // Aggregate all tracked days into combined totals
+            function shortAtom(n) {
+                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+                if (n >= 1_000) return Math.round(n / 1_000).toLocaleString() + 'K';
+                return n.toLocaleString();
+            }
+
+            // Aggregate all tracked days
             const totalMatured = allFlows.reduce((s, f) => s + (f.total_matured_atom || 0), 0);
             const totalTracked = allFlows.reduce((s, f) => s + (f.tracked_atom || 0), 0);
+            const totalUntracked = totalMatured - totalTracked;
 
             const agg = { restaked: 0, exchange: 0, ibc_transfer: 0, held: 0 };
             for (const f of allFlows) {
@@ -2348,22 +2427,23 @@
                 }
             }
 
-            // Calculate percentages from aggregate
+            // Percentages based on total matured (not just tracked) so untracked is visible
             const aggPct = {};
             for (const [key, atom] of Object.entries(agg)) {
                 aggPct[key] = {
                     atom,
-                    pct: totalTracked > 0 ? Math.round((atom / totalTracked) * 1000) / 10 : 0,
+                    pct: totalMatured > 0 ? Math.round((atom / totalMatured) * 1000) / 10 : 0,
                 };
             }
+            const untrackedPct = totalMatured > 0 ? Math.round((totalUntracked / totalMatured) * 1000) / 10 : 0;
 
-            // Update title
+            // Title
             const titleEl = document.getElementById('flowTitle');
             const dayCount = allFlows.length;
             const label = dayCount === 1 ? 'today' : `last ${dayCount} days`;
             titleEl.textContent = `${label}: where did ${formatAmount(totalMatured)} unbonded atoms go?`;
 
-            // Stacked bar
+            // Stacked bar (with untracked segment)
             const barEl = document.getElementById('flowBar');
             const segments = [
                 { key: 'restaked', label: 're-staked', cls: 'restaked' },
@@ -2372,28 +2452,36 @@
                 { key: 'exchange', label: 'to exchanges', cls: 'exchange' },
             ];
 
-            barEl.innerHTML = segments
+            let barHtml = segments
                 .filter(s => aggPct[s.key]?.atom > 0)
                 .map(s => `<div class="flow-bar-seg ${s.cls}" style="width: ${aggPct[s.key].pct}%"></div>`)
                 .join('');
-
-            // Legend
-            const legendEl = document.getElementById('flowLegend');
-            function shortAtom(n) {
-                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-                if (n >= 1_000) return Math.round(n / 1_000).toLocaleString() + 'K';
-                return n.toLocaleString();
+            if (totalUntracked > 0) {
+                barHtml += `<div class="flow-bar-seg untracked" style="width: ${untrackedPct}%"></div>`;
             }
+            barEl.innerHTML = barHtml;
 
-            legendEl.innerHTML = segments
-                .filter(s => aggPct[s.key]?.atom > 0)
-                .map(s => `<span class="flow-legend-item">
-                    <span class="flow-legend-dot ${s.cls}"></span>
-                    ${shortAtom(aggPct[s.key].atom)} ${s.label} (${aggPct[s.key].pct.toFixed(0)}%)
-                </span>`)
-                .join('');
+            // Legend (show all categories, dim zeros)
+            const legendEl = document.getElementById('flowLegend');
+            let legendHtml = segments.map(s => {
+                const hasData = aggPct[s.key]?.atom > 0;
+                const zeroClass = hasData ? '' : ' zero';
+                const val = hasData ? `${shortAtom(aggPct[s.key].atom)} ${s.label} (${aggPct[s.key].pct.toFixed(0)}%)` : `0 ${s.label}`;
+                return `<span class="flow-legend-item${zeroClass}">
+                    <span class="flow-legend-dot ${s.cls}"></span>${val}</span>`;
+            }).join('');
+            if (totalUntracked > 0) {
+                legendHtml += `<span class="flow-legend-item">
+                    <span class="flow-legend-dot untracked"></span>${shortAtom(totalUntracked)} untracked (${untrackedPct.toFixed(0)}%)</span>`;
+            }
+            legendEl.innerHTML = legendHtml;
 
-            // IBC destinations (merged across all days)
+            // Coverage line
+            const covEl = document.getElementById('flowCoverage');
+            const covPct = totalMatured > 0 ? ((totalTracked / totalMatured) * 100).toFixed(1) : 0;
+            covEl.textContent = `tracking ${shortAtom(totalTracked)} of ${shortAtom(totalMatured)} ATOM (${covPct}% coverage · delegators ≥ 1K ATOM)`;
+
+            // IBC destinations
             const ibcMerged = {};
             for (const f of allFlows) {
                 for (const d of f.top_ibc_destinations || []) {
@@ -2409,6 +2497,75 @@
                 ibcEl.style.display = '';
             } else {
                 ibcEl.style.display = 'none';
+            }
+
+            // Proof table — merge delegators across all days, sort by amount desc
+            const allDelegators = [];
+            for (const f of allFlows) {
+                if (!f.delegators) continue;
+                for (const d of f.delegators) {
+                    allDelegators.push(d);
+                }
+            }
+            allDelegators.sort((a, b) => b.atom - a.atom);
+
+            const proofEl = document.getElementById('proofContainer');
+            const moreBtn = document.getElementById('proofShowMore');
+
+            if (!allDelegators.length) {
+                proofEl.innerHTML = '';
+                moreBtn.style.display = 'none';
+                return;
+            }
+
+            const badgeLabels = { restaked: 'restaked', held: 'held', exchange: 'exchange', ibc_transfer: 'ibc' };
+            const badgeCls = { restaked: 'restaked', held: 'held', exchange: 'exchange', ibc_transfer: 'ibc' };
+
+            proofEl.innerHTML = allDelegators.map(d => {
+                const addr = d.a;
+                const shortAddr = addr.slice(0, 10) + '…' + addr.slice(-4);
+                const cls = d.cls || 'held';
+                const badge = badgeLabels[cls] || cls;
+                const rowCls = badgeCls[cls] || 'held';
+
+                // Evidence line
+                let evidence = '';
+                if (cls === 'held') {
+                    evidence = 'no post-maturation tx detected';
+                } else if (cls === 'restaked') {
+                    evidence = 're-delegated to validator';
+                } else if (cls === 'exchange' && d.d) {
+                    const memo = d.d.memo_hint || '';
+                    const to = d.d.to_address ? d.d.to_address.slice(0, 12) + '…' : '';
+                    evidence = `<span class="memo">memo: ${memo}</span>${to ? ` → ${to}` : ''}`;
+                } else if (cls === 'ibc_transfer' && d.d) {
+                    evidence = `→ <span class="chain">${d.d.chain || 'unknown'}</span> via ${d.d.channel || ''}`;
+                }
+
+                return `<div class="proof-row ${rowCls}">
+                    <div class="proof-main">
+                        <a class="proof-addr" href="https://www.mintscan.io/cosmos/address/${addr}" target="_blank" rel="noopener">${shortAddr}</a>
+                        <span class="proof-spacer"></span>
+                        <span class="proof-amount">${Number(d.atom).toLocaleString()} ATOM</span>
+                        <span class="proof-badge ${rowCls}">${badge}</span>
+                    </div>
+                    ${evidence ? `<div class="proof-evidence">${evidence}</div>` : ''}
+                </div>`;
+            }).join('');
+
+            // Collapse/expand logic
+            if (allDelegators.length > 5) {
+                proofEl.classList.toggle('collapsed', !flowExpanded);
+                moreBtn.style.display = '';
+                moreBtn.textContent = flowExpanded ? 'collapse' : `show all ${allDelegators.length} delegators`;
+                moreBtn.onclick = () => {
+                    flowExpanded = !flowExpanded;
+                    proofEl.classList.toggle('collapsed', !flowExpanded);
+                    moreBtn.textContent = flowExpanded ? 'collapse' : `show all ${allDelegators.length} delegators`;
+                };
+            } else {
+                proofEl.classList.remove('collapsed');
+                moreBtn.style.display = 'none';
             }
         }
 

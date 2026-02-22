@@ -251,71 +251,78 @@
         .unbonding-day-bar.hot { background: #ff2222; }
         .unbonding-day-amount { width: 90px; text-align: right; flex-shrink: 0; font-size: 11px; color: #888; font-weight: 500; }
 
-        /* Flow Summary — Left-Right Layout */
-        .flow-section { margin-top: 24px; }
-        .flow-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .flow-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
-        .flow-tf-toggle { display: flex; gap: 4px; background: #0a0a0a; padding: 3px; border-radius: 6px; }
-        .flow-tf-btn {
-            padding: 4px 10px; font-size: 10px; font-weight: 500; color: #555;
-            background: none; border: none; border-radius: 4px; cursor: pointer;
-            transition: all 0.2s; font-family: 'DM Sans', sans-serif;
+        /* Sell Pressure Gauge */
+        .gauge-section { margin-top: 24px; }
+        .gauge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .gauge-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+
+        .gauge-score-card {
+            background: #0a0a0a; border-radius: 10px; border: 1px solid #1a1a1a;
+            padding: 24px; text-align: center; margin-bottom: 12px;
         }
-        .flow-tf-btn:hover { color: #888; }
-        .flow-tf-btn.active { color: #fff; background: #1a1a1a; }
-
-        .flow-layout { display: flex; align-items: stretch; gap: 12px; min-height: 140px; }
-
-        .flow-source {
-            flex: 0 0 140px; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; gap: 6px;
-            background: #0a0a0a; border-radius: 8px; border: 1px solid #1a1a1a; padding: 16px;
+        .gauge-score-row {
+            display: flex; align-items: baseline; justify-content: center; gap: 12px; margin-bottom: 8px;
         }
-        .flow-source-amount { font-size: 24px; font-weight: 600; color: #fff; letter-spacing: -0.5px; }
-        .flow-source-label { font-size: 9px; color: #444; text-transform: uppercase; letter-spacing: 0.5px; }
-
-        .flow-arrows {
-            flex: 0 0 24px; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; position: relative;
+        .gauge-score-number {
+            font-size: 56px; font-weight: 600; letter-spacing: -2px; line-height: 1;
         }
-        .flow-arrow-line {
-            width: 1px; height: 100%; background: linear-gradient(to bottom, transparent 0%, #222 15%, #222 85%, transparent 100%);
-            position: absolute;
+        .gauge-score-label {
+            font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 2px;
         }
-        .flow-arrow-dot {
-            width: 5px; height: 5px; border-radius: 50%; background: #333;
-            position: relative; z-index: 1;
+        .gauge-bar-wrap {
+            width: 100%; height: 4px; background: #1a1a1a; border-radius: 2px;
+            margin: 16px 0 12px; overflow: hidden;
+        }
+        .gauge-bar-fill {
+            height: 100%; border-radius: 2px;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.6s ease;
+        }
+        .gauge-narrative { font-size: 12px; color: #666; line-height: 1.5; letter-spacing: 0.2px; }
+
+        .gauge-components { display: flex; gap: 8px; margin-top: 12px; }
+        .gauge-component {
+            flex: 1; padding: 12px; background: #0a0a0a; border-radius: 8px; border: 1px solid #111;
+        }
+        .gauge-component-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .gauge-component-name { font-size: 9px; color: #444; text-transform: uppercase; letter-spacing: 0.5px; }
+        .gauge-component-score { font-size: 11px; font-weight: 600; color: #888; font-variant-numeric: tabular-nums; }
+        .gauge-component-bar { width: 100%; height: 2px; background: #1a1a1a; border-radius: 1px; overflow: hidden; }
+        .gauge-component-bar-fill { height: 100%; border-radius: 1px; transition: width 0.4s ease; }
+
+        .gauge-calibrating {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 9px; color: #555; background: #111;
+            padding: 2px 8px; border-radius: 4px; letter-spacing: 0.3px;
+            text-transform: uppercase; margin-top: 8px;
+        }
+        .gauge-calibrating-dot {
+            width: 4px; height: 4px; border-radius: 50%; background: #eab308;
+            animation: pulse 2s infinite;
         }
 
-        .flow-dest { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-        .flow-dest-row {
-            display: flex; align-items: center; gap: 8px;
-            padding: 10px 12px; background: #0a0a0a; border-radius: 6px;
-            border-left: 3px solid #333; transition: background 0.15s;
+        .gauge-info-toggle {
+            font-size: 10px; color: #333; background: none; border: none; cursor: pointer;
+            padding: 10px 0 2px; font-family: 'DM Sans', sans-serif; transition: color 0.15s;
         }
-        .flow-dest-row:hover { background: #0d0d0d; }
-        .flow-dest-row.restaked { border-left-color: #22c55e; }
-        .flow-dest-row.held { border-left-color: #555; }
-        .flow-dest-row.ibc { border-left-color: #eab308; }
-        .flow-dest-row.exchange { border-left-color: #ef4444; }
-
-        .flow-dest-pct { font-size: 18px; font-weight: 600; width: 55px; letter-spacing: -0.5px; }
-        .flow-dest-pct.restaked { color: #22c55e; }
-        .flow-dest-pct.held { color: #888; }
-        .flow-dest-pct.ibc { color: #eab308; }
-        .flow-dest-pct.exchange { color: #ef4444; }
-
-        .flow-dest-info { flex: 1; }
-        .flow-dest-name { font-size: 11px; color: #888; font-weight: 500; }
-        .flow-dest-amount { font-size: 10px; color: #444; margin-top: 1px; }
-
-        .flow-coverage { font-size: 10px; color: #333; margin-top: 10px; }
+        .gauge-info-toggle:hover { color: #666; }
+        .gauge-info-body {
+            font-size: 11px; color: #444; line-height: 1.7; padding: 12px 0 0;
+            max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+        .gauge-info-body.open { max-height: 300px; opacity: 1; }
+        .gauge-info-body p { margin-bottom: 8px; }
+        .gauge-info-body strong { color: #666; }
+        .gauge-disclaimer {
+            font-size: 10px; color: #333; margin-top: 8px; padding-top: 8px;
+            border-top: 1px solid #111; font-style: italic;
+        }
 
         @media (max-width: 500px) {
-            .flow-layout { flex-direction: column; gap: 8px; }
-            .flow-source { flex: none; flex-direction: row; padding: 12px 16px; gap: 12px; }
-            .flow-arrows { display: none; }
-            .flow-dest-pct { font-size: 16px; width: 48px; }
+            .gauge-score-number { font-size: 44px; }
+            .gauge-score-label { font-size: 12px; }
+            .gauge-components { flex-direction: column; gap: 6px; }
+            .gauge-score-card { padding: 20px 16px; }
         }
 
         /* Split-flap character animation (whale watch) */
@@ -651,25 +658,58 @@
                 </div>
             </div>
             <div class="unbonding-schedule" id="unbondingSchedule"></div>
-            <!-- Unbonding Flow — Left-Right Layout -->
-            <div class="flow-section" id="flowSection" style="display: none;">
-                <div class="flow-header">
-                    <span class="flow-label">unbonding flow</span>
-                    <div class="flow-tf-toggle">
-                        <button class="flow-tf-btn active" data-flow-tf="1">1D</button>
-                        <button class="flow-tf-btn" data-flow-tf="3">3D</button>
-                        <button class="flow-tf-btn" data-flow-tf="7">7D</button>
+            <!-- Sell Pressure Gauge -->
+            <div class="gauge-section" id="gaugeSection" style="display: none;">
+                <div class="gauge-header">
+                    <span class="gauge-label">sell pressure gauge</span>
+                </div>
+                <div class="gauge-score-card" id="gaugeScoreCard">
+                    <div class="gauge-score-row">
+                        <span class="gauge-score-number" id="gaugeScoreNumber">—</span>
+                        <span class="gauge-score-label" id="gaugeScoreLabel"></span>
+                    </div>
+                    <div class="gauge-bar-wrap">
+                        <div class="gauge-bar-fill" id="gaugeBarFill" style="width: 0%"></div>
+                    </div>
+                    <div class="gauge-narrative" id="gaugeNarrative"></div>
+                </div>
+                <div class="gauge-components">
+                    <div class="gauge-component" id="gaugeCompSupply">
+                        <div class="gauge-component-header">
+                            <span class="gauge-component-name">Supply</span>
+                            <span class="gauge-component-score" id="gaugeSupplyScore">0/40</span>
+                        </div>
+                        <div class="gauge-component-bar">
+                            <div class="gauge-component-bar-fill" id="gaugeSupplyBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="gauge-component" id="gaugeCompConc">
+                        <div class="gauge-component-header">
+                            <span class="gauge-component-name">Concentration</span>
+                            <span class="gauge-component-score" id="gaugeConcScore">0/20</span>
+                        </div>
+                        <div class="gauge-component-bar">
+                            <div class="gauge-component-bar-fill" id="gaugeConcBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="gauge-component" id="gaugeCompBehavior">
+                        <div class="gauge-component-header">
+                            <span class="gauge-component-name">Behavior</span>
+                            <span class="gauge-component-score" id="gaugeBehaviorScore">0/40</span>
+                        </div>
+                        <div class="gauge-component-bar">
+                            <div class="gauge-component-bar-fill" id="gaugeBehaviorBar" style="width: 0%"></div>
+                        </div>
                     </div>
                 </div>
-                <div class="flow-layout" id="flowLayout">
-                    <div class="flow-source" id="flowSource"></div>
-                    <div class="flow-arrows" id="flowArrows">
-                        <div class="flow-arrow-line"></div>
-                        <div class="flow-arrow-dot"></div>
-                    </div>
-                    <div class="flow-dest" id="flowDest"></div>
+                <button class="gauge-info-toggle" id="gaugeInfoToggle">how it works ↓</button>
+                <div class="gauge-info-body" id="gaugeInfoBody">
+                    <p>The sell pressure gauge is a composite 0–100 score built from on-chain data:</p>
+                    <p><strong>Supply (0–40):</strong> Compares the upcoming 7-day unlock volume against the full schedule average. Tomorrow's unlock is weighted more heavily than day 7.</p>
+                    <p><strong>Concentration (0–20):</strong> Measures whether unlocks are clustered on a single day or spread evenly. Spikes increase the score.</p>
+                    <p><strong>Behavior (0–40):</strong> Tracks what happens after ATOM unbonds — held, re-staked, sent to exchanges, or bridged. This signal calibrates over 7 days of observed data.</p>
+                    <p class="gauge-disclaimer">This is on-chain data analysis only — not financial advice. Always do your own research.</p>
                 </div>
-                <div class="flow-coverage" id="flowCoverage"></div>
             </div>
         </div>
 
@@ -2217,6 +2257,7 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 pendingUndelegations = await res.json();
                 renderUnbondingSummary();
+                renderSellPressureGauge();
                 console.log(`✅ Pending undelegations loaded: ${pendingUndelegations.schedule?.length || 0} dates`);
             } catch (err) {
                 console.log('⚠️ Pending undelegations fetch error:', err.message);
@@ -2369,35 +2410,24 @@
                 const res = await fetch('./data/unbonding-flows.json' + cacheBuster, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 unbondingFlows = await res.json();
-                renderFlowSummary();
+                renderSellPressureGauge();
                 console.log(`✅ Unbonding flows loaded: ${unbondingFlows.daily_flows?.length || 0} days`);
             } catch (err) {
                 // Phase 2 data might not exist yet — that's OK
                 console.log('ℹ️ Unbonding flows not available yet:', err.message);
+                renderSellPressureGauge(); // still render gauge from supply data alone
             }
         }
 
-        let currentFlowTf = 1;
+        function calculateSellPressure() {
+            const schedule = pendingUndelegations?.schedule;
+            const flows = unbondingFlows?.daily_flows || [];
+            if (!schedule?.length) return null;
 
-        // Timeframe toggle handlers
-        document.querySelectorAll('.flow-tf-btn').forEach(btn => {
-            btn.onclick = () => {
-                document.querySelectorAll('.flow-tf-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFlowTf = Number(btn.dataset.flowTf);
-                renderFlowSummary();
-            };
-        });
-
-        function renderFlowSummary() {
-            const section = document.getElementById('flowSection');
-            const allFlows = unbondingFlows?.daily_flows;
-            if (!allFlows?.length) {
-                setVisible(section, false);
-                return;
-            }
-
-            setVisible(section, true);
+            const today = new Date().toISOString().slice(0, 10);
+            const allFuture = schedule.filter(d => d.date >= today);
+            const next7 = allFuture.slice(0, 7);
+            if (!next7.length) return null;
 
             function shortAtom(n) {
                 if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -2405,66 +2435,177 @@
                 return n.toLocaleString();
             }
 
-            // Filter by timeframe
-            const now = new Date();
-            const cutoff = new Date(now);
-            cutoff.setDate(cutoff.getDate() - currentFlowTf);
-            const cutoffStr = cutoff.toISOString().slice(0, 10);
+            // ===== SUPPLY PRESSURE (0-40) =====
+            let weightedSum = 0, totalWeight = 0;
+            for (let i = 0; i < next7.length; i++) {
+                const weight = 7 - i;
+                weightedSum += next7[i].atom * weight;
+                totalWeight += weight;
+            }
+            const weightedAvgDaily = weightedSum / totalWeight;
+            const baseline = allFuture.reduce((s, d) => s + d.atom, 0) / allFuture.length;
+            const supplyRatio = baseline > 0 ? weightedAvgDaily / baseline : 0;
+            const supplyScore = Math.min(40, Math.round(supplyRatio * 20));
 
-            const filtered = allFlows.filter(f => f.date >= cutoffStr);
-            const flows = filtered.length ? filtered : allFlows.slice(0, 1); // fallback: latest day
+            let supplyExplanation;
+            if (next7[0] && next7[0].atom >= 500_000) {
+                supplyExplanation = shortAtom(next7[0].atom) + ' ATOM unlocking tomorrow';
+            } else {
+                const weekSum = next7.reduce((s, d) => s + d.atom, 0);
+                supplyExplanation = shortAtom(weekSum) + ' ATOM unlocking this week';
+            }
 
-            // Aggregate
-            const totalMatured = flows.reduce((s, f) => s + (f.total_matured_atom || 0), 0);
-            const totalTracked = flows.reduce((s, f) => s + (f.tracked_atom || 0), 0);
+            // ===== CONCENTRATION RISK (0-20) =====
+            const weekTotal = next7.reduce((s, d) => s + d.atom, 0);
+            let concentrationScore = 0;
+            let concExplanation = 'unlocks spread across the week';
 
-            const agg = { restaked: 0, exchange: 0, ibc_transfer: 0, held: 0 };
-            for (const f of flows) {
-                for (const key of Object.keys(agg)) {
-                    agg[key] += f.flows?.[key]?.atom || 0;
+            if (weekTotal > 0 && next7.length > 1) {
+                const shares = next7.map(d => d.atom / weekTotal);
+                const hhi = shares.reduce((s, p) => s + p * p, 0);
+                const minHHI = 1 / next7.length;
+                const normalizedHHI = minHHI < 1 ? (hhi - minHHI) / (1 - minHHI) : 0;
+                concentrationScore = Math.round(normalizedHHI * 20);
+
+                const peakDay = next7.reduce((a, b) => b.atom > a.atom ? b : a);
+                const peakShare = peakDay.atom / weekTotal;
+                if (peakShare >= 0.4) {
+                    const peakDate = new Date(peakDay.date + 'T00:00:00')
+                        .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    concExplanation = Math.round(peakShare * 100) + '% concentrated on ' + peakDate;
                 }
             }
 
-            // Source card (left side)
-            const sourceEl = document.getElementById('flowSource');
-            sourceEl.innerHTML = `
-                <div class="flow-source-amount">${shortAtom(totalMatured)}</div>
-                <div class="flow-source-label">unbonded</div>
-            `;
+            // ===== BEHAVIOR SIGNAL (0-40) =====
+            const numFlowDays = flows.length;
+            const calibrating = numFlowDays < 7;
+            let behaviorScore = 0;
+            let behaviorExplanation = 'no historical data yet';
 
-            // Destination rows (right side)
-            const destinations = [
-                { key: 'held', name: 'Held in wallet', cls: 'held' },
-                { key: 'restaked', name: 'Re-staked', cls: 'restaked' },
-                { key: 'exchange', name: 'Sent to exchanges', cls: 'exchange' },
-                { key: 'ibc_transfer', name: 'Bridged (IBC)', cls: 'ibc' },
-            ];
+            if (numFlowDays > 0) {
+                let totalWeightedExPct = 0, totalWeightedRsPct = 0, totalBW = 0;
+                for (let i = 0; i < flows.length; i++) {
+                    const dayWeight = 1 + (flows.length - 1 - i) * 0.5;
+                    totalWeightedExPct += (flows[i].flows?.exchange?.pct || 0) * dayWeight;
+                    totalWeightedRsPct += (flows[i].flows?.restaked?.pct || 0) * dayWeight;
+                    totalBW += dayWeight;
+                }
+                const avgExchangePct = totalWeightedExPct / totalBW;
+                const avgRestakePct = totalWeightedRsPct / totalBW;
 
-            // Sort by amount descending (largest flow first)
-            destinations.sort((a, b) => (agg[b.key] || 0) - (agg[a.key] || 0));
+                behaviorScore = Math.round(Math.sqrt(avgExchangePct / 100) * 40);
+                if (avgRestakePct > 50) behaviorScore = Math.round(behaviorScore * 0.7);
 
-            // Only show rows with > 0 ATOM, but always show at least 'held'
-            let visibleDests = destinations.filter(d => agg[d.key] > 0);
-            if (!visibleDests.length) visibleDests = [destinations.find(d => d.key === 'held')];
+                if (calibrating) {
+                    const confidence = numFlowDays / 7;
+                    behaviorScore = Math.round(behaviorScore * confidence);
+                }
 
-            const destEl = document.getElementById('flowDest');
-            destEl.innerHTML = visibleDests.map(d => {
-                const atom = agg[d.key] || 0;
-                const pct = totalMatured > 0 ? Math.round((atom / totalMatured) * 1000) / 10 : 0;
-                return `<div class="flow-dest-row ${d.cls}">
-                    <span class="flow-dest-pct ${d.cls}">${pct.toFixed(0)}%</span>
-                    <div class="flow-dest-info">
-                        <div class="flow-dest-name">${d.name}</div>
-                        <div class="flow-dest-amount">${shortAtom(atom)} ATOM</div>
-                    </div>
-                </div>`;
-            }).join('');
+                if (avgExchangePct > 20) {
+                    behaviorExplanation = Math.round(avgExchangePct) + '% sent to exchanges';
+                } else if (avgRestakePct > 40) {
+                    behaviorExplanation = Math.round(avgRestakePct) + '% historically re-staked';
+                } else {
+                    behaviorExplanation = 'mostly held after unlock';
+                }
+            }
 
-            // Coverage line
-            const covEl = document.getElementById('flowCoverage');
-            const covPct = totalMatured > 0 ? ((totalTracked / totalMatured) * 100).toFixed(0) : 0;
-            covEl.textContent = `tracking ${shortAtom(totalTracked)} of ${shortAtom(totalMatured)} ATOM (${covPct}% coverage)`;
+            // ===== COMPOSITE =====
+            const total = Math.max(0, Math.min(100, supplyScore + concentrationScore + behaviorScore));
+
+            function getLabel(s) {
+                if (s <= 30) return 'Low';
+                if (s <= 50) return 'Moderate';
+                if (s <= 70) return 'Elevated';
+                return 'High';
+            }
+            function getColor(s) {
+                if (s <= 30) return '#22c55e';
+                if (s <= 50) return '#eab308';
+                if (s <= 70) return '#f97316';
+                return '#ef4444';
+            }
+
+            // Narrative
+            const parts = [];
+            if (supplyScore >= 15) parts.push(supplyExplanation);
+            if (concentrationScore >= 10) parts.push(concExplanation);
+            if (behaviorScore >= 10 && !calibrating) parts.push(behaviorExplanation);
+            else if (calibrating && numFlowDays > 0) parts.push('behavior data calibrating');
+            const narrative = parts.length > 0
+                ? parts.join(' · ')
+                : 'normal unlock schedule with no concerning signals';
+
+            return {
+                total, label: getLabel(total), color: getColor(total), narrative,
+                supply: { score: supplyScore, max: 40 },
+                concentration: { score: concentrationScore, max: 20 },
+                behavior: { score: behaviorScore, max: 40, calibrating, numDays: numFlowDays },
+            };
         }
+
+        function renderSellPressureGauge() {
+            const section = document.getElementById('gaugeSection');
+            const result = calculateSellPressure();
+
+            if (!result) {
+                setVisible(section, false);
+                return;
+            }
+            setVisible(section, true);
+
+            const { total, label, color, narrative } = result;
+
+            // Score number + label
+            const scoreEl = document.getElementById('gaugeScoreNumber');
+            scoreEl.textContent = total;
+            scoreEl.style.color = color;
+
+            const labelEl = document.getElementById('gaugeScoreLabel');
+            labelEl.textContent = label;
+            labelEl.style.color = color;
+
+            // Bar fill
+            const barFill = document.getElementById('gaugeBarFill');
+            barFill.style.width = total + '%';
+            barFill.style.background = color;
+
+            // Narrative
+            document.getElementById('gaugeNarrative').textContent = narrative;
+
+            // Component breakdowns
+            function renderComp(barId, scoreId, data, maxVal) {
+                document.getElementById(scoreId).textContent = data.score + '/' + maxVal;
+                const pct = maxVal > 0 ? (data.score / maxVal) * 100 : 0;
+                const bar = document.getElementById(barId);
+                bar.style.width = pct + '%';
+                bar.style.background = color;
+            }
+
+            renderComp('gaugeSupplyBar', 'gaugeSupplyScore', result.supply, 40);
+            renderComp('gaugeConcBar', 'gaugeConcScore', result.concentration, 20);
+            renderComp('gaugeBehaviorBar', 'gaugeBehaviorScore', result.behavior, 40);
+
+            // Calibrating badge
+            const behaviorComp = document.getElementById('gaugeCompBehavior');
+            const existingBadge = behaviorComp.querySelector('.gauge-calibrating');
+            if (existingBadge) existingBadge.remove();
+
+            if (result.behavior.calibrating) {
+                const badge = document.createElement('div');
+                badge.className = 'gauge-calibrating';
+                badge.innerHTML = '<span class="gauge-calibrating-dot"></span>calibrating (' +
+                    result.behavior.numDays + '/7 days)';
+                behaviorComp.appendChild(badge);
+            }
+        }
+
+        // Gauge info toggle
+        document.getElementById('gaugeInfoToggle').onclick = function() {
+            const body = document.getElementById('gaugeInfoBody');
+            const isOpen = body.classList.toggle('open');
+            this.textContent = isOpen ? 'how it works ↑' : 'how it works ↓';
+        };
 
         // ========== INIT ==========
         async function init() {

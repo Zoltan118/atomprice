@@ -299,6 +299,7 @@ async function main() {
     // Classify each delegator (3 concurrent)
     const classifications = { restaked: 0, exchange: 0, ibc_transfer: 0, held: 0 };
     const ibcDestinations = {};
+    const delegatorResults = [];
 
     for (let i = 0; i < tracked.length; i += 3) {
       const batch = tracked.slice(i, i + 3);
@@ -316,6 +317,14 @@ async function main() {
           ibcDestinations[res.details.chain] = (ibcDestinations[res.details.chain] || 0) + (res.amount || res.matured_atom);
         }
 
+        // Save per-delegator record for proof layer
+        delegatorResults.push({
+          a: res.address,
+          atom: Math.round(res.matured_atom),
+          cls: res.classification,
+          d: res.details || null,
+        });
+
         const icon = { restaked: "🟢", exchange: "🔴", ibc_transfer: "🟡", held: "⚪" }[cls] || "❓";
         console.log(`  ${icon} ${res.address.slice(0, 16)}… → ${cls} (${Math.round(res.matured_atom).toLocaleString()} ATOM)`);
       }
@@ -328,9 +337,11 @@ async function main() {
       date,
       total_matured_atom: Math.round(totalMatured),
       tracked_atom: Math.round(trackedAtom),
+      untracked_atom: Math.round(totalMatured - trackedAtom),
       tracked_pct: totalMatured > 0 ? Math.round((trackedAtom / totalMatured) * 1000) / 10 : 0,
       flows: {},
       top_ibc_destinations: [],
+      delegators: delegatorResults,
     };
 
     for (const [key, atom] of Object.entries(classifications)) {

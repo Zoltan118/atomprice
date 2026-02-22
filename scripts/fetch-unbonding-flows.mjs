@@ -249,7 +249,7 @@ async function main() {
 
   // 3. Find matured dates (dates that have already passed = atoms now liquid)
   const maturedDates = Object.keys(allDelegatorsByDate)
-    .filter(d => d < today)
+    .filter(d => d <= today)
     .sort()
     .reverse()
     .slice(0, LOOKBACK_DAYS);

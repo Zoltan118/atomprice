@@ -2329,30 +2329,39 @@
 
         function renderFlowSummary() {
             const section = document.getElementById('flowSection');
-            if (!unbondingFlows?.daily_flows?.length) {
-                setVisible(section, false);
-                return;
-            }
-
-            // Find yesterday's or most recent entry
-            const today = new Date().toISOString().slice(0, 10);
-            const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-            let flow = unbondingFlows.daily_flows.find(d => d.date === yesterday);
-            if (!flow) flow = unbondingFlows.daily_flows[0]; // most recent
-            if (!flow || !flow.flows) {
+            const allFlows = unbondingFlows?.daily_flows;
+            if (!allFlows?.length) {
                 setVisible(section, false);
                 return;
             }
 
             setVisible(section, true);
 
-            const f = flow.flows;
-            const total = flow.tracked_atom || 1;
+            // Aggregate all tracked days into combined totals
+            const totalMatured = allFlows.reduce((s, f) => s + (f.total_matured_atom || 0), 0);
+            const totalTracked = allFlows.reduce((s, f) => s + (f.tracked_atom || 0), 0);
+
+            const agg = { restaked: 0, exchange: 0, ibc_transfer: 0, held: 0 };
+            for (const f of allFlows) {
+                for (const key of Object.keys(agg)) {
+                    agg[key] += f.flows?.[key]?.atom || 0;
+                }
+            }
+
+            // Calculate percentages from aggregate
+            const aggPct = {};
+            for (const [key, atom] of Object.entries(agg)) {
+                aggPct[key] = {
+                    atom,
+                    pct: totalTracked > 0 ? Math.round((atom / totalTracked) * 1000) / 10 : 0,
+                };
+            }
 
             // Update title
             const titleEl = document.getElementById('flowTitle');
-            const dateLabel = new Date(flow.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            titleEl.textContent = `${dateLabel}: where did ${formatAmount(flow.total_matured_atom)} unbonded atoms go?`;
+            const dayCount = allFlows.length;
+            const label = dayCount === 1 ? 'today' : `last ${dayCount} days`;
+            titleEl.textContent = `${label}: where did ${formatAmount(totalMatured)} unbonded atoms go?`;
 
             // Stacked bar
             const barEl = document.getElementById('flowBar');
@@ -2364,8 +2373,8 @@
             ];
 
             barEl.innerHTML = segments
-                .filter(s => f[s.key]?.atom > 0)
-                .map(s => `<div class="flow-bar-seg ${s.cls}" style="width: ${f[s.key].pct}%"></div>`)
+                .filter(s => aggPct[s.key]?.atom > 0)
+                .map(s => `<div class="flow-bar-seg ${s.cls}" style="width: ${aggPct[s.key].pct}%"></div>`)
                 .join('');
 
             // Legend
@@ -2377,18 +2386,25 @@
             }
 
             legendEl.innerHTML = segments
-                .filter(s => f[s.key]?.atom > 0)
+                .filter(s => aggPct[s.key]?.atom > 0)
                 .map(s => `<span class="flow-legend-item">
                     <span class="flow-legend-dot ${s.cls}"></span>
-                    ${shortAtom(f[s.key].atom)} ${s.label} (${f[s.key].pct.toFixed(0)}%)
+                    ${shortAtom(aggPct[s.key].atom)} ${s.label} (${aggPct[s.key].pct.toFixed(0)}%)
                 </span>`)
                 .join('');
 
-            // IBC destinations
+            // IBC destinations (merged across all days)
+            const ibcMerged = {};
+            for (const f of allFlows) {
+                for (const d of f.top_ibc_destinations || []) {
+                    ibcMerged[d.chain] = (ibcMerged[d.chain] || 0) + d.atom;
+                }
+            }
             const ibcEl = document.getElementById('flowIbcList');
-            if (flow.top_ibc_destinations?.length) {
-                ibcEl.textContent = 'IBC: ' + flow.top_ibc_destinations
-                    .map(d => `${d.chain}: ${shortAtom(d.atom)}`)
+            const ibcEntries = Object.entries(ibcMerged).sort((a, b) => b[1] - a[1]);
+            if (ibcEntries.length) {
+                ibcEl.textContent = 'IBC: ' + ibcEntries
+                    .map(([chain, atom]) => `${chain}: ${shortAtom(atom)}`)
                     .join(' · ');
                 ibcEl.style.display = '';
             } else {

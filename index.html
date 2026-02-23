@@ -104,7 +104,7 @@
         .time-btn.active { color: #fff; background: #1a1a1a; }
         .time-btn.disabled { opacity: 0.3; cursor: not-allowed; }
         .marker-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #555; cursor: pointer; user-select: none; white-space: nowrap; }
-        .marker-toggle input { accent-color: #ef4444; width: 12px; height: 12px; cursor: pointer; margin: 0; }
+        .marker-toggle input { accent-color: #8b5cf6; width: 12px; height: 12px; cursor: pointer; margin: 0; }
         .marker-toggle:hover { color: #888; }
         .chart-area { height: 280px; margin-bottom: 32px; position: relative; }
         #chartContainer { width: 100%; height: 100%; }
@@ -584,7 +584,7 @@
             </div>
             <div style="display: flex; gap: 12px; align-items: center;">
                 <label class="marker-toggle" id="markerToggle">
-                    <input type="checkbox" checked> Unbonding events
+                    <input type="checkbox" checked> Whale events
                 </label>
                 <div class="chart-type-toggle">
                     <button class="chart-type-btn active" data-type="line">
@@ -795,8 +795,9 @@
         // Pending undelegations + flow data
         let pendingUndelegations = null;
         let unbondingFlows = null;
-        let undelegationHistory = null;    // daily_totals from undelegation-history.json
-        let showUndelegationMarkers = true; // toggle state for chart markers
+        let whaleEvents = null;            // individual whale events from whale-events.json
+        let whalePending = null;           // pending whale undelegations from whale-pending.json
+        let showWhaleMarkers = true;       // toggle state for whale event markers
 
         // Whale watch state
         let whaleCycleTimer = null;
@@ -1810,18 +1811,22 @@
                     timeText = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                 }
 
-                // Check for unbonding event on this date
-                let unbondingInfo = '';
-                if (showUndelegationMarkers && p.time) {
-                    const hoverDate = new Date(p.time * 1000).toISOString().slice(0, 10);
-                    const histEntry = undelegationHistory?.daily_totals?.find(d => d.date === hoverDate);
-                    const pendEntry = pendingUndelegations?.schedule?.find(d => d.date === hoverDate);
-                    const entry = pendEntry || histEntry;
-                    if (entry && entry.atom >= 250000) {
-                        unbondingInfo = `<div style="font-size:11px;color:#ef4444;margin-top:3px">${formatAmount(Math.round(entry.atom))} ATOM unbonding</div>`;
-                        if (entry.delegator_count) {
-                            unbondingInfo += `<div style="font-size:10px;color:#666">${entry.delegator_count} delegators</div>`;
-                        }
+                // Check for whale events near this candle
+                let whaleInfo = '';
+                if (showWhaleMarkers && p.time) {
+                    const candleTime = p.time;
+                    const interval = getCurrentIntervalSeconds();
+                    const allEv = [...(whaleEvents?.events || []), ...(whalePending?.events || [])];
+                    const matches = allEv.filter(ev => {
+                        if (!ev.timestamp) return false;
+                        const evUnix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
+                        return Math.abs(evUnix - candleTime) <= interval;
+                    });
+                    for (const ev of matches) {
+                        const color = ev.type === 'delegate' ? '#22c55e' : '#ef4444';
+                        const label = ev.type === 'delegate' ? 'Staked' : (ev.type === 'pending_undelegate' ? 'Unstaking' : 'Unstaked');
+                        const evTime = new Date(ev.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        whaleInfo += `<div style="font-size:11px;color:${color};margin-top:2px">${label}: ${formatAmount(ev.atom)} ATOM (${evTime})</div>`;
                     }
                 }
 
@@ -1829,7 +1834,7 @@
                 tooltip.innerHTML = `
                     <div class="tooltip-time">${timeText}</div>
                     <div class="tooltip-price">${formatPriceWithDecimals(price, currentCurrency)}</div>
-                    ${unbondingInfo}
+                    ${whaleInfo}
                 `;
                 
                 const containerRect = chartContainer.getBoundingClientRect();
@@ -1933,73 +1938,97 @@
                 })));
             }
             chart.timeScale().fitContent();
-            applyUndelegationMarkers();
+            applyWhaleMarkers();
         }
 
-        // ========== UNDELEGATION CHART MARKERS ==========
-        function applyUndelegationMarkers() {
+        // ========== WHALE EVENT CHART MARKERS ==========
+        function getCurrentIntervalSeconds() {
+            const map = { '1h': 60, '1d': 900, '1w': 3600, '1m': 14400, '1y': 86400, 'all': 604800 };
+            return map[currentTimeframe] || 900;
+        }
+
+        function findClosestCandle(sorted, target) {
+            if (!sorted.length) return null;
+            let lo = 0, hi = sorted.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (sorted[mid] < target) lo = mid + 1;
+                else hi = mid;
+            }
+            const candidates = [lo - 1, lo, lo + 1].filter(i => i >= 0 && i < sorted.length);
+            let best = candidates[0];
+            for (const c of candidates) {
+                if (Math.abs(sorted[c] - target) < Math.abs(sorted[best] - target)) best = c;
+            }
+            return sorted[best];
+        }
+
+        function applyWhaleMarkers() {
             if (!series || !chartData.length || currentDataMode !== 'price') return;
-            if (!showUndelegationMarkers) { series.setMarkers([]); return; }
+            if (!showWhaleMarkers) { series.setMarkers([]); return; }
 
-            // 1. Merge data sources: historical (undelegationHistory) + upcoming (pendingUndelegations)
-            const markerMap = new Map(); // date string -> {atom, delegators}
+            // 1. Merge all events from both sources
+            const allEvents = [
+                ...(whaleEvents?.events || []),
+                ...(whalePending?.events || [])
+            ];
+            if (!allEvents.length) { series.setMarkers([]); return; }
 
-            // Historical from undelegation-history.json
-            if (undelegationHistory?.daily_totals) {
-                for (const d of undelegationHistory.daily_totals) {
-                    if (d.atom >= 250000) markerMap.set(d.date, { atom: d.atom, delegators: d.delegator_count });
-                }
-            }
+            // 2. Build sorted candle times array for binary search
+            const candleTimes = chartData.map(d => d.time).sort((a, b) => a - b);
+            if (!candleTimes.length) return;
 
-            // Upcoming from pending-undelegations.json (overrides historical if same date)
-            if (pendingUndelegations?.schedule) {
-                for (const d of pendingUndelegations.schedule) {
-                    if (d.atom >= 250000) markerMap.set(d.date, { atom: d.atom, delegators: d.delegator_count });
-                }
-            }
-
-            if (markerMap.size === 0) { series.setMarkers([]); return; }
-
-            // 2. Match marker dates to chart data points
-            const dateToTime = new Map();
-            for (const d of chartData) {
-                const dateStr = new Date(d.time * 1000).toISOString().slice(0, 10);
-                if (!dateToTime.has(dateStr)) dateToTime.set(dateStr, d.time);
-            }
-
-            // 3. Build LW markers array
+            // 3. Map each event to nearest candle
             const markers = [];
-            const today = new Date().toISOString().slice(0, 10);
-            for (const [date, info] of markerMap) {
-                const time = dateToTime.get(date);
-                if (!time) continue; // no matching candle for this date
+            for (const ev of allEvents) {
+                if (!ev.timestamp) continue;
+                const evUnix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
 
-                const isPast = date < today;
+                const candleTime = findClosestCandle(candleTimes, evUnix);
+                if (candleTime === null) continue;
+
+                const isDelegate = ev.type === 'delegate';
+                const isPending = ev.type === 'pending_undelegate';
+
                 markers.push({
-                    time: time,
-                    position: 'aboveBar',
-                    color: isPast ? '#ef4444' : '#f59e0b',
-                    shape: 'arrowDown',
-                    text: formatAmount(Math.round(info.atom)) + ' ATOM',
+                    time: candleTime,
+                    position: isDelegate ? 'belowBar' : 'aboveBar',
+                    color: isDelegate ? '#22c55e' : (isPending ? '#f59e0b' : '#ef4444'),
+                    shape: isDelegate ? 'arrowUp' : 'arrowDown',
+                    text: formatAmount(ev.atom) + ' ATOM',
                 });
             }
 
-            // 4. Sort by time ascending (required by LW)
+            // 4. Sort ascending (LW requirement) & handle same-candle collisions
             markers.sort((a, b) => a.time - b.time);
 
-            // 5. Apply
-            series.setMarkers(markers);
+            // LW shows only the LAST marker per time — merge collisions
+            const merged = [];
+            for (const m of markers) {
+                const last = merged[merged.length - 1];
+                if (last && last.time === m.time) {
+                    last.text = last.text.split('+')[0].trim() + ' +more';
+                    last.color = '#8b5cf6'; // purple for mixed
+                } else {
+                    merged.push(m);
+                }
+            }
+
+            series.setMarkers(merged);
         }
 
-        async function loadUndelegationHistory() {
+        async function loadWhaleEvents() {
             try {
-                const res = await fetch('./data/undelegation-history.json?t=' + Date.now(), { cache: 'no-store' });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                undelegationHistory = await res.json();
-                applyUndelegationMarkers();
-                console.log(`✅ Undelegation history loaded: ${undelegationHistory.daily_totals?.length || 0} dates`);
+                const [evRes, pendRes] = await Promise.allSettled([
+                    fetch('./data/whale-events.json?t=' + Date.now(), { cache: 'no-store' }),
+                    fetch('./data/whale-pending.json?t=' + Date.now(), { cache: 'no-store' })
+                ]);
+                if (evRes.status === 'fulfilled' && evRes.value.ok) whaleEvents = await evRes.value.json();
+                if (pendRes.status === 'fulfilled' && pendRes.value.ok) whalePending = await pendRes.value.json();
+                applyWhaleMarkers();
+                console.log(`🐋 Whale events: ${whaleEvents?.events?.length || 0} historical, ${whalePending?.events?.length || 0} pending`);
             } catch (err) {
-                console.log('ℹ️ Undelegation history not available:', err.message);
+                console.log('ℹ️ Whale events not available:', err.message);
             }
         }
 
@@ -2354,7 +2383,7 @@
                 pendingUndelegations = await res.json();
                 renderUnbondingSummary();
                 renderSellPressureGauge();
-                applyUndelegationMarkers();
+                applyWhaleMarkers();
                 console.log(`✅ Pending undelegations loaded: ${pendingUndelegations.schedule?.length || 0} dates`);
             } catch (err) {
                 console.log('⚠️ Pending undelegations fetch error:', err.message);
@@ -2706,8 +2735,8 @@
 
         // Marker toggle
         document.getElementById('markerToggle').querySelector('input').onchange = function() {
-            showUndelegationMarkers = this.checked;
-            applyUndelegationMarkers();
+            showWhaleMarkers = this.checked;
+            applyWhaleMarkers();
         };
 
         // ========== INIT ==========
@@ -2733,10 +2762,10 @@
             // 5) Fetch live delegation feed from chain
             fetchDelegationFeed();
 
-            // 5.5) Load pending undelegations + flow data + history for chart markers
+            // 5.5) Load pending undelegations + flow data + whale events for chart markers
             loadPendingUndelegations();
             loadUnbondingFlows();
-            loadUndelegationHistory();
+            loadWhaleEvents();
 
             // 6) Load FX rates
             await loadFxRates();
@@ -2756,7 +2785,7 @@
             setInterval(fetchDelegationFeed, 300000);       // Feed every 5min
             setInterval(loadPendingUndelegations, 300000);   // Unbonding every 5min
             setInterval(loadUnbondingFlows, 600000);         // Flows every 10min
-            setInterval(loadUndelegationHistory, 600000);      // History every 10min
+            setInterval(loadWhaleEvents, 600000);      // Whale events every 10min
             
             console.log('✅ Dashboard ready!');
         }

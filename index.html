@@ -138,8 +138,16 @@
             width: 1px;
             background: linear-gradient(180deg, rgba(112, 255, 171, 0.75), rgba(112,255,171,0.14));
         }
+        .whale-connector {
+            position: absolute;
+            height: 1px;
+            background: rgba(112, 255, 171, 0.45);
+        }
         .whale-beam.red {
             background: linear-gradient(180deg, rgba(255, 125, 125, 0.8), rgba(255,125,125,0.16));
+        }
+        .whale-connector.red {
+            background: rgba(255, 125, 125, 0.45);
         }
         .whale-arrow {
             position: absolute;
@@ -2136,13 +2144,17 @@
             if (!eventPoints.length || !chart || currentDataMode !== 'price') return;
 
             const maxCards = window.innerWidth < 700 ? 2 : 4;
-            const lanes = window.innerWidth < 700 ? [16, 66] : [16, 58, 100];
             const cardWidth = window.innerWidth < 700 ? 150 : 180;
             const cardHeight = window.innerWidth < 700 ? 64 : 72;
+            const laneCount = window.innerWidth < 700 ? 2 : 3;
+            const laneStart = 16;
+            const laneStep = cardHeight + 12;
+            const lanes = Array.from({ length: laneCount }, (_, i) => laneStart + i * laneStep);
             const laneGap = 8;
             const sidePad = 8;
+            const layerWidth = layer.clientWidth || layer.parentElement?.clientWidth || 0;
             const xMin = sidePad + cardWidth / 2;
-            const xMax = Math.max(xMin, layer.clientWidth - sidePad - cardWidth / 2);
+            const xMax = Math.max(xMin, layerWidth - sidePad - cardWidth / 2);
             const laneOccupancy = lanes.map(() => []);
 
             const candidates = eventPoints
@@ -2174,7 +2186,7 @@
                 }
                 if (laneIndex >= 0) {
                     laneOccupancy[laneIndex].push({ left, right });
-                    selected.push({ ...c, laneIndex, cardX: clampedX });
+                    selected.push({ ...c, laneIndex, cardX: clampedX, markerX: c.x });
                 }
             }
 
@@ -2185,9 +2197,19 @@
                 const cls = classifyWhaleEvent(event);
                 const red = cls.red;
 
+                // If card is clamped away from marker, draw a short connector at card bottom.
+                if (Math.abs(event.cardX - event.markerX) > 2) {
+                    const connector = document.createElement('div');
+                    connector.className = `whale-connector${red ? ' red' : ''}`;
+                    connector.style.top = `${beamTop}px`;
+                    connector.style.left = `${Math.min(event.cardX, event.markerX)}px`;
+                    connector.style.width = `${Math.abs(event.cardX - event.markerX)}px`;
+                    layer.appendChild(connector);
+                }
+
                 const beam = document.createElement('div');
                 beam.className = `whale-beam${red ? ' red' : ''}`;
-                beam.style.left = `${event.cardX}px`;
+                beam.style.left = `${event.markerX}px`;
                 beam.style.top = `${beamTop}px`;
                 beam.style.height = `${beamHeight}px`;
                 layer.appendChild(beam);

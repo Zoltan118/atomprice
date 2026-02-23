@@ -141,18 +141,18 @@
         .whale-beam.red {
             background: linear-gradient(180deg, rgba(255, 125, 125, 0.8), rgba(255,125,125,0.16));
         }
-        .whale-dot {
+        .whale-arrow {
             position: absolute;
-            transform: translate(-50%, -50%);
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: #48f39b;
-            box-shadow: 0 0 12px rgba(72,243,155,0.7);
+            transform: translate(-50%, -62%);
+            font-size: 16px;
+            line-height: 1;
+            font-weight: 700;
+            color: #48f39b;
+            text-shadow: 0 0 10px rgba(72,243,155,0.75);
         }
-        .whale-dot.red {
-            background: #ff7f7f;
-            box-shadow: 0 0 12px rgba(255,127,127,0.7);
+        .whale-arrow.red {
+            color: #ff7f7f;
+            text-shadow: 0 0 10px rgba(255,127,127,0.75);
         }
         .chart-tooltip { 
             position: absolute; 
@@ -2104,11 +2104,12 @@
                 beam.style.height = `${beamHeight}px`;
                 layer.appendChild(beam);
 
-                const dot = document.createElement('div');
-                dot.className = `whale-dot${red ? ' red' : ''}`;
-                dot.style.left = `${event.x}px`;
-                dot.style.top = `${event.y}px`;
-                layer.appendChild(dot);
+                const arrow = document.createElement('div');
+                arrow.className = `whale-arrow${red ? ' red' : ''}`;
+                arrow.style.left = `${event.x}px`;
+                arrow.style.top = `${event.y}px`;
+                arrow.textContent = red ? '↓' : '↑';
+                layer.appendChild(arrow);
 
                 const card = document.createElement('div');
                 card.className = `whale-card${red ? ' red' : ''}`;
@@ -2169,7 +2170,7 @@
                     position: cls.position,
                     color: cls.color,
                     shape: cls.shape,
-                    text: `${formatCompactAmount(ev.atom)} ATOM`
+                    text: ''
                 };
             });
 

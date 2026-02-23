@@ -202,6 +202,23 @@
         .feed-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .feed-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
         .feed-status { font-size: 10px; color: #333; letter-spacing: 0.5px; }
+        .feed-filter-row { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
+        .feed-filter-row::-webkit-scrollbar { display: none; }
+        .feed-filter-btn {
+            border: 1px solid #1f1f1f;
+            background: #0a0a0a;
+            color: #666;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 10px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .feed-filter-btn:hover { color: #9a9a9a; border-color: #303030; }
+        .feed-filter-btn.active { color: #fff; border-color: #3a3a3a; background: #121212; }
         .feed-container {
             max-height: 420px;
             overflow-y: auto;
@@ -697,6 +714,13 @@
                 <div class="feed-label">delegation feed</div>
                 <div class="feed-status" id="feedStatus">loading...</div>
             </div>
+            <div class="feed-filter-row" id="feedFilterRow">
+                <button class="feed-filter-btn active" data-feed-filter="all">All</button>
+                <button class="feed-filter-btn" data-feed-filter="1k_10k">1K-10K</button>
+                <button class="feed-filter-btn" data-feed-filter="10k_100k">10K-100K</button>
+                <button class="feed-filter-btn" data-feed-filter="100k_1m">100K-1M</button>
+                <button class="feed-filter-btn" data-feed-filter="1m_plus">1M+</button>
+            </div>
             <div class="feed-container" id="feedContainer">
                 <div class="feed-empty">Loading delegation feed...</div>
             </div>
@@ -824,6 +848,7 @@
         const CACHE_KEY = 'atomprice_cache_v5';
         const CACHE_TTL_MS = 172800000;  // 48 hours
         const WHALE_MARKER_ENABLED_KEY = 'atomprice_whale_markers_enabled_v1';
+        const FEED_FILTER_KEY = 'atomprice_feed_filter_v1';
         const WHALE_MARKER_MIN = 250000;
 
         // ========== STATE ==========
@@ -858,6 +883,7 @@
         let topDelegations = null;         // top delegation events from top-delegations.json
         let showWhaleMarkers = true;       // toggle state for whale event markers
         let whaleTooltipLocked = false;    // when true, arrow hover/click tooltip is active
+        let currentFeedFilter = 'all';
 
         // Whale watch state
         let whaleCycleTimer = null;
@@ -1451,10 +1477,6 @@ function showWhaleEventTooltip(eventPoint, x, y) {
 
                 renderFeed();
 
-                const dCount = feedItems.filter(i => i.type === 'delegate').length;
-                const uCount = feedItems.filter(i => i.type === 'undelegate').length;
-                if (statusEl) statusEl.textContent = `${dCount} delegates · ${uCount} undelegates`;
-
                 saveCache();
                 console.log(`✅ Feed loaded: ${feedItems.length} items`);
             } catch (err) {
@@ -1462,6 +1484,33 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                 if (statusEl) statusEl.textContent = feedItems.length ? `${feedItems.length} cached` : 'offline';
                 if (feedItems.length) renderFeed();
             }
+        }
+
+        function matchesFeedFilter(amount) {
+            if (currentFeedFilter === '1k_10k') return amount >= 1_000 && amount < 10_000;
+            if (currentFeedFilter === '10k_100k') return amount >= 10_000 && amount < 100_000;
+            if (currentFeedFilter === '100k_1m') return amount >= 100_000 && amount < 1_000_000;
+            if (currentFeedFilter === '1m_plus') return amount >= 1_000_000;
+            return true;
+        }
+
+        function setupFeedFilterControls() {
+            const row = document.getElementById('feedFilterRow');
+            if (!row) return;
+            const saved = localStorage.getItem(FEED_FILTER_KEY);
+            if (saved && ['all','1k_10k','10k_100k','100k_1m','1m_plus'].includes(saved)) {
+                currentFeedFilter = saved;
+            }
+
+            row.querySelectorAll('.feed-filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.feedFilter === currentFeedFilter);
+                btn.onclick = () => {
+                    currentFeedFilter = btn.dataset.feedFilter || 'all';
+                    localStorage.setItem(FEED_FILTER_KEY, currentFeedFilter);
+                    row.querySelectorAll('.feed-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+                    renderFeed();
+                };
+            });
         }
 
         function renderFeed() {
@@ -1475,12 +1524,23 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                 return;
             }
 
+            const filteredFeed = feedItems.filter(item => matchesFeedFilter(item.amount));
             setVisible(section, true);
+
+            const statusEl = document.getElementById('feedStatus');
+            if (statusEl) {
+                statusEl.textContent = `${filteredFeed.length} shown · ${feedItems.length} total`;
+            }
+
+            if (!filteredFeed.length) {
+                container.innerHTML = '<div class="feed-empty">No entries in this range</div>';
+                return;
+            }
 
             const icons = { delegate: '↑', undelegate: '↓', redelegate: '↔' };
             const labels = { delegate: 'delegated', undelegate: 'undelegated', redelegate: 'redelegated' };
 
-            container.innerHTML = feedItems.map(item => {
+            container.innerHTML = filteredFeed.map(item => {
                 const icon = icons[item.type] || '·';
                 const label = labels[item.type] || item.type;
                 const valName = item.validator || (item.validatorAddr ? item.validatorAddr.slice(0, 16) + '…' : '');
@@ -3009,6 +3069,7 @@ function applyWhaleMarkers() {
             // 1) Restore from cache first
             const hadCache = restoreFromCache();
             restorePriceCache();
+            setupFeedFilterControls();
 
             // 2) Initialize chart
             initChart();

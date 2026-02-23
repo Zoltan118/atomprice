@@ -103,11 +103,57 @@
         .time-btn:hover:not(.disabled) { color: #888; }
         .time-btn.active { color: #fff; background: #1a1a1a; }
         .time-btn.disabled { opacity: 0.3; cursor: not-allowed; }
-        .marker-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #555; cursor: pointer; user-select: none; white-space: nowrap; }
+        .marker-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #555; user-select: none; white-space: nowrap; }
         .marker-toggle input { accent-color: #8b5cf6; width: 12px; height: 12px; cursor: pointer; margin: 0; }
         .marker-toggle:hover { color: #888; }
         .chart-area { height: 280px; margin-bottom: 32px; position: relative; }
         #chartContainer { width: 100%; height: 100%; }
+        .chart-event-cards-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 8;
+        }
+        .whale-card {
+            position: absolute;
+            transform: translateX(-50%);
+            min-width: 128px;
+            max-width: 180px;
+            border: 1px solid rgba(115, 255, 162, 0.34);
+            background: rgba(13, 25, 18, 0.90);
+            border-radius: 10px;
+            padding: 8px 10px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+        }
+        .whale-card.red {
+            border-color: rgba(255, 129, 129, 0.34);
+            background: rgba(26, 13, 13, 0.9);
+        }
+        .whale-card-title { font-size: 11px; color: #d1f6de; margin-bottom: 2px; }
+        .whale-card.red .whale-card-title { color: #ffd3d3; }
+        .whale-card-meta { font-size: 11px; color: #8cb49b; }
+        .whale-card.red .whale-card-meta { color: #c29f9f; }
+        .whale-beam {
+            position: absolute;
+            width: 1px;
+            background: linear-gradient(180deg, rgba(112, 255, 171, 0.75), rgba(112,255,171,0.14));
+        }
+        .whale-beam.red {
+            background: linear-gradient(180deg, rgba(255, 125, 125, 0.8), rgba(255,125,125,0.16));
+        }
+        .whale-dot {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #48f39b;
+            box-shadow: 0 0 12px rgba(72,243,155,0.7);
+        }
+        .whale-dot.red {
+            background: #ff7f7f;
+            box-shadow: 0 0 12px rgba(255,127,127,0.7);
+        }
         .chart-tooltip { 
             position: absolute; 
             pointer-events: none; 
@@ -583,9 +629,10 @@
                 </div>
             </div>
             <div style="display: flex; gap: 12px; align-items: center;">
-                <label class="marker-toggle" id="markerToggle">
-                    <input type="checkbox" checked> Whale events
-                </label>
+                <div class="marker-toggle" id="markerToggle">
+                    <input id="markerToggleInput" type="checkbox" checked>
+                    <span>Whale events</span>
+                </div>
                 <div class="chart-type-toggle">
                     <button class="chart-type-btn active" data-type="line">
                         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><polyline points="3 17 9 11 13 15 21 7"></polyline></svg>
@@ -609,6 +656,7 @@
         </div>
         <div class="chart-area">
             <div id="chartContainer"></div>
+            <div id="chartEventCardsLayer" class="chart-event-cards-layer"></div>
             <div class="chart-tooltip" id="chartTooltip">
                 <div class="tooltip-time" id="tooltipTime"></div>
                 <div class="tooltip-price" id="tooltipPrice"></div>
@@ -767,6 +815,8 @@
         const WHALE_CYCLE_MS = 5000;  // Cycle whale watch every 5 seconds
         const CACHE_KEY = 'atomprice_cache_v5';
         const CACHE_TTL_MS = 172800000;  // 48 hours
+        const WHALE_MARKER_ENABLED_KEY = 'atomprice_whale_markers_enabled_v1';
+        const WHALE_MARKER_MIN = 100000;
 
         // ========== STATE ==========
         let whaleDelegations = [];
@@ -833,6 +883,12 @@
             return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
+        function formatCompactAmount(n) {
+            if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+            if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+            return Math.round(n).toLocaleString();
+        }
+
         function formatNumber(n, d) {
             return d === 0 ? Math.round(n).toLocaleString() : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
         }
@@ -863,6 +919,11 @@
             const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
             if (!el) return;
             el.style.display = visible ? '' : 'none';
+        }
+
+        function clearWhaleEventCards() {
+            const layer = document.getElementById('chartEventCardsLayer');
+            if (layer) layer.innerHTML = '';
         }
 
         // ========== CACHE ==========
@@ -1816,17 +1877,24 @@
                 if (showWhaleMarkers && p.time) {
                     const candleTime = p.time;
                     const interval = getCurrentIntervalSeconds();
-                    const allEv = [...(whaleEvents?.events || []), ...(whalePending?.events || [])];
-                    const matches = allEv.filter(ev => {
-                        if (!ev.timestamp) return false;
-                        const evUnix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
-                        return Math.abs(evUnix - candleTime) <= interval;
-                    });
-                    for (const ev of matches) {
-                        const color = ev.type === 'delegate' ? '#22c55e' : '#ef4444';
-                        const label = ev.type === 'delegate' ? 'Staked' : (ev.type === 'pending_undelegate' ? 'Unstaking' : 'Unstaked');
-                        const evTime = new Date(ev.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        whaleInfo += `<div style="font-size:11px;color:${color};margin-top:2px">${label}: ${formatAmount(ev.atom)} ATOM (${evTime})</div>`;
+                    const matches = getFilteredWhaleEvents().filter(ev => Math.abs(ev.unix - candleTime) <= interval);
+
+                    if (matches.length) {
+                        const totalAtom = matches.reduce((sum, ev) => sum + ev.atom, 0);
+                        const exits = matches.filter(ev => ev.type !== 'delegate');
+                        const inflows = matches.filter(ev => ev.type === 'delegate');
+                        const top = matches.slice().sort((a, b) => b.atom - a.atom)[0];
+                        const topTime = new Date(top.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+                        whaleInfo = `
+                            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a2a">
+                                <div style="font-size:11px;color:#b0b0b0;text-transform:uppercase;letter-spacing:0.5px;">Whale Events (${matches.length})</div>
+                                <div style="font-size:12px;color:#fff;margin-top:2px;">Total: ${formatAmount(totalAtom)} ATOM</div>
+                                <div style="font-size:11px;color:#22c55e;margin-top:2px;">Inflow: ${formatAmount(inflows.reduce((s, ev) => s + ev.atom, 0))} ATOM</div>
+                                <div style="font-size:11px;color:#ef4444;margin-top:1px;">Exit: ${formatAmount(exits.reduce((s, ev) => s + ev.atom, 0))} ATOM</div>
+                                <div style="font-size:11px;color:#888;margin-top:2px;">Largest: ${formatAmount(top.atom)} ATOM (${topTime})</div>
+                            </div>
+                        `;
                     }
                 }
 
@@ -1857,7 +1925,11 @@
                 tooltip.style.opacity = '1';
             });
             
-            window.addEventListener('resize', () => chart.applyOptions({ width: container.clientWidth }));
+            window.addEventListener('resize', () => {
+                if (!chart) return;
+                chart.applyOptions({ width: container.clientWidth });
+                applyWhaleMarkers();
+            });
         }
 
         function createSeries() {
@@ -1963,58 +2035,147 @@
             return sorted[best];
         }
 
-        function applyWhaleMarkers() {
-            if (!series || !chartData.length || currentDataMode !== 'price') return;
-            if (!showWhaleMarkers) { series.setMarkers([]); return; }
-
-            // 1. Merge all events from both sources
-            const allEvents = [
+        function getAllWhaleEvents() {
+            return [
                 ...(whaleEvents?.events || []),
                 ...(whalePending?.events || [])
-            ];
-            if (!allEvents.length) { series.setMarkers([]); return; }
+            ].map(ev => ({
+                ...ev,
+                atom: Number(ev.atom || 0),
+                unix: ev.timestamp ? Math.floor(new Date(ev.timestamp).getTime() / 1000) : null
+            })).filter(ev => ev.unix && ev.atom > 0);
+        }
 
-            // 2. Build sorted candle times array for binary search
-            const candleTimes = chartData.map(d => d.time).sort((a, b) => a - b);
-            if (!candleTimes.length) return;
+        function getFilteredWhaleEvents() {
+            if (!showWhaleMarkers) return [];
+            return getAllWhaleEvents().filter(ev => ev.atom >= WHALE_MARKER_MIN);
+        }
 
-            // 3. Map each event to nearest candle
-            const markers = [];
-            for (const ev of allEvents) {
-                if (!ev.timestamp) continue;
-                const evUnix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
-
-                const candleTime = findClosestCandle(candleTimes, evUnix);
-                if (candleTime === null) continue;
-
-                const isDelegate = ev.type === 'delegate';
-                const isPending = ev.type === 'pending_undelegate';
-
-                markers.push({
-                    time: candleTime,
-                    position: isDelegate ? 'belowBar' : 'aboveBar',
-                    color: isDelegate ? '#22c55e' : (isPending ? '#f59e0b' : '#ef4444'),
-                    shape: isDelegate ? 'arrowUp' : 'arrowDown',
-                    text: formatAmount(ev.atom) + ' ATOM',
-                });
+        function classifyWhaleEvent(ev) {
+            if (ev.type === 'delegate') {
+                return { red: false, label: 'Whale Stake' };
             }
+            if (ev.type === 'pending_undelegate') {
+                return { red: true, label: 'Pending Unstake' };
+            }
+            return { red: true, label: 'Whale Unstake' };
+        }
 
-            // 4. Sort ascending (LW requirement) & handle same-candle collisions
-            markers.sort((a, b) => a.time - b.time);
+        function renderWhaleEventCards(groups) {
+            const layer = document.getElementById('chartEventCardsLayer');
+            if (!layer) return;
+            layer.innerHTML = '';
+            if (!groups.length || !chart || currentDataMode !== 'price') return;
 
-            // LW shows only the LAST marker per time — merge collisions
-            const merged = [];
-            for (const m of markers) {
-                const last = merged[merged.length - 1];
-                if (last && last.time === m.time) {
-                    last.text = last.text.split('+')[0].trim() + ' +more';
-                    last.color = '#8b5cf6'; // purple for mixed
-                } else {
-                    merged.push(m);
+            const maxCards = window.innerWidth < 700 ? 2 : 4;
+            const minSpacing = window.innerWidth < 700 ? 120 : 90;
+
+            const candidates = groups
+                .map(group => {
+                    const x = chart.timeScale().timeToCoordinate(group.time);
+                    const markerPrice = chartType === 'line' ? group.representativeValue : group.representativeClose;
+                    const y = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
+                    return { ...group, x, y };
+                })
+                .filter(c => Number.isFinite(c.x) && Number.isFinite(c.y))
+                .sort((a, b) => b.totalAtom - a.totalAtom);
+
+            const selected = [];
+            for (const c of candidates) {
+                if (selected.length >= maxCards) break;
+                if (selected.every(s => Math.abs(s.x - c.x) >= minSpacing)) {
+                    selected.push(c);
                 }
             }
 
-            series.setMarkers(merged);
+            const lanes = window.innerWidth < 700 ? [16, 66] : [16, 58, 100];
+            selected.sort((a, b) => a.x - b.x).forEach((group, idx) => {
+                const top = lanes[idx % lanes.length];
+                const beamTop = top + 42;
+                const beamHeight = Math.max(24, group.y - beamTop);
+                const red = group.hasExitFlow;
+
+                const beam = document.createElement('div');
+                beam.className = `whale-beam${red ? ' red' : ''}`;
+                beam.style.left = `${group.x}px`;
+                beam.style.top = `${beamTop}px`;
+                beam.style.height = `${beamHeight}px`;
+                layer.appendChild(beam);
+
+                const dot = document.createElement('div');
+                dot.className = `whale-dot${red ? ' red' : ''}`;
+                dot.style.left = `${group.x}px`;
+                dot.style.top = `${group.y}px`;
+                layer.appendChild(dot);
+
+                const card = document.createElement('div');
+                card.className = `whale-card${red ? ' red' : ''}`;
+                card.style.left = `${group.x}px`;
+                card.style.top = `${top}px`;
+                card.innerHTML = `
+                    <div class="whale-card-title">${red ? 'Whale Exit Flow' : 'Whale Inflow'}</div>
+                    <div class="whale-card-meta">${formatCompactAmount(group.totalAtom)} ATOM · ${group.count} event${group.count > 1 ? 's' : ''}</div>
+                `;
+                layer.appendChild(card);
+            });
+        }
+
+        function applyWhaleMarkers() {
+            if (!series || !chartData.length || currentDataMode !== 'price') {
+                clearWhaleEventCards();
+                return;
+            }
+            if (!showWhaleMarkers) {
+                series.setMarkers([]);
+                clearWhaleEventCards();
+                return;
+            }
+
+            const filteredEvents = getFilteredWhaleEvents();
+            if (!filteredEvents.length) {
+                series.setMarkers([]);
+                clearWhaleEventCards();
+                return;
+            }
+
+            const candleTimes = chartData.map(d => d.time).sort((a, b) => a - b);
+            if (!candleTimes.length) return;
+
+            const byCandle = new Map();
+            for (const ev of filteredEvents) {
+                const candleTime = findClosestCandle(candleTimes, ev.unix);
+                if (candleTime === null) continue;
+                const row = chartData.find(d => d.time === candleTime);
+                if (!row) continue;
+                const bucket = byCandle.get(candleTime);
+                const cls = classifyWhaleEvent(ev);
+                if (bucket) {
+                    bucket.totalAtom += ev.atom;
+                    bucket.count += 1;
+                    bucket.hasExitFlow = bucket.hasExitFlow || cls.red;
+                } else {
+                    byCandle.set(candleTime, {
+                        time: candleTime,
+                        totalAtom: ev.atom,
+                        count: 1,
+                        hasExitFlow: cls.red,
+                        representativeValue: row.value * getConversionRate(),
+                        representativeClose: row.close * getConversionRate()
+                    });
+                }
+            }
+
+            const groups = Array.from(byCandle.values()).sort((a, b) => a.time - b.time);
+            const markers = groups.map(g => ({
+                time: g.time,
+                position: g.hasExitFlow ? 'aboveBar' : 'belowBar',
+                color: g.hasExitFlow ? '#ef4444' : '#22c55e',
+                shape: g.hasExitFlow ? 'arrowDown' : 'arrowUp',
+                text: `${formatCompactAmount(g.totalAtom)} ATOM${g.count > 1 ? ` • ${g.count}x` : ''}`
+            }));
+
+            series.setMarkers(markers);
+            renderWhaleEventCards(groups);
         }
 
         async function loadWhaleEvents() {
@@ -2151,6 +2312,7 @@
                         fetchChart(15, 96); // Default to 1D
                     }
                 } else {
+                    clearWhaleEventCards();
                     
                     // For staking/APR modes, set ALL as default
                     if (currentTimeframe === '1h' || currentTimeframe === '1d') {
@@ -2247,6 +2409,7 @@
 
         function showHistoricalChart(mode, submode = null) {
             const container = document.getElementById('chartContainer');
+            clearWhaleEventCards();
 
             if (chart) {
                 chart.remove();
@@ -2440,6 +2603,7 @@
 
         function showUnbondingChart() {
             const container = document.getElementById('chartContainer');
+            clearWhaleEventCards();
 
             if (chart) {
                 chart.remove();
@@ -2734,14 +2898,27 @@
         };
 
         // Marker toggle
-        document.getElementById('markerToggle').querySelector('input').onchange = function() {
-            showWhaleMarkers = this.checked;
-            applyWhaleMarkers();
-        };
+        const markerToggleInputEl = document.getElementById('markerToggleInput');
+        if (markerToggleInputEl) {
+            markerToggleInputEl.onchange = function() {
+                showWhaleMarkers = this.checked;
+                localStorage.setItem(WHALE_MARKER_ENABLED_KEY, String(showWhaleMarkers));
+                applyWhaleMarkers();
+            };
+        }
 
         // ========== INIT ==========
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
+
+            // Restore whale marker toggle setting
+            const savedWhaleEnabled = localStorage.getItem(WHALE_MARKER_ENABLED_KEY);
+            if (savedWhaleEnabled !== null) {
+                showWhaleMarkers = savedWhaleEnabled === 'true';
+            }
+            if (markerToggleInputEl) {
+                markerToggleInputEl.checked = showWhaleMarkers;
+            }
 
             // 1) Restore from cache first
             const hadCache = restoreFromCache();

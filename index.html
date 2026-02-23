@@ -1872,7 +1872,7 @@
                     timeText = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                 }
 
-                // Check for whale events near this candle (single factual event only)
+                // Check for whale events near this candle (factual list, no speculation)
                 let whaleInfo = '';
                 if (showWhaleMarkers && p.time) {
                     const candleTime = p.time;
@@ -1880,18 +1880,20 @@
                     const matches = getFilteredWhaleEvents().filter(ev => Math.abs(ev.unix - candleTime) <= interval);
 
                     if (matches.length) {
-                        const top = matches.slice().sort((a, b) => b.atom - a.atom)[0];
-                        const label = top.type === 'delegate'
-                            ? 'Delegation'
-                            : (top.type === 'pending_undelegate' ? 'Pending undelegation' : 'Undelegation');
-                        const color = top.type === 'delegate' ? '#22c55e' : '#ef4444';
-                        const topTime = new Date(top.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        const sorted = matches.slice().sort((a, b) => b.atom - a.atom);
+                        const shown = sorted.slice(0, 4);
+                        const moreCount = Math.max(0, sorted.length - shown.length);
+                        const lines = shown.map(ev => {
+                            const cls = classifyWhaleEvent(ev);
+                            const evTime = new Date(ev.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            return `<div style="font-size:11px;color:${cls.color};margin-top:2px">${cls.label}: ${formatAmount(ev.atom)} ATOM <span style="color:#888">(${evTime})</span></div>`;
+                        }).join('');
 
                         whaleInfo = `
                             <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a2a">
-                                <div style="font-size:11px;color:#b0b0b0;text-transform:uppercase;letter-spacing:0.5px;">Whale event</div>
-                                <div style="font-size:12px;color:${color};margin-top:2px;">${label}: ${formatAmount(top.atom)} ATOM</div>
-                                <div style="font-size:11px;color:#888;margin-top:2px;">${topTime}</div>
+                                <div style="font-size:11px;color:#b0b0b0;text-transform:uppercase;letter-spacing:0.5px;">Whale events (${matches.length})</div>
+                                ${lines}
+                                ${moreCount ? `<div style="font-size:11px;color:#888;margin-top:3px;">+${moreCount} more</div>` : ''}
                             </div>
                         `;
                     }

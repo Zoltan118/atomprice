@@ -13,6 +13,7 @@
 //
 // Env (optional):
 //   RPC_BASE        default: https://rpc.silknodes.io/cosmos
+//   REST_BASE       default: https://rest.cosmos.directory/cosmoshub
 //   WINDOW_HOURS    default: 48 (changed from 24)
 //   MIN_ATOM        default: 1
 //   LIMIT_PAGES     default: 5 (increased for 48h window)
@@ -29,6 +30,7 @@ import fs from "node:fs/promises";
 const OUT_FILE = "data/delegations_24h.json";  // Keep filename for compatibility
 
 const RPC_BASE = (process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos").replace(/\/+$/, "");
+const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
 const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? "48");  // Changed to 48 hours
 const MIN_ATOM = Number(process.env.MIN_ATOM ?? "1");
 
@@ -151,6 +153,38 @@ function sortByNewest(items) {
   });
 }
 
+async function fetchTimestampByTxhash(txhash) {
+  if (!txhash) return null;
+  try {
+    const j = await fetchJson(`${REST_BASE}/cosmos/tx/v1beta1/txs/${txhash}`);
+    const ts = j?.tx_response?.timestamp || j?.timestamp || null;
+    if (!ts) return null;
+    const ms = Date.parse(ts);
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function backfillMissingTimestamps(items) {
+  const out = items.map(normalizeItem);
+  const missing = out.filter((it) => !it.timestamp && it.txhash);
+  if (!missing.length) return out;
+
+  console.log(`⏱️  Backfilling ${missing.length} missing timestamps from tx hashes...`);
+  let filled = 0;
+  for (const it of missing) {
+    const ts = await fetchTimestampByTxhash(it.txhash);
+    if (ts) {
+      it.timestamp = ts;
+      filled++;
+    }
+    await sleep(120);
+  }
+  console.log(`  ✅ Backfilled ${filled}/${missing.length} timestamps`);
+  return out;
+}
+
 async function fetchRecentDelegations() {
   const status = await fetchJson(`${RPC_BASE}/status`);
   const latestTime = status?.result?.sync_info?.latest_block_time;
@@ -268,6 +302,7 @@ async function main() {
       (it) => it.amount_atom >= WHALE_MIN,
       WHALES_KEEP
     );
+    const whales_top_with_timestamps = await backfillMissingTimestamps(whales_top);
 
     const mids_top = mergeTopByAmount(
       prevMids,
@@ -276,7 +311,7 @@ async function main() {
       MIDS_KEEP
     );
 
-    const ticker = buildTicker(freshItems, whales_top, mids_top);
+    const ticker = buildTicker(freshItems, whales_top_with_timestamps, mids_top);
 
     const out = {
       generated_at: new Date().toISOString(),
@@ -289,7 +324,7 @@ async function main() {
       },
 
       // Persistent leaderboards
-      whales_top,
+      whales_top: whales_top_with_timestamps,
       mids_top,
 
       // Fresh feeds for UI
@@ -321,14 +356,14 @@ async function main() {
         {
           updated_at: new Date().toISOString(),
           threshold_atom: WHALE_MIN,
-          delegations: whales_top || []
+          delegations: whales_top_with_timestamps || []
         },
         null,
         2
       )
     );
 
-    console.log(`✅ Wrote snapshot: whales=${whales_top.length}, mids=${mids_top.length}, ticker=${ticker.length}, fresh=${freshItems.length}`);
+    console.log(`✅ Wrote snapshot: whales=${whales_top_with_timestamps.length}, mids=${mids_top.length}, ticker=${ticker.length}, fresh=${freshItems.length}`);
   } catch (e) {
     // Preserve previous top lists even on failure
     const out = {

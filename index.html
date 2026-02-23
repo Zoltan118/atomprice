@@ -816,7 +816,7 @@
         const CACHE_KEY = 'atomprice_cache_v5';
         const CACHE_TTL_MS = 172800000;  // 48 hours
         const WHALE_MARKER_ENABLED_KEY = 'atomprice_whale_markers_enabled_v1';
-        const WHALE_MARKER_MIN = 100000;
+        const WHALE_MARKER_MIN = 250000;
 
         // ========== STATE ==========
         let whaleDelegations = [];
@@ -1872,7 +1872,7 @@
                     timeText = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                 }
 
-                // Check for whale events near this candle
+                // Check for whale events near this candle (single factual event only)
                 let whaleInfo = '';
                 if (showWhaleMarkers && p.time) {
                     const candleTime = p.time;
@@ -1880,19 +1880,18 @@
                     const matches = getFilteredWhaleEvents().filter(ev => Math.abs(ev.unix - candleTime) <= interval);
 
                     if (matches.length) {
-                        const totalAtom = matches.reduce((sum, ev) => sum + ev.atom, 0);
-                        const exits = matches.filter(ev => ev.type !== 'delegate');
-                        const inflows = matches.filter(ev => ev.type === 'delegate');
                         const top = matches.slice().sort((a, b) => b.atom - a.atom)[0];
+                        const label = top.type === 'delegate'
+                            ? 'Delegation'
+                            : (top.type === 'pending_undelegate' ? 'Pending undelegation' : 'Undelegation');
+                        const color = top.type === 'delegate' ? '#22c55e' : '#ef4444';
                         const topTime = new Date(top.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
                         whaleInfo = `
                             <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a2a">
-                                <div style="font-size:11px;color:#b0b0b0;text-transform:uppercase;letter-spacing:0.5px;">Whale Events (${matches.length})</div>
-                                <div style="font-size:12px;color:#fff;margin-top:2px;">Total: ${formatAmount(totalAtom)} ATOM</div>
-                                <div style="font-size:11px;color:#22c55e;margin-top:2px;">Inflow: ${formatAmount(inflows.reduce((s, ev) => s + ev.atom, 0))} ATOM</div>
-                                <div style="font-size:11px;color:#ef4444;margin-top:1px;">Exit: ${formatAmount(exits.reduce((s, ev) => s + ev.atom, 0))} ATOM</div>
-                                <div style="font-size:11px;color:#888;margin-top:2px;">Largest: ${formatAmount(top.atom)} ATOM (${topTime})</div>
+                                <div style="font-size:11px;color:#b0b0b0;text-transform:uppercase;letter-spacing:0.5px;">Whale event</div>
+                                <div style="font-size:12px;color:${color};margin-top:2px;">${label}: ${formatAmount(top.atom)} ATOM</div>
+                                <div style="font-size:11px;color:#888;margin-top:2px;">${topTime}</div>
                             </div>
                         `;
                     }
@@ -2053,32 +2052,32 @@
 
         function classifyWhaleEvent(ev) {
             if (ev.type === 'delegate') {
-                return { red: false, label: 'Whale Stake' };
+                return { red: false, label: 'Delegation', color: '#22c55e', shape: 'arrowUp', position: 'belowBar' };
             }
             if (ev.type === 'pending_undelegate') {
-                return { red: true, label: 'Pending Unstake' };
+                return { red: true, label: 'Pending undelegation', color: '#ef4444', shape: 'arrowDown', position: 'aboveBar' };
             }
-            return { red: true, label: 'Whale Unstake' };
+            return { red: true, label: 'Undelegation', color: '#ef4444', shape: 'arrowDown', position: 'aboveBar' };
         }
 
-        function renderWhaleEventCards(groups) {
+        function renderWhaleEventCards(eventPoints) {
             const layer = document.getElementById('chartEventCardsLayer');
             if (!layer) return;
             layer.innerHTML = '';
-            if (!groups.length || !chart || currentDataMode !== 'price') return;
+            if (!eventPoints.length || !chart || currentDataMode !== 'price') return;
 
             const maxCards = window.innerWidth < 700 ? 2 : 4;
             const minSpacing = window.innerWidth < 700 ? 120 : 90;
 
-            const candidates = groups
-                .map(group => {
-                    const x = chart.timeScale().timeToCoordinate(group.time);
-                    const markerPrice = chartType === 'line' ? group.representativeValue : group.representativeClose;
+            const candidates = eventPoints
+                .map(event => {
+                    const x = chart.timeScale().timeToCoordinate(event.candleTime);
+                    const markerPrice = chartType === 'line' ? event.representativeValue : event.representativeClose;
                     const y = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
-                    return { ...group, x, y };
+                    return { ...event, x, y };
                 })
                 .filter(c => Number.isFinite(c.x) && Number.isFinite(c.y))
-                .sort((a, b) => b.totalAtom - a.totalAtom);
+                .sort((a, b) => b.atom - a.atom);
 
             const selected = [];
             for (const c of candidates) {
@@ -2089,32 +2088,33 @@
             }
 
             const lanes = window.innerWidth < 700 ? [16, 66] : [16, 58, 100];
-            selected.sort((a, b) => a.x - b.x).forEach((group, idx) => {
+            selected.sort((a, b) => a.x - b.x).forEach((event, idx) => {
                 const top = lanes[idx % lanes.length];
                 const beamTop = top + 42;
-                const beamHeight = Math.max(24, group.y - beamTop);
-                const red = group.hasExitFlow;
+                const beamHeight = Math.max(24, event.y - beamTop);
+                const cls = classifyWhaleEvent(event);
+                const red = cls.red;
 
                 const beam = document.createElement('div');
                 beam.className = `whale-beam${red ? ' red' : ''}`;
-                beam.style.left = `${group.x}px`;
+                beam.style.left = `${event.x}px`;
                 beam.style.top = `${beamTop}px`;
                 beam.style.height = `${beamHeight}px`;
                 layer.appendChild(beam);
 
                 const dot = document.createElement('div');
                 dot.className = `whale-dot${red ? ' red' : ''}`;
-                dot.style.left = `${group.x}px`;
-                dot.style.top = `${group.y}px`;
+                dot.style.left = `${event.x}px`;
+                dot.style.top = `${event.y}px`;
                 layer.appendChild(dot);
 
                 const card = document.createElement('div');
                 card.className = `whale-card${red ? ' red' : ''}`;
-                card.style.left = `${group.x}px`;
+                card.style.left = `${event.x}px`;
                 card.style.top = `${top}px`;
                 card.innerHTML = `
-                    <div class="whale-card-title">${red ? 'Whale Exit Flow' : 'Whale Inflow'}</div>
-                    <div class="whale-card-meta">${formatCompactAmount(group.totalAtom)} ATOM · ${group.count} event${group.count > 1 ? 's' : ''}</div>
+                    <div class="whale-card-title">${cls.label}</div>
+                    <div class="whale-card-meta">${formatCompactAmount(event.atom)} ATOM</div>
                 `;
                 layer.appendChild(card);
             });
@@ -2147,35 +2147,32 @@
                 if (candleTime === null) continue;
                 const row = chartData.find(d => d.time === candleTime);
                 if (!row) continue;
-                const bucket = byCandle.get(candleTime);
-                const cls = classifyWhaleEvent(ev);
-                if (bucket) {
-                    bucket.totalAtom += ev.atom;
-                    bucket.count += 1;
-                    bucket.hasExitFlow = bucket.hasExitFlow || cls.red;
-                } else {
+                const existing = byCandle.get(candleTime);
+                // Keep only the largest individual event per candle (no totals)
+                if (!existing || ev.atom > existing.atom) {
                     byCandle.set(candleTime, {
-                        time: candleTime,
-                        totalAtom: ev.atom,
-                        count: 1,
-                        hasExitFlow: cls.red,
+                        ...ev,
+                        candleTime,
                         representativeValue: row.value * getConversionRate(),
                         representativeClose: row.close * getConversionRate()
                     });
                 }
             }
 
-            const groups = Array.from(byCandle.values()).sort((a, b) => a.time - b.time);
-            const markers = groups.map(g => ({
-                time: g.time,
-                position: g.hasExitFlow ? 'aboveBar' : 'belowBar',
-                color: g.hasExitFlow ? '#ef4444' : '#22c55e',
-                shape: g.hasExitFlow ? 'arrowDown' : 'arrowUp',
-                text: `${formatCompactAmount(g.totalAtom)} ATOM${g.count > 1 ? ` • ${g.count}x` : ''}`
-            }));
+            const eventPoints = Array.from(byCandle.values()).sort((a, b) => a.candleTime - b.candleTime);
+            const markers = eventPoints.map(ev => {
+                const cls = classifyWhaleEvent(ev);
+                return {
+                    time: ev.candleTime,
+                    position: cls.position,
+                    color: cls.color,
+                    shape: cls.shape,
+                    text: `${formatCompactAmount(ev.atom)} ATOM`
+                };
+            });
 
             series.setMarkers(markers);
-            renderWhaleEventCards(groups);
+            renderWhaleEventCards(eventPoints);
         }
 
         async function loadWhaleEvents() {

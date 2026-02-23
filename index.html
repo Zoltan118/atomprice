@@ -103,6 +103,9 @@
         .time-btn:hover:not(.disabled) { color: #888; }
         .time-btn.active { color: #fff; background: #1a1a1a; }
         .time-btn.disabled { opacity: 0.3; cursor: not-allowed; }
+        .marker-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #555; cursor: pointer; user-select: none; white-space: nowrap; }
+        .marker-toggle input { accent-color: #ef4444; width: 12px; height: 12px; cursor: pointer; margin: 0; }
+        .marker-toggle:hover { color: #888; }
         .chart-area { height: 280px; margin-bottom: 32px; position: relative; }
         #chartContainer { width: 100%; height: 100%; }
         .chart-tooltip { 
@@ -580,6 +583,9 @@
                 </div>
             </div>
             <div style="display: flex; gap: 12px; align-items: center;">
+                <label class="marker-toggle" id="markerToggle">
+                    <input type="checkbox" checked> Unbonding events
+                </label>
                 <div class="chart-type-toggle">
                     <button class="chart-type-btn active" data-type="line">
                         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><polyline points="3 17 9 11 13 15 21 7"></polyline></svg>
@@ -789,6 +795,8 @@
         // Pending undelegations + flow data
         let pendingUndelegations = null;
         let unbondingFlows = null;
+        let undelegationHistory = null;    // daily_totals from undelegation-history.json
+        let showUndelegationMarkers = true; // toggle state for chart markers
 
         // Whale watch state
         let whaleCycleTimer = null;
@@ -1802,10 +1810,26 @@
                     timeText = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                 }
 
+                // Check for unbonding event on this date
+                let unbondingInfo = '';
+                if (showUndelegationMarkers && p.time) {
+                    const hoverDate = new Date(p.time * 1000).toISOString().slice(0, 10);
+                    const histEntry = undelegationHistory?.daily_totals?.find(d => d.date === hoverDate);
+                    const pendEntry = pendingUndelegations?.schedule?.find(d => d.date === hoverDate);
+                    const entry = pendEntry || histEntry;
+                    if (entry && entry.atom >= 250000) {
+                        unbondingInfo = `<div style="font-size:11px;color:#ef4444;margin-top:3px">${formatAmount(Math.round(entry.atom))} ATOM unbonding</div>`;
+                        if (entry.delegator_count) {
+                            unbondingInfo += `<div style="font-size:10px;color:#666">${entry.delegator_count} delegators</div>`;
+                        }
+                    }
+                }
+
                 // Use innerHTML to avoid conflicts with historical chart tooltip
                 tooltip.innerHTML = `
                     <div class="tooltip-time">${timeText}</div>
                     <div class="tooltip-price">${formatPriceWithDecimals(price, currentCurrency)}</div>
+                    ${unbondingInfo}
                 `;
                 
                 const containerRect = chartContainer.getBoundingClientRect();
@@ -1909,6 +1933,74 @@
                 })));
             }
             chart.timeScale().fitContent();
+            applyUndelegationMarkers();
+        }
+
+        // ========== UNDELEGATION CHART MARKERS ==========
+        function applyUndelegationMarkers() {
+            if (!series || !chartData.length || currentDataMode !== 'price') return;
+            if (!showUndelegationMarkers) { series.setMarkers([]); return; }
+
+            // 1. Merge data sources: historical (undelegationHistory) + upcoming (pendingUndelegations)
+            const markerMap = new Map(); // date string -> {atom, delegators}
+
+            // Historical from undelegation-history.json
+            if (undelegationHistory?.daily_totals) {
+                for (const d of undelegationHistory.daily_totals) {
+                    if (d.atom >= 250000) markerMap.set(d.date, { atom: d.atom, delegators: d.delegator_count });
+                }
+            }
+
+            // Upcoming from pending-undelegations.json (overrides historical if same date)
+            if (pendingUndelegations?.schedule) {
+                for (const d of pendingUndelegations.schedule) {
+                    if (d.atom >= 250000) markerMap.set(d.date, { atom: d.atom, delegators: d.delegator_count });
+                }
+            }
+
+            if (markerMap.size === 0) { series.setMarkers([]); return; }
+
+            // 2. Match marker dates to chart data points
+            const dateToTime = new Map();
+            for (const d of chartData) {
+                const dateStr = new Date(d.time * 1000).toISOString().slice(0, 10);
+                if (!dateToTime.has(dateStr)) dateToTime.set(dateStr, d.time);
+            }
+
+            // 3. Build LW markers array
+            const markers = [];
+            const today = new Date().toISOString().slice(0, 10);
+            for (const [date, info] of markerMap) {
+                const time = dateToTime.get(date);
+                if (!time) continue; // no matching candle for this date
+
+                const isPast = date < today;
+                markers.push({
+                    time: time,
+                    position: 'aboveBar',
+                    color: isPast ? '#ef4444' : '#f59e0b',
+                    shape: 'arrowDown',
+                    text: formatAmount(Math.round(info.atom)) + ' ATOM',
+                });
+            }
+
+            // 4. Sort by time ascending (required by LW)
+            markers.sort((a, b) => a.time - b.time);
+
+            // 5. Apply
+            series.setMarkers(markers);
+        }
+
+        async function loadUndelegationHistory() {
+            try {
+                const res = await fetch('./data/undelegation-history.json?t=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                undelegationHistory = await res.json();
+                applyUndelegationMarkers();
+                console.log(`✅ Undelegation history loaded: ${undelegationHistory.daily_totals?.length || 0} dates`);
+            } catch (err) {
+                console.log('ℹ️ Undelegation history not available:', err.message);
+            }
         }
 
         // ========== EVENT LISTENERS ==========
@@ -2004,6 +2096,10 @@
                 // Handle timeframe and chart type button states
                 const timeButtons = document.querySelectorAll('.time-btn');
                 const chartTypeButtons = document.querySelectorAll('.chart-type-btn');
+
+                // Show/hide marker toggle based on mode
+                const markerToggle = document.getElementById('markerToggle');
+                markerToggle.style.display = mode === 'price' ? 'flex' : 'none';
 
                 if (mode === 'price') {
                     // Enable all timeframes for price mode
@@ -2258,6 +2354,7 @@
                 pendingUndelegations = await res.json();
                 renderUnbondingSummary();
                 renderSellPressureGauge();
+                applyUndelegationMarkers();
                 console.log(`✅ Pending undelegations loaded: ${pendingUndelegations.schedule?.length || 0} dates`);
             } catch (err) {
                 console.log('⚠️ Pending undelegations fetch error:', err.message);
@@ -2607,6 +2704,12 @@
             this.textContent = isOpen ? 'how it works ↑' : 'how it works ↓';
         };
 
+        // Marker toggle
+        document.getElementById('markerToggle').querySelector('input').onchange = function() {
+            showUndelegationMarkers = this.checked;
+            applyUndelegationMarkers();
+        };
+
         // ========== INIT ==========
         async function init() {
             console.log('🚀 Initializing ATOM Dashboard...');
@@ -2630,9 +2733,10 @@
             // 5) Fetch live delegation feed from chain
             fetchDelegationFeed();
 
-            // 5.5) Load pending undelegations + flow data
+            // 5.5) Load pending undelegations + flow data + history for chart markers
             loadPendingUndelegations();
             loadUnbondingFlows();
+            loadUndelegationHistory();
 
             // 6) Load FX rates
             await loadFxRates();
@@ -2652,6 +2756,7 @@
             setInterval(fetchDelegationFeed, 300000);       // Feed every 5min
             setInterval(loadPendingUndelegations, 300000);   // Unbonding every 5min
             setInterval(loadUnbondingFlows, 600000);         // Flows every 10min
+            setInterval(loadUndelegationHistory, 600000);      // History every 10min
             
             console.log('✅ Dashboard ready!');
         }

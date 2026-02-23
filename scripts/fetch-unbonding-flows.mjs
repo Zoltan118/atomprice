@@ -375,17 +375,33 @@ async function main() {
 
   await fs.writeFile(OUT_FILE, JSON.stringify(output, null, 2));
 
-  // Prune archive entries older than 7 days to prevent unbounded growth
+  // Prune archive entries older than 365 days (keep 1 year for historical chart markers)
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 7);
+  cutoff.setDate(cutoff.getDate() - 365);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
   for (const date of Object.keys(archive)) {
     if (date < cutoffStr) delete archive[date];
   }
   await fs.writeFile(ARCHIVE_FILE, JSON.stringify(archive, null, 2));
 
+  // Generate lightweight daily totals for front-end chart markers
+  const HISTORY_FILE = "data/undelegation-history.json";
+  const dailyTotals = Object.entries(archive)
+    .map(([date, delegators]) => ({
+      date,
+      atom: Math.round(delegators.reduce((s, d) => s + d.atom, 0)),
+      delegator_count: new Set(delegators.map(d => d.address)).size,
+    }))
+    .sort((a, b) => (a.date > b.date ? 1 : -1));
+
+  await fs.writeFile(HISTORY_FILE, JSON.stringify({
+    generated_at: new Date().toISOString(),
+    daily_totals: dailyTotals,
+  }, null, 2));
+
   console.log(`\n✅ Unbonding flows saved: ${dailyFlows.length} dates`);
   console.log(`   Archive: ${Object.keys(archive).length} dates kept (pruned < ${cutoffStr})`);
+  console.log(`   History: ${dailyTotals.length} daily totals → ${HISTORY_FILE}`);
   console.log(`   Output: ${OUT_FILE}`);
 }
 

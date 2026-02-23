@@ -162,6 +162,8 @@
     color: #f05b5b;
     text-shadow: 0 0 6px rgba(240,91,91,0.42);
 }
+        .whale-arrow.stage-initiation { font-size: 9px; opacity: 0.86; }
+        .whale-arrow.stage-unlock { font-size: 11px; opacity: 0.95; }
         .chart-tooltip { 
             position: absolute; 
             pointer-events: none; 
@@ -286,6 +288,7 @@
         /* Unbonding Intelligence Section */
         .unbonding-section { margin-bottom: 32px; }
         .unbonding-header { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+        .unbonding-note { font-size: 10px; color: #555; margin-top: -8px; margin-bottom: 12px; }
         .unbonding-cards { display: flex; gap: 12px; margin-bottom: 20px; }
         .unbonding-card {
             flex: 1;
@@ -728,19 +731,20 @@
         
         <!-- Unbonding Intelligence -->
         <div class="unbonding-section" id="unbondingSection" style="display: none;">
-            <div class="unbonding-header">unbonding schedule</div>
+            <div class="unbonding-header">scheduled unlocks</div>
+            <div class="unbonding-note">Maturity dates of previously submitted undelegations.</div>
             <div class="unbonding-cards">
                 <div class="unbonding-card today">
                     <div class="unbonding-card-value" id="unbondToday">—</div>
-                    <div class="unbonding-card-label">unbonding today</div>
+                    <div class="unbonding-card-label">unlocking today</div>
                 </div>
                 <div class="unbonding-card week">
                     <div class="unbonding-card-value" id="unbondWeek">—</div>
-                    <div class="unbonding-card-label">next 7 days</div>
+                    <div class="unbonding-card-label">next 7 unlocks</div>
                 </div>
                 <div class="unbonding-card total">
                     <div class="unbonding-card-value" id="unbondTotal">—</div>
-                    <div class="unbonding-card-label">total pending</div>
+                    <div class="unbonding-card-label">total scheduled</div>
                 </div>
             </div>
             <div class="unbonding-schedule" id="unbondingSchedule"></div>
@@ -850,6 +854,7 @@
         const WHALE_MARKER_ENABLED_KEY = 'atomprice_whale_markers_enabled_v1';
         const FEED_FILTER_KEY = 'atomprice_feed_filter_v1';
         const WHALE_MARKER_MIN = 250000;
+        const UNBONDING_PERIOD_DAYS = 21;
 
         // ========== STATE ==========
         let whaleDelegations = [];
@@ -1009,9 +1014,42 @@ function showWhaleEventTooltip(eventPoint, x, y) {
     const priceText = Number.isFinite(eventPoint.tooltipPrice)
         ? formatPriceWithDecimals(eventPoint.tooltipPrice, currentCurrency)
         : '—';
-    const eventTime = eventPoint.timestamp
-        ? new Date(eventPoint.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
-        : new Date(eventPoint.candleTime * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const formatEventDateTime = (iso, fallbackUnix) => {
+        if (iso) {
+            return new Date(iso).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+        return new Date(fallbackUnix * 1000).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+
+    const eventTime = formatEventDateTime(eventPoint.timestamp, eventPoint.candleTime);
+    const initiatedLabel = eventPoint.type === 'delegate' ? 'Delegated' : 'Unbond started';
+    const initiatedLine = eventPoint.initiated_at
+        ? `<div style="font-size:11px;color:#8e96a1;margin-top:5px;">${initiatedLabel}: ${formatEventDateTime(eventPoint.initiated_at, eventPoint.candleTime)}${eventPoint.initiated_estimated ? ' (est.)' : ''}</div>`
+        : '';
+    const unlockLine = eventPoint.unlock_at
+        ? `<div style="font-size:11px;color:#8e96a1;margin-top:2px;">Unbond completes: ${formatEventDateTime(eventPoint.unlock_at, eventPoint.candleTime)}${eventPoint.unlock_estimated ? ' (est.)' : ''}</div>`
+        : '';
+    const delegatorLine = eventPoint.delegator_count
+        ? `<div style="font-size:11px;color:#8e96a1;margin-top:2px;">Delegators: ${Number(eventPoint.delegator_count).toLocaleString()}</div>`
+        : '';
+    const stageLabel = eventPoint.stage === 'unlock'
+        ? 'Unbond completes'
+        : (eventPoint.type === 'delegate' ? 'Delegation event' : 'Unbond started');
 
     tooltip.innerHTML = `
         <div class="tooltip-time">${eventTime}</div>
@@ -1020,6 +1058,10 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             <span style="color:${cls.color};font-weight:600;">${formatCompactAmount(eventPoint.atom)} ATOM</span>
             ${cls.label.toLowerCase()}
         </div>
+        <div style="font-size:11px;color:#a7b1bc;margin-top:4px;">${stageLabel}</div>
+        ${initiatedLine}
+        ${unlockLine}
+        ${delegatorLine}
     `;
 
     positionChartTooltip(tooltip, chartContainer, x, y);
@@ -2146,12 +2188,27 @@ chartContainer.onclick = () => {
         }
 
         function getAllWhaleEvents() {
-            const rawEvents = [
-                ...(whaleEvents?.events || []),
-                ...(whalePending?.events || [])
-            ];
+            const rawInitiations = (whaleEvents?.events || []).map(ev => ({
+                ...ev,
+                stage: ev.type === 'pending_undelegate' ? 'unlock' : 'initiation'
+            }));
+            const rawUnlocks = (whalePending?.events || []).map(ev => ({
+                ...ev,
+                stage: 'unlock',
+                type: ev.type || 'pending_undelegate'
+            }));
+            const scheduledUnlocks = (pendingUndelegations?.schedule || []).map(d => ({
+                stage: 'unlock',
+                type: 'pending_undelegate',
+                atom: Number(d.atom || 0),
+                timestamp: d.date ? `${d.date}T12:00:00.000Z` : null,
+                txhash: '',
+                source: 'schedule',
+                delegator_count: Number(d.delegator_count || 0)
+            }));
 
             const topDelegationEvents = (topDelegations?.delegations || []).map(d => ({
+                stage: 'initiation',
                 type: 'delegate',
                 atom: Number(d.amount_atom || 0),
                 timestamp: d.timestamp || null,
@@ -2162,7 +2219,7 @@ chartContainer.onclick = () => {
             }));
 
             const txTimeMap = new Map();
-            for (const ev of rawEvents) {
+            for (const ev of [...rawInitiations, ...rawUnlocks]) {
                 if (ev.txhash && ev.timestamp) txTimeMap.set(ev.txhash, ev.timestamp);
             }
             for (const it of feedItems) {
@@ -2176,24 +2233,50 @@ chartContainer.onclick = () => {
                 if (h > 0 && Number.isFinite(ts)) anchorHeights.push({ height: h, ts });
             }
 
-            const combined = [...rawEvents, ...topDelegationEvents].map(ev => {
+            const ms21d = UNBONDING_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+            const combined = [...rawInitiations, ...rawUnlocks, ...scheduledUnlocks, ...topDelegationEvents].map(ev => {
                 let timestamp = ev.timestamp || null;
                 const tx = ev.txhash || ev.txHash || '';
                 if (!timestamp && tx && txTimeMap.has(tx)) timestamp = txTimeMap.get(tx);
                 if (!timestamp && ev.height) timestamp = estimateTimestampFromHeight(Number(ev.height), anchorHeights);
                 if (!timestamp && topDelegations?.updated_at && ev.type === 'delegate') timestamp = topDelegations.updated_at;
+
+                const tsMs = timestamp ? Date.parse(timestamp) : NaN;
+                let initiatedAt = ev.initiated_at || null;
+                let unlockAt = ev.unlock_at || null;
+                let initiatedEstimated = false;
+                let unlockEstimated = false;
+
+                if (ev.stage === 'unlock') {
+                    unlockAt = unlockAt || timestamp;
+                    if (!initiatedAt && Number.isFinite(tsMs)) {
+                        initiatedAt = new Date(tsMs - ms21d).toISOString();
+                        initiatedEstimated = true;
+                    }
+                } else {
+                    initiatedAt = initiatedAt || timestamp;
+                    if (ev.type !== 'delegate' && !unlockAt && Number.isFinite(tsMs)) {
+                        unlockAt = new Date(tsMs + ms21d).toISOString();
+                        unlockEstimated = true;
+                    }
+                }
+
                 return {
                     ...ev,
                     txhash: tx,
                     atom: Number(ev.atom || 0),
                     timestamp,
-                    unix: timestamp ? Math.floor(new Date(timestamp).getTime() / 1000) : null
+                    unix: timestamp ? Math.floor(new Date(timestamp).getTime() / 1000) : null,
+                    initiated_at: initiatedAt,
+                    unlock_at: unlockAt,
+                    initiated_estimated: initiatedEstimated,
+                    unlock_estimated: unlockEstimated
                 };
             }).filter(ev => ev.unix && ev.atom > 0);
 
             const seen = new Set();
             return combined.filter(ev => {
-                const key = ev.txhash ? `tx:${ev.txhash}` : `${ev.type}:${ev.unix}:${Math.round(ev.atom)}`;
+                const key = ev.txhash ? `tx:${ev.txhash}:${ev.stage}` : `${ev.stage}:${ev.type}:${ev.unix}:${Math.round(ev.atom)}`;
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
@@ -2206,13 +2289,13 @@ chartContainer.onclick = () => {
         }
 
         function classifyWhaleEvent(ev) {
+            if (ev.stage === 'unlock') {
+                return { red: true, label: 'Unbond completes', color: '#ef4444', shape: 'arrowDown', position: 'aboveBar' };
+            }
             if (ev.type === 'delegate') {
                 return { red: false, label: 'Delegation', color: '#22c55e', shape: 'arrowUp', position: 'belowBar' };
             }
-            if (ev.type === 'pending_undelegate') {
-                return { red: true, label: 'Pending undelegation', color: '#ef4444', shape: 'arrowDown', position: 'aboveBar' };
-            }
-            return { red: true, label: 'Undelegation', color: '#ef4444', shape: 'arrowDown', position: 'aboveBar' };
+            return { red: true, label: 'Unbond started', color: '#ef4444', shape: 'arrowDown', position: 'aboveBar' };
         }
 
         function renderWhaleEventCards(eventPoints) {
@@ -2233,19 +2316,21 @@ chartContainer.onclick = () => {
                     if (!Number.isFinite(rawX) || !Number.isFinite(rawPriceY)) return null;
                     const cls = classifyWhaleEvent(event);
                     const x = Math.max(8, Math.min(layerWidth - 8, rawX));
-                    const markerY = layerHeight - 8;
+                    const markerY = event.stage === 'unlock' ? layerHeight - 8 : layerHeight - 20;
                     const focusY = Math.max(28, rawPriceY - 56);
                     return { ...event, cls, x, markerY, focusY, tooltipPrice: markerPrice };
                 })
                 .filter(Boolean)
-                .sort((a, b) => a.candleTime - b.candleTime);
+                .sort((a, b) => a.candleTime === b.candleTime
+                    ? (a.stage === 'unlock' ? 1 : -1)
+                    : a.candleTime - b.candleTime);
 
             for (const p of points) {
                 const arrow = document.createElement('div');
-                arrow.className = `whale-arrow${p.cls.red ? ' red' : ''}`;
+                arrow.className = `whale-arrow stage-${p.stage}${p.cls.red ? ' red' : ''}`;
                 arrow.style.left = `${p.x}px`;
                 arrow.style.top = `${p.markerY}px`;
-                arrow.textContent = p.cls.red ? '▼' : '▲';
+                arrow.textContent = p.stage === 'unlock' ? '▼' : '●';
 
                 arrow.onmouseenter = () => {
                     whaleTooltipLocked = true;
@@ -2305,10 +2390,11 @@ function applyWhaleMarkers() {
 
                 const row = chartData.find(d => d.time === candleTime);
                 if (!row) continue;
-                const existing = byCandle.get(candleTime);
+                const bucketKey = `${candleTime}:${ev.stage}`;
+                const existing = byCandle.get(bucketKey);
                 // Keep only the largest individual event per candle (no totals)
                 if (!existing || ev.atom > existing.atom) {
-                    byCandle.set(candleTime, {
+                    byCandle.set(bucketKey, {
                         ...ev,
                         candleTime,
                         representativeValue: row.value * getConversionRate(),
@@ -2709,16 +2795,31 @@ function applyWhaleMarkers() {
             }
             setVisible(section, true);
 
-            const schedule = pendingUndelegations.schedule;
+            const flowByDate = new Map((unbondingFlows?.daily_flows || []).map(f => [
+                f.date,
+                Number(f.total_matured_atom || 0)
+            ]));
+            const schedule = pendingUndelegations.schedule.map(d => {
+                const remaining = Math.max(0, Number(d.atom || 0));
+                const baseline = Math.max(remaining, Number(flowByDate.get(d.date) || 0));
+                const completed = Math.max(0, baseline - remaining);
+                const scheduled = baseline;
+                return {
+                    ...d,
+                    scheduled_atom: scheduled,
+                    completed_atom: completed,
+                    remaining_atom: remaining
+                };
+            });
             const today = new Date().toISOString().slice(0, 10);
 
             // Calculate summary values
             const todayEntry = schedule.find(d => d.date === today);
-            const todayAtom = todayEntry ? todayEntry.atom : 0;
+            const todayAtom = todayEntry ? todayEntry.remaining_atom : 0;
 
             const next7 = schedule.filter(d => d.date >= today).slice(0, 7);
-            const weekAtom = next7.reduce((s, d) => s + d.atom, 0);
-            const totalAtom = pendingUndelegations.total_unbonding_atom || schedule.reduce((s, d) => s + d.atom, 0);
+            const weekAtom = next7.reduce((s, d) => s + d.remaining_atom, 0);
+            const totalAtom = schedule.filter(d => d.date >= today).reduce((s, d) => s + d.remaining_atom, 0);
 
             // Format with K/M suffix
             function shortAtom(n) {
@@ -2733,18 +2834,18 @@ function applyWhaleMarkers() {
 
             // 7-day breakdown with horizontal bars
             const scheduleEl = document.getElementById('unbondingSchedule');
-            const maxAtom = Math.max(...next7.map(d => d.atom), 1);
+            const maxAtom = Math.max(...next7.map(d => d.remaining_atom), 1);
 
             scheduleEl.innerHTML = next7.map(d => {
-                const pct = (d.atom / maxAtom) * 100;
-                const isHot = d.atom >= 500000;
+                const pct = (d.remaining_atom / maxAtom) * 100;
+                const isHot = d.remaining_atom >= 500000;
                 const dateStr = new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 return `<div class="unbonding-day">
                     <span class="unbonding-day-date">${dateStr}</span>
                     <div class="unbonding-day-bar-wrap">
                         <div class="unbonding-day-bar${isHot ? ' hot' : ''}" style="width: ${pct}%"></div>
                     </div>
-                    <span class="unbonding-day-amount">${formatAmount(d.atom)} ATOM</span>
+                    <span class="unbonding-day-amount">${formatAmount(d.remaining_atom)} ATOM</span>
                 </div>`;
             }).join('');
         }
@@ -2787,11 +2888,24 @@ function applyWhaleMarkers() {
                 return;
             }
 
-            const data = pendingUndelegations.schedule.map(d => ({
-                time: d.date,
-                value: d.atom,
-                color: d.atom >= 500000 ? '#ff2222' : '#ef4444',
-            }));
+            const flowByDate = new Map((unbondingFlows?.daily_flows || []).map(f => [
+                f.date,
+                Number(f.total_matured_atom || 0)
+            ]));
+            const data = pendingUndelegations.schedule.map(d => {
+                const remaining = Math.max(0, Number(d.atom || 0));
+                const baseline = Math.max(remaining, Number(flowByDate.get(d.date) || 0));
+                const completed = Math.max(0, baseline - remaining);
+                const scheduled = baseline;
+                return {
+                    time: d.date,
+                    value: remaining,
+                    scheduled,
+                    completed,
+                    remaining,
+                    color: remaining >= 500000 ? '#ff2222' : '#ef4444',
+                };
+            });
 
             // Filter by timeframe
             let filteredData = data;
@@ -2825,10 +2939,16 @@ function applyWhaleMarkers() {
                     const date = new Date(dateStr + 'T00:00:00');
                     const entry = pendingUndelegations.schedule.find(d => d.date === dateStr);
                     const delegators = entry?.delegator_count || '';
+                    const flowEntry = (unbondingFlows?.daily_flows || []).find(f => f.date === dateStr);
+                    const remaining = Math.max(0, Number(entry?.atom || val.value || 0));
+                    const baseline = Math.max(remaining, Number(flowEntry?.total_matured_atom || 0));
+                    const scheduled = baseline;
+                    const completed = Math.max(0, baseline - remaining);
 
                     tooltip.innerHTML = `
                         <div class="tooltip-time">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                        <div class="tooltip-price">${formatAmount(val.value)} ATOM unbonding</div>
+                        <div class="tooltip-price">${formatAmount(remaining)} ATOM remaining today</div>
+                        <div style="font-size:11px;color:#777;margin-top:2px;">Scheduled ${formatAmount(scheduled)} · Completed ${formatAmount(completed)}</div>
                         ${delegators ? `<div style="font-size:11px;color:#666;margin-top:2px">${delegators} delegators</div>` : ''}
                     `;
                     tooltip.style.opacity = '1';

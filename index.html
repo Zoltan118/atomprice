@@ -2226,10 +2226,21 @@ function applyWhaleMarkers() {
             const candleTimes = chartData.map(d => d.time).sort((a, b) => a - b);
             if (!candleTimes.length) return;
 
+            const minTime = candleTimes[0];
+            const maxTime = candleTimes[candleTimes.length - 1];
+            const intervalSec = getCurrentIntervalSeconds();
+
             const byCandle = new Map();
             for (const ev of filteredEvents) {
+                // Hard guard: never project events outside visible range.
+                if (ev.unix < (minTime - intervalSec) || ev.unix > (maxTime + intervalSec)) continue;
+
                 const candleTime = findClosestCandle(candleTimes, ev.unix);
                 if (candleTime === null) continue;
+
+                // Hard guard: nearest candle must be temporally close for this timeframe.
+                if (Math.abs(candleTime - ev.unix) > intervalSec) continue;
+
                 const row = chartData.find(d => d.time === candleTime);
                 if (!row) continue;
                 const existing = byCandle.get(candleTime);

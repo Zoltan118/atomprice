@@ -328,7 +328,7 @@
         .unbonding-day-bar.hot { background: #ff2222; }
         .unbonding-day-amount { width: 90px; text-align: right; flex-shrink: 0; font-size: 11px; color: #888; font-weight: 500; }
 
-        /* Sell Pressure Gauge */
+        /* Unbonding Pressure Gauge */
         .gauge-section { margin-top: 24px; }
         .gauge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .gauge-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
@@ -346,6 +346,15 @@
         .gauge-score-label {
             font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 2px;
         }
+        .gauge-meta-row {
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            margin-bottom: 8px;
+        }
+        .gauge-meta { font-size: 10px; color: #555; letter-spacing: 0.2px; }
+        .gauge-meta-sep { font-size: 10px; color: #333; }
+        .gauge-breakdown { font-size: 11px; color: #6b7280; margin-bottom: 4px; letter-spacing: 0.2px; }
+        .gauge-confidence { font-size: 11px; margin-bottom: 4px; letter-spacing: 0.2px; }
+        .gauge-delta { font-size: 11px; color: #6b7280; margin-bottom: 2px; letter-spacing: 0.2px; }
         .gauge-bar-wrap {
             width: 100%; height: 4px; background: #1a1a1a; border-radius: 2px;
             margin: 16px 0 12px; overflow: hidden;
@@ -398,6 +407,10 @@
         @media (max-width: 500px) {
             .gauge-score-number { font-size: 44px; }
             .gauge-score-label { font-size: 12px; }
+            .gauge-meta-row { flex-wrap: wrap; gap: 4px 6px; }
+            .gauge-meta { font-size: 9px; }
+            .gauge-breakdown { font-size: 10px; }
+            .gauge-confidence, .gauge-delta, .gauge-narrative { font-size: 10px; }
             .gauge-components { flex-direction: column; gap: 6px; }
             .gauge-score-card { padding: 20px 16px; }
         }
@@ -748,16 +761,24 @@
                 </div>
             </div>
             <div class="unbonding-schedule" id="unbondingSchedule"></div>
-            <!-- Sell Pressure Gauge -->
+            <!-- Unbonding Pressure Gauge -->
             <div class="gauge-section" id="gaugeSection" style="display: none;">
                 <div class="gauge-header">
-                    <span class="gauge-label">sell pressure gauge</span>
+                    <span class="gauge-label">unbonding pressure gauge</span>
                 </div>
                 <div class="gauge-score-card" id="gaugeScoreCard">
                     <div class="gauge-score-row">
                         <span class="gauge-score-number" id="gaugeScoreNumber">—</span>
                         <span class="gauge-score-label" id="gaugeScoreLabel"></span>
                     </div>
+                    <div class="gauge-meta-row">
+                        <span class="gauge-meta" id="gaugeUpdatedMeta">Updated: —</span>
+                        <span class="gauge-meta-sep">·</span>
+                        <span class="gauge-meta" id="gaugeWindowMeta">Window: next 7 days</span>
+                    </div>
+                    <div class="gauge-breakdown" id="gaugeBreakdown">—</div>
+                    <div class="gauge-confidence" id="gaugeConfidence">Confidence: —</div>
+                    <div class="gauge-delta" id="gaugeDelta">Δ —</div>
                     <div class="gauge-bar-wrap">
                         <div class="gauge-bar-fill" id="gaugeBarFill" style="width: 0%"></div>
                     </div>
@@ -794,7 +815,7 @@
                 </div>
                 <button class="gauge-info-toggle" id="gaugeInfoToggle">how it works ↓</button>
                 <div class="gauge-info-body" id="gaugeInfoBody">
-                    <p>The sell pressure gauge is a composite 0–100 score built from on-chain data:</p>
+                    <p>The unbonding pressure gauge is a composite 0–100 score built from on-chain data:</p>
                     <p><strong>Supply (0–40):</strong> Compares the upcoming 7-day unlock volume against the full schedule average. Tomorrow's unlock is weighted more heavily than day 7.</p>
                     <p><strong>Concentration (0–20):</strong> Measures whether unlocks are clustered on a single day or spread evenly. Spikes increase the score.</p>
                     <p><strong>Behavior (0–40):</strong> Tracks what happens after ATOM unbonds — held, re-staked, sent to exchanges, or bridged. This signal calibrates over 7 days of observed data.</p>
@@ -2986,6 +3007,8 @@ function applyWhaleMarkers() {
             const allFuture = schedule.filter(d => d.date >= today);
             const next7 = allFuture.slice(0, 7);
             if (!next7.length) return null;
+            const windowStart = next7[0].date;
+            const windowEnd = next7[next7.length - 1].date;
 
             function shortAtom(n) {
                 if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -2993,17 +3016,43 @@ function applyWhaleMarkers() {
                 return n.toLocaleString();
             }
 
-            // ===== SUPPLY PRESSURE (0-40) =====
-            let weightedSum = 0, totalWeight = 0;
-            for (let i = 0; i < next7.length; i++) {
-                const weight = 7 - i;
-                weightedSum += next7[i].atom * weight;
-                totalWeight += weight;
+            function computeSupplyAndConcentration(slice, future) {
+                let weightedSum = 0, totalWeight = 0;
+                for (let i = 0; i < slice.length; i++) {
+                    const weight = 7 - i;
+                    weightedSum += Number(slice[i].atom || 0) * weight;
+                    totalWeight += weight;
+                }
+                const weightedAvgDaily = totalWeight > 0 ? weightedSum / totalWeight : 0;
+                const baseline = future.length > 0
+                    ? future.reduce((s, d) => s + Number(d.atom || 0), 0) / future.length
+                    : 0;
+                const supplyRatio = baseline > 0 ? weightedAvgDaily / baseline : 0;
+                const supplyScore = Math.min(40, Math.round(supplyRatio * 20));
+
+                const weekTotal = slice.reduce((s, d) => s + Number(d.atom || 0), 0);
+                let concentrationScore = 0;
+                let concExplanation = 'unlocks spread across the week';
+                if (weekTotal > 0 && slice.length > 1) {
+                    const shares = slice.map(d => Number(d.atom || 0) / weekTotal);
+                    const hhi = shares.reduce((s, p) => s + p * p, 0);
+                    const minHHI = 1 / slice.length;
+                    const normalizedHHI = minHHI < 1 ? (hhi - minHHI) / (1 - minHHI) : 0;
+                    concentrationScore = Math.round(normalizedHHI * 20);
+
+                    const peakDay = slice.reduce((a, b) => (Number(b.atom || 0) > Number(a.atom || 0) ? b : a));
+                    const peakShare = Number(peakDay.atom || 0) / weekTotal;
+                    if (peakShare >= 0.4) {
+                        const peakDate = new Date(peakDay.date + 'T00:00:00')
+                            .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        concExplanation = Math.round(peakShare * 100) + '% concentrated on ' + peakDate;
+                    }
+                }
+                return { supplyScore, concentrationScore, concExplanation };
             }
-            const weightedAvgDaily = weightedSum / totalWeight;
-            const baseline = allFuture.reduce((s, d) => s + d.atom, 0) / allFuture.length;
-            const supplyRatio = baseline > 0 ? weightedAvgDaily / baseline : 0;
-            const supplyScore = Math.min(40, Math.round(supplyRatio * 20));
+
+            // ===== SUPPLY PRESSURE (0-40) =====
+            const { supplyScore, concentrationScore, concExplanation } = computeSupplyAndConcentration(next7, allFuture);
 
             let supplyExplanation;
             if (next7[0] && next7[0].atom >= 500_000) {
@@ -3011,27 +3060,6 @@ function applyWhaleMarkers() {
             } else {
                 const weekSum = next7.reduce((s, d) => s + d.atom, 0);
                 supplyExplanation = shortAtom(weekSum) + ' ATOM unlocking this week';
-            }
-
-            // ===== CONCENTRATION RISK (0-20) =====
-            const weekTotal = next7.reduce((s, d) => s + d.atom, 0);
-            let concentrationScore = 0;
-            let concExplanation = 'unlocks spread across the week';
-
-            if (weekTotal > 0 && next7.length > 1) {
-                const shares = next7.map(d => d.atom / weekTotal);
-                const hhi = shares.reduce((s, p) => s + p * p, 0);
-                const minHHI = 1 / next7.length;
-                const normalizedHHI = minHHI < 1 ? (hhi - minHHI) / (1 - minHHI) : 0;
-                concentrationScore = Math.round(normalizedHHI * 20);
-
-                const peakDay = next7.reduce((a, b) => b.atom > a.atom ? b : a);
-                const peakShare = peakDay.atom / weekTotal;
-                if (peakShare >= 0.4) {
-                    const peakDate = new Date(peakDay.date + 'T00:00:00')
-                        .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    concExplanation = Math.round(peakShare * 100) + '% concentrated on ' + peakDate;
-                }
             }
 
             // ===== BEHAVIOR SIGNAL (0-40) =====
@@ -3070,6 +3098,44 @@ function applyWhaleMarkers() {
 
             // ===== COMPOSITE =====
             const total = Math.max(0, Math.min(100, supplyScore + concentrationScore + behaviorScore));
+            const scoreFormula = `${supplyScore} (Supply) + ${concentrationScore} (Concentration) + ${behaviorScore} (Behavior) = ${total}`;
+
+            // ===== CONFIDENCE =====
+            let confidenceLabel = 'Low';
+            let confidenceColor = '#f59e0b';
+            if (numFlowDays >= 14) {
+                confidenceLabel = 'High';
+                confidenceColor = '#22c55e';
+            } else if (numFlowDays >= 7) {
+                confidenceLabel = 'Medium';
+                confidenceColor = '#60a5fa';
+            }
+            const confidenceText = `Confidence: ${confidenceLabel}${calibrating ? ` (${numFlowDays}/7 days calibrating)` : ''}`;
+
+            // ===== DELTA =====
+            const todayDate = new Date(today + 'T00:00:00');
+            const yesterday = new Date(todayDate.getTime() - 86400000).toISOString().slice(0, 10);
+            const prevFuture = schedule.filter(d => d.date >= yesterday);
+            let deltaVsYesterday = null;
+            if (prevFuture.length > 0) {
+                const prevSlice = prevFuture.slice(0, 7);
+                const prevScores = computeSupplyAndConcentration(prevSlice, prevFuture);
+                const prevTotal = Math.max(0, Math.min(100, prevScores.supplyScore + prevScores.concentrationScore + behaviorScore));
+                deltaVsYesterday = total - prevTotal;
+            }
+            const rollingTotals = [];
+            const rollingN = Math.min(7, schedule.length);
+            for (let i = 0; i < rollingN; i++) {
+                const future = schedule.slice(i);
+                const slice = future.slice(0, 7);
+                if (!slice.length) continue;
+                const scores = computeSupplyAndConcentration(slice, future);
+                rollingTotals.push(Math.max(0, Math.min(100, scores.supplyScore + scores.concentrationScore + behaviorScore)));
+            }
+            const avg7 = rollingTotals.length
+                ? rollingTotals.reduce((s, n) => s + n, 0) / rollingTotals.length
+                : null;
+            const deltaVs7Avg = avg7 === null ? null : (total - avg7);
 
             function getLabel(s) {
                 if (s <= 30) return 'Low';
@@ -3096,6 +3162,11 @@ function applyWhaleMarkers() {
 
             return {
                 total, label: getLabel(total), color: getColor(total), narrative,
+                formula: scoreFormula,
+                confidence: { text: confidenceText, label: confidenceLabel, color: confidenceColor },
+                updatedAt: new Date().toISOString(),
+                window: { start: windowStart, end: windowEnd },
+                delta: { day: deltaVsYesterday, avg7: deltaVs7Avg },
                 supply: { score: supplyScore, max: 40 },
                 concentration: { score: concentrationScore, max: 20 },
                 behavior: { score: behaviorScore, max: 40, calibrating, numDays: numFlowDays },
@@ -3122,6 +3193,53 @@ function applyWhaleMarkers() {
             const labelEl = document.getElementById('gaugeScoreLabel');
             labelEl.textContent = label;
             labelEl.style.color = color;
+
+            // Metadata
+            const updatedAtEl = document.getElementById('gaugeUpdatedMeta');
+            const updatedDate = new Date(result.updatedAt);
+            const compactGaugeMeta = window.matchMedia('(max-width: 640px)').matches;
+            updatedAtEl.textContent = compactGaugeMeta
+                ? ('Upd: ' + updatedDate.toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                }))
+                : ('Updated: ' + updatedDate.toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    timeZoneName: 'short'
+                }));
+            const windowMetaEl = document.getElementById('gaugeWindowMeta');
+            const windowStart = new Date(result.window.start + 'T00:00:00')
+                .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const windowEnd = new Date(result.window.end + 'T00:00:00')
+                .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            windowMetaEl.textContent = compactGaugeMeta
+                ? `7d: ${windowStart}-${windowEnd}`
+                : `Window: ${windowStart} - ${windowEnd}`;
+
+            // Formula, confidence, delta
+            document.getElementById('gaugeBreakdown').textContent = result.formula;
+            const confidenceEl = document.getElementById('gaugeConfidence');
+            confidenceEl.textContent = result.confidence.text;
+            confidenceEl.style.color = result.confidence.color;
+
+            const deltaEl = document.getElementById('gaugeDelta');
+            const dayDelta = result.delta.day;
+            const avgDelta = result.delta.avg7;
+            const dayPart = dayDelta === null
+                ? 'vs yesterday n/a'
+                : `vs yesterday ${dayDelta >= 0 ? '+' : ''}${Math.round(dayDelta)}`;
+            const avgPart = avgDelta === null
+                ? 'vs 7-window avg n/a'
+                : `vs 7-window avg ${avgDelta >= 0 ? '+' : ''}${Math.round(avgDelta)}`;
+            deltaEl.textContent = `Δ ${dayPart} · ${avgPart}`;
+            const primaryDelta = dayDelta ?? avgDelta ?? 0;
+            deltaEl.style.color = primaryDelta > 0 ? '#ef4444' : primaryDelta < 0 ? '#22c55e' : '#6b7280';
 
             // Bar fill
             const barFill = document.getElementById('gaugeBarFill');
@@ -3164,6 +3282,15 @@ function applyWhaleMarkers() {
             const isOpen = body.classList.toggle('open');
             this.textContent = isOpen ? 'how it works ↑' : 'how it works ↓';
         };
+
+        let gaugeCompactMeta = window.matchMedia('(max-width: 640px)').matches;
+        window.addEventListener('resize', () => {
+            const nextCompact = window.matchMedia('(max-width: 640px)').matches;
+            if (nextCompact !== gaugeCompactMeta) {
+                gaugeCompactMeta = nextCompact;
+                renderSellPressureGauge();
+            }
+        });
 
         // Marker toggle
         const markerToggleInputEl = document.getElementById('markerToggleInput');

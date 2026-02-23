@@ -280,6 +280,71 @@ async function main() {
 
   console.log(`\n✅ Feed saved: ${dCount} delegates + ${uCount} undelegates = ${feed.length} total`);
   console.log(`   Output: ${OUT_FILE}`);
+
+  // ── Whale events accumulation (≥250K ATOM individual transactions) ──
+  const WHALE_MIN = 250000;
+  const WHALE_FILE = "data/whale-events.json";
+
+  // Load previous whale events for merging
+  let prevWhaleEvents = [];
+  try {
+    const txt = await fs.readFile(WHALE_FILE, "utf8");
+    prevWhaleEvents = JSON.parse(txt)?.events || [];
+  } catch { /* fresh start */ }
+
+  // Filter from ALL merged items (before FEED_KEEP truncation) for ≥250K
+  // Keep height for timestamp resolution, then strip it
+  const freshWhales = merged
+    .filter(i => i.amount_atom >= WHALE_MIN)
+    .map(i => ({
+      type: i.type,
+      atom: Math.round(i.amount_atom),
+      timestamp: i.timestamp,
+      height: i.height,
+      txhash: i.txhash,
+      validator_name: i.validator_name || (i.validator_addr ? (validatorCache[i.validator_addr] || "") : ""),
+      delegator: (i.delegator || "").slice(0, 20) + "..."
+    }));
+
+  // Resolve timestamps for whale events missing them
+  const whalesNeedTime = freshWhales.filter(w => !w.timestamp && w.height);
+  if (whalesNeedTime.length) {
+    console.log(`\n🐋 Resolving ${whalesNeedTime.length} whale event timestamps...`);
+    await resolveTimestamps(whalesNeedTime);
+    // Copy resolved timestamps back
+    for (const w of whalesNeedTime) {
+      const match = freshWhales.find(f => f.txhash === w.txhash);
+      if (match && w.timestamp) match.timestamp = w.timestamp;
+    }
+  }
+
+  // Merge with previous, dedupe by txhash
+  const seenWhale = new Set();
+  const allWhales = [];
+  for (const w of [...freshWhales, ...prevWhaleEvents]) {
+    const key = w.txhash;
+    if (!key || seenWhale.has(key)) continue;
+    seenWhale.add(key);
+    allWhales.push(w);
+  }
+
+  // Prune events older than 365 days
+  const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
+  const prunedWhales = allWhales
+    .filter(w => !w.timestamp || w.timestamp >= yearAgo)
+    .map(({ height, ...rest }) => rest); // strip height from output
+
+  // Sort by timestamp descending
+  prunedWhales.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+
+  await fs.writeFile(WHALE_FILE, JSON.stringify({
+    generated_at: new Date().toISOString(),
+    whale_min_atom: WHALE_MIN,
+    total: prunedWhales.length,
+    events: prunedWhales,
+  }, null, 2));
+
+  console.log(`🐋 Whale events: ${prunedWhales.length} events ≥${WHALE_MIN.toLocaleString()} ATOM → ${WHALE_FILE}`);
 }
 
 main();

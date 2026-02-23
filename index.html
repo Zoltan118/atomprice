@@ -3098,7 +3098,7 @@ function applyWhaleMarkers() {
 
             // ===== COMPOSITE =====
             const total = Math.max(0, Math.min(100, supplyScore + concentrationScore + behaviorScore));
-            const scoreFormula = `${supplyScore} (Supply) + ${concentrationScore} (Concentration) + ${behaviorScore} (Behavior) = ${total}`;
+            const scoreFormula = `${supplyScore} + ${concentrationScore} + ${behaviorScore} = ${total}`;
 
             // ===== CONFIDENCE =====
             let confidenceLabel = 'Low';
@@ -3110,7 +3110,7 @@ function applyWhaleMarkers() {
                 confidenceLabel = 'Medium';
                 confidenceColor = '#60a5fa';
             }
-            const confidenceText = `Confidence: ${confidenceLabel}${calibrating ? ` (${numFlowDays}/7 days calibrating)` : ''}`;
+            const confidenceText = `Confidence: ${confidenceLabel}`;
 
             // ===== DELTA =====
             const todayDate = new Date(today + 'T00:00:00');
@@ -3155,7 +3155,6 @@ function applyWhaleMarkers() {
             if (supplyScore >= 15) parts.push(supplyExplanation);
             if (concentrationScore >= 10) parts.push(concExplanation);
             if (behaviorScore >= 10 && !calibrating) parts.push(behaviorExplanation);
-            else if (calibrating && numFlowDays > 0) parts.push('behavior data calibrating');
             const narrative = parts.length > 0
                 ? parts.join(' · ')
                 : 'normal unlock schedule with no concerning signals';

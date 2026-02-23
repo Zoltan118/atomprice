@@ -125,6 +125,8 @@
             padding: 8px 10px;
             box-shadow: 0 6px 18px rgba(0,0,0,0.4);
         }
+        .whale-card.anchor-left { transform: none; }
+        .whale-card.anchor-right { transform: translateX(-100%); }
         .whale-card.red {
             border-color: rgba(255, 129, 129, 0.34);
             background: rgba(26, 13, 13, 0.9);
@@ -138,16 +140,8 @@
             width: 1px;
             background: linear-gradient(180deg, rgba(112, 255, 171, 0.75), rgba(112,255,171,0.14));
         }
-        .whale-connector {
-            position: absolute;
-            height: 1px;
-            background: rgba(112, 255, 171, 0.45);
-        }
         .whale-beam.red {
             background: linear-gradient(180deg, rgba(255, 125, 125, 0.8), rgba(255,125,125,0.16));
-        }
-        .whale-connector.red {
-            background: rgba(255, 125, 125, 0.45);
         }
         .whale-arrow {
             position: absolute;
@@ -2138,95 +2132,123 @@
         }
 
         function renderWhaleEventCards(eventPoints) {
-            const layer = document.getElementById('chartEventCardsLayer');
-            if (!layer) return;
-            layer.innerHTML = '';
-            if (!eventPoints.length || !chart || currentDataMode !== 'price') return;
+    const layer = document.getElementById('chartEventCardsLayer');
+    if (!layer) return;
+    layer.innerHTML = '';
+    if (!eventPoints.length || !chart || currentDataMode !== 'price') return;
 
-            const maxCards = window.innerWidth < 700 ? 2 : 4;
-            const cardWidth = window.innerWidth < 700 ? 150 : 180;
-            const cardHeight = window.innerWidth < 700 ? 64 : 72;
-            const laneCount = window.innerWidth < 700 ? 2 : 3;
-            const laneStart = 16;
-            const laneStep = cardHeight + 12;
-            const lanes = Array.from({ length: laneCount }, (_, i) => laneStart + i * laneStep);
-            const laneGap = 8;
-            const sidePad = 8;
-            const layerWidth = layer.clientWidth || layer.parentElement?.clientWidth || 0;
-            const xMin = sidePad + cardWidth / 2;
-            const xMax = Math.max(xMin, layerWidth - sidePad - cardWidth / 2);
-            const laneOccupancy = lanes.map(() => []);
+    const maxCards = window.innerWidth < 700 ? 2 : 4;
+    const cardWidth = window.innerWidth < 700 ? 150 : 180;
+    const cardHeight = window.innerWidth < 700 ? 64 : 72;
+    const laneCount = window.innerWidth < 700 ? 2 : 3;
+    const laneStart = 16;
+    const laneStep = cardHeight + 12;
+    const lanes = Array.from({ length: laneCount }, (_, i) => laneStart + i * laneStep);
+    const laneGap = 8;
+    const sidePad = 8;
+    const layerWidth = layer.clientWidth || layer.parentElement?.clientWidth || 0;
+    if (!layerWidth) return;
 
-            const candidates = eventPoints
-                .map(event => {
-                    const x = chart.timeScale().timeToCoordinate(event.candleTime);
-                    const markerPrice = chartType === 'line' ? event.representativeValue : event.representativeClose;
-                    const y = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
-                    return { ...event, x, y };
-                })
-                .filter(c => Number.isFinite(c.x) && Number.isFinite(c.y))
-                .sort((a, b) => b.atom - a.atom);
+    const laneOccupancy = lanes.map(() => []);
 
-            const collides = (left, right, ranges) =>
-                ranges.some(r => !(right + laneGap < r.left || left - laneGap > r.right));
+    const candidates = eventPoints
+        .map(event => {
+            const x = chart.timeScale().timeToCoordinate(event.candleTime);
+            const markerPrice = chartType === 'line' ? event.representativeValue : event.representativeClose;
+            const y = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
+            return { ...event, x, y };
+        })
+        .filter(c => Number.isFinite(c.x) && Number.isFinite(c.y))
+        .filter(c => c.x >= -16 && c.x <= layerWidth + 16)
+        .sort((a, b) => b.atom - a.atom);
 
-            const selected = [];
-            for (const c of candidates) {
-                if (selected.length >= maxCards) break;
-                const clampedX = Math.max(xMin, Math.min(xMax, c.x));
-                const left = clampedX - cardWidth / 2;
-                const right = clampedX + cardWidth / 2;
+    const collides = (left, right, ranges) =>
+        ranges.some(r => !(right + laneGap < r.left || left - laneGap > r.right));
 
-                let laneIndex = -1;
-                for (let i = 0; i < laneOccupancy.length; i++) {
-                    if (!collides(left, right, laneOccupancy[i])) {
-                        laneIndex = i;
-                        break;
-                    }
-                }
-                if (laneIndex >= 0) {
-                    laneOccupancy[laneIndex].push({ left, right });
-                    selected.push({ ...c, laneIndex, cardX: clampedX, markerX: c.x });
-                }
+    function getAnchoredBounds(markerX) {
+        const minLeft = sidePad;
+        const maxLeft = Math.max(minLeft, layerWidth - sidePad - cardWidth);
+        const centeredLeft = markerX - cardWidth / 2;
+
+        if (centeredLeft < minLeft) {
+            return {
+                anchor: 'left',
+                cardLeft: minLeft,
+                cardRight: minLeft + cardWidth,
+                cardX: minLeft
+            };
+        }
+        if (centeredLeft > maxLeft) {
+            return {
+                anchor: 'right',
+                cardLeft: maxLeft,
+                cardRight: maxLeft + cardWidth,
+                cardX: maxLeft + cardWidth
+            };
+        }
+        return {
+            anchor: 'center',
+            cardLeft: centeredLeft,
+            cardRight: centeredLeft + cardWidth,
+            cardX: markerX
+        };
+    }
+
+    const selected = [];
+    for (const c of candidates) {
+        if (selected.length >= maxCards) break;
+        const markerX = Math.max(sidePad, Math.min(layerWidth - sidePad, c.x));
+        const bounds = getAnchoredBounds(markerX);
+
+        let laneIndex = -1;
+        for (let i = 0; i < laneOccupancy.length; i++) {
+            if (!collides(bounds.cardLeft, bounds.cardRight, laneOccupancy[i])) {
+                laneIndex = i;
+                break;
             }
-
-            selected.sort((a, b) => a.cardX - b.cardX).forEach((event) => {
-                const top = lanes[event.laneIndex];
-                const beamTop = top + cardHeight - 8;
-                const beamHeight = Math.max(24, event.y - beamTop);
-                const cls = classifyWhaleEvent(event);
-                const red = cls.red;
-
-                // If card is clamped away from marker, draw a short connector at card bottom.
-                if (Math.abs(event.cardX - event.markerX) > 2) {
-                    const connector = document.createElement('div');
-                    connector.className = `whale-connector${red ? ' red' : ''}`;
-                    connector.style.top = `${beamTop}px`;
-                    connector.style.left = `${Math.min(event.cardX, event.markerX)}px`;
-                    connector.style.width = `${Math.abs(event.cardX - event.markerX)}px`;
-                    layer.appendChild(connector);
-                }
-
-                const beam = document.createElement('div');
-                beam.className = `whale-beam${red ? ' red' : ''}`;
-                beam.style.left = `${event.markerX}px`;
-                beam.style.top = `${beamTop}px`;
-                beam.style.height = `${beamHeight}px`;
-                layer.appendChild(beam);
-
-                const card = document.createElement('div');
-                card.className = `whale-card${red ? ' red' : ''}`;
-                card.style.left = `${event.cardX}px`;
-                card.style.top = `${top}px`;
-                card.innerHTML = `
-                    <div class="whale-card-title">${cls.label}</div>
-                    <div class="whale-card-meta">${formatCompactAmount(event.atom)} ATOM</div>
-                `;
-                layer.appendChild(card);
+        }
+        if (laneIndex >= 0) {
+            laneOccupancy[laneIndex].push({ left: bounds.cardLeft, right: bounds.cardRight });
+            selected.push({
+                ...c,
+                laneIndex,
+                markerX,
+                cardX: bounds.cardX,
+                cardLeft: bounds.cardLeft,
+                cardRight: bounds.cardRight,
+                anchor: bounds.anchor
             });
         }
+    }
 
-        function applyWhaleMarkers() {
+    selected.sort((a, b) => a.cardLeft - b.cardLeft).forEach((event) => {
+        const top = lanes[event.laneIndex];
+        const beamTop = top + cardHeight - 8;
+        const beamHeight = Math.max(24, event.y - beamTop);
+        const cls = classifyWhaleEvent(event);
+        const red = cls.red;
+
+        const beam = document.createElement('div');
+        beam.className = `whale-beam${red ? ' red' : ''}`;
+        beam.style.left = `${event.markerX}px`;
+        beam.style.top = `${beamTop}px`;
+        beam.style.height = `${beamHeight}px`;
+        layer.appendChild(beam);
+
+        const card = document.createElement('div');
+        card.className = `whale-card${red ? ' red' : ''} anchor-${event.anchor}`;
+        card.style.left = `${event.cardX}px`;
+        card.style.top = `${top}px`;
+        card.style.width = `${cardWidth}px`;
+        card.innerHTML = `
+            <div class="whale-card-title">${cls.label}</div>
+            <div class="whale-card-meta">${formatCompactAmount(event.atom)} ATOM</div>
+        `;
+        layer.appendChild(card);
+    });
+}
+
+function applyWhaleMarkers() {
             if (!series || !chartData.length || currentDataMode !== 'price') {
                 clearWhaleEventCards();
                 return;

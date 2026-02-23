@@ -151,6 +151,9 @@
             font-weight: 700;
             color: #48f39b;
             text-shadow: 0 0 10px rgba(72,243,155,0.75);
+            pointer-events: auto;
+            cursor: pointer;
+            z-index: 9;
         }
         .whale-arrow.red {
             color: #ff7f7f;
@@ -851,6 +854,7 @@
         let whalePending = null;           // pending whale undelegations from whale-pending.json
         let topDelegations = null;         // top delegation events from top-delegations.json
         let showWhaleMarkers = true;       // toggle state for whale event markers
+        let whaleTooltipLocked = false;    // when true, arrow hover/click tooltip is active
 
         // Whale watch state
         let whaleCycleTimer = null;
@@ -925,9 +929,73 @@
         }
 
         function clearWhaleEventCards() {
-            const layer = document.getElementById('chartEventCardsLayer');
-            if (layer) layer.innerHTML = '';
-        }
+    const layer = document.getElementById('chartEventCardsLayer');
+    if (layer) layer.innerHTML = '';
+    whaleTooltipLocked = false;
+    const tooltip = document.getElementById('chartTooltip');
+    if (tooltip) tooltip.style.opacity = '0';
+}
+
+function formatChartTooltipTime(unixSec) {
+    const date = new Date(unixSec * 1000);
+    if (currentTimeframe === '1h' || currentTimeframe === '1d') {
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+    if (currentTimeframe === '1w') {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+               date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+    }
+    if (currentTimeframe === '1m') {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    if (currentTimeframe === '1y') {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function positionChartTooltip(tooltip, chartContainer, x, y) {
+    const containerRect = chartContainer.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+
+    let left = x + 14;
+    let top = y - tooltipHeight / 2;
+
+    if (left + tooltipWidth > containerRect.width) left = x - tooltipWidth - 14;
+    if (left < 6) left = 6;
+    if (top < 6) top = 6;
+    if (top + tooltipHeight > containerRect.height) top = containerRect.height - tooltipHeight - 6;
+
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+}
+
+function showWhaleEventTooltip(eventPoint, x, y) {
+    const tooltip = document.getElementById('chartTooltip');
+    const chartContainer = document.getElementById('chartContainer');
+    if (!tooltip || !chartContainer) return;
+
+    const cls = classifyWhaleEvent(eventPoint);
+    const priceText = Number.isFinite(eventPoint.tooltipPrice)
+        ? formatPriceWithDecimals(eventPoint.tooltipPrice, currentCurrency)
+        : '—';
+    const eventTime = eventPoint.timestamp
+        ? new Date(eventPoint.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+        : null;
+
+    tooltip.innerHTML = `
+        <div class="tooltip-time">${formatChartTooltipTime(eventPoint.candleTime)}</div>
+        <div class="tooltip-price">${priceText}</div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a2a;font-size:12px;color:${cls.color}">
+            ${cls.label}: ${formatAmount(eventPoint.atom)} ATOM
+        </div>
+        ${eventTime ? `<div style="font-size:11px;color:#888;margin-top:4px">Event: ${eventTime}</div>` : ''}
+    `;
+
+    positionChartTooltip(tooltip, chartContainer, x, y);
+    tooltip.style.opacity = '1';
+}
 
         // ========== CACHE ==========
         function loadCache() {
@@ -1852,82 +1920,33 @@
             const chartContainer = document.getElementById('chartContainer');
             
             chart.subscribeCrosshairMove((p) => {
-                if (!p.time || !p.seriesData.get(series) || p.point === undefined) {
-                    tooltip.style.opacity = '0';
-                    return;
-                }
+    if (whaleTooltipLocked) return;
+    if (!p.time || !p.seriesData.get(series) || p.point === undefined) {
+        tooltip.style.opacity = '0';
+        return;
+    }
 
-                const data = p.seriesData.get(series);
-                const price = chartType === 'line' ? data.value : data.close;
-                const date = new Date(p.time * 1000);
+    const data = p.seriesData.get(series);
+    const price = chartType === 'line' ? data.value : data.close;
 
-                let timeText;
-                if (currentTimeframe === '1h' || currentTimeframe === '1d') {
-                    timeText = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                } else if (currentTimeframe === '1w') {
-                    timeText = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
-                               date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
-                } else if (currentTimeframe === '1m') {
-                    timeText = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                } else if (currentTimeframe === '1y') {
-                    timeText = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                } else {
-                    timeText = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                }
+    tooltip.innerHTML = `
+        <div class="tooltip-time">${formatChartTooltipTime(p.time)}</div>
+        <div class="tooltip-price">${formatPriceWithDecimals(price, currentCurrency)}</div>
+    `;
 
-                // Check for whale events near this candle (factual list, no speculation)
-                let whaleInfo = '';
-                if (showWhaleMarkers && p.time) {
-                    const candleTime = p.time;
-                    const interval = getCurrentIntervalSeconds();
-                    const matches = getFilteredWhaleEvents().filter(ev => Math.abs(ev.unix - candleTime) <= interval);
+    positionChartTooltip(tooltip, chartContainer, p.point.x, p.point.y);
+    tooltip.style.opacity = '1';
+});
 
-                    if (matches.length) {
-                        const sorted = matches.slice().sort((a, b) => b.atom - a.atom);
-                        const shown = sorted.slice(0, 4);
-                        const moreCount = Math.max(0, sorted.length - shown.length);
-                        const lines = shown.map(ev => {
-                            const cls = classifyWhaleEvent(ev);
-                            const evTime = new Date(ev.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                            return `<div style="font-size:11px;color:${cls.color};margin-top:2px">${cls.label}: ${formatAmount(ev.atom)} ATOM <span style="color:#888">(${evTime})</span></div>`;
-                        }).join('');
-
-                        whaleInfo = `
-                            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a2a">
-                                <div style="font-size:11px;color:#b0b0b0;text-transform:uppercase;letter-spacing:0.5px;">Whale events (${matches.length})</div>
-                                ${lines}
-                                ${moreCount ? `<div style="font-size:11px;color:#888;margin-top:3px;">+${moreCount} more</div>` : ''}
-                            </div>
-                        `;
-                    }
-                }
-
-                // Use innerHTML to avoid conflicts with historical chart tooltip
-                tooltip.innerHTML = `
-                    <div class="tooltip-time">${timeText}</div>
-                    <div class="tooltip-price">${formatPriceWithDecimals(price, currentCurrency)}</div>
-                    ${whaleInfo}
-                `;
-                
-                const containerRect = chartContainer.getBoundingClientRect();
-                const tooltipWidth = tooltip.offsetWidth;
-                const tooltipHeight = tooltip.offsetHeight;
-                
-                let left = p.point.x + 15;
-                let top = p.point.y - tooltipHeight / 2;
-                
-                if (left + tooltipWidth > containerRect.width) {
-                    left = p.point.x - tooltipWidth - 15;
-                }
-                if (top < 0) top = 5;
-                if (top + tooltipHeight > containerRect.height) {
-                    top = containerRect.height - tooltipHeight - 5;
-                }
-                
-                tooltip.style.left = left + 'px';
-                tooltip.style.top = top + 'px';
-                tooltip.style.opacity = '1';
-            });
+chartContainer.onmouseleave = () => {
+    if (!whaleTooltipLocked) tooltip.style.opacity = '0';
+};
+chartContainer.onclick = () => {
+    if (whaleTooltipLocked) {
+        whaleTooltipLocked = false;
+        tooltip.style.opacity = '0';
+    }
+};
             
             window.addEventListener('resize', () => {
                 if (!chart) return;
@@ -2137,130 +2156,49 @@
     layer.innerHTML = '';
     if (!eventPoints.length || !chart || currentDataMode !== 'price') return;
 
-    const maxCards = window.innerWidth < 700 ? 2 : 4;
-    const cardWidth = window.innerWidth < 700 ? 168 : 190;
-    const cardHeight = window.innerWidth < 700 ? 64 : 68;
-    const laneCount = window.innerWidth < 700 ? 2 : 3;
-    const laneStart = 14;
-    const laneStep = cardHeight + 12;
-    const lanes = Array.from({ length: laneCount }, (_, i) => laneStart + i * laneStep);
-    const laneGap = 10;
-    const sidePad = 8;
-    const minCardXGap = window.innerWidth < 700 ? 74 : 96;
     const layerWidth = layer.clientWidth || layer.parentElement?.clientWidth || 0;
     const layerHeight = layer.clientHeight || layer.parentElement?.clientHeight || 0;
     if (!layerWidth || !layerHeight) return;
 
-    const laneOccupancy = lanes.map(() => []);
-
-    const allPoints = eventPoints
+    const points = eventPoints
         .map(event => {
             const rawX = chart.timeScale().timeToCoordinate(event.candleTime);
             const markerPrice = chartType === 'line' ? event.representativeValue : event.representativeClose;
             const rawY = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
             if (!Number.isFinite(rawX) || !Number.isFinite(rawY)) return null;
-            const x = Math.max(sidePad, Math.min(layerWidth - sidePad, rawX));
-            const y = Math.max(8, Math.min(layerHeight - 8, rawY));
             const cls = classifyWhaleEvent(event);
-            const arrowY = Math.max(8, Math.min(layerHeight - 8, y + (cls.red ? -8 : 10)));
-            return { ...event, x, y, cls, arrowY };
+            const x = Math.max(6, Math.min(layerWidth - 6, rawX));
+            const y = Math.max(8, Math.min(layerHeight - 8, rawY + (cls.red ? -8 : 10)));
+            return { ...event, cls, x, y, tooltipPrice: markerPrice };
         })
         .filter(Boolean)
         .sort((a, b) => a.candleTime - b.candleTime);
 
-    // Draw all arrows in the same layer so they always align with beams/cards.
-    for (const p of allPoints) {
+    for (const p of points) {
         const arrow = document.createElement('div');
         arrow.className = `whale-arrow${p.cls.red ? ' red' : ''}`;
         arrow.style.left = `${p.x}px`;
-        arrow.style.top = `${p.arrowY}px`;
+        arrow.style.top = `${p.y}px`;
         arrow.textContent = p.cls.red ? '↓' : '↑';
+
+        arrow.onmouseenter = (e) => {
+            whaleTooltipLocked = true;
+            showWhaleEventTooltip(p, p.x, p.y);
+        };
+        arrow.onmouseleave = () => {
+            whaleTooltipLocked = false;
+            const tooltip = document.getElementById('chartTooltip');
+            if (tooltip) tooltip.style.opacity = '0';
+        };
+        arrow.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            whaleTooltipLocked = true;
+            showWhaleEventTooltip(p, p.x, p.y);
+        };
+
         layer.appendChild(arrow);
     }
-
-    const collides = (left, right, ranges) =>
-        ranges.some(r => !(right + laneGap < r.left || left - laneGap > r.right));
-
-    function getAnchoredBounds(markerX) {
-        const minLeft = sidePad;
-        const maxLeft = Math.max(minLeft, layerWidth - sidePad - cardWidth);
-        const centeredLeft = markerX - cardWidth / 2;
-
-        if (centeredLeft < minLeft) {
-            return {
-                anchor: 'left',
-                cardLeft: minLeft,
-                cardRight: minLeft + cardWidth,
-                cardX: minLeft
-            };
-        }
-        if (centeredLeft > maxLeft) {
-            return {
-                anchor: 'right',
-                cardLeft: maxLeft,
-                cardRight: maxLeft + cardWidth,
-                cardX: maxLeft + cardWidth
-            };
-        }
-        return {
-            anchor: 'center',
-            cardLeft: centeredLeft,
-            cardRight: centeredLeft + cardWidth,
-            cardX: markerX
-        };
-    }
-
-    const selected = [];
-    for (const c of allPoints.slice().sort((a, b) => b.atom - a.atom)) {
-        if (selected.length >= maxCards) break;
-        if (selected.some(s => Math.abs(s.x - c.x) < minCardXGap)) continue;
-
-        const bounds = getAnchoredBounds(c.x);
-
-        let laneIndex = -1;
-        for (let i = 0; i < laneOccupancy.length; i++) {
-            if (!collides(bounds.cardLeft, bounds.cardRight, laneOccupancy[i])) {
-                laneIndex = i;
-                break;
-            }
-        }
-        if (laneIndex >= 0) {
-            laneOccupancy[laneIndex].push({ left: bounds.cardLeft, right: bounds.cardRight });
-            selected.push({
-                ...c,
-                laneIndex,
-                markerX: c.x,
-                cardX: bounds.cardX,
-                cardLeft: bounds.cardLeft,
-                cardRight: bounds.cardRight,
-                anchor: bounds.anchor
-            });
-        }
-    }
-
-    selected.sort((a, b) => a.cardLeft - b.cardLeft).forEach((event) => {
-        const top = lanes[event.laneIndex];
-        const beamTop = top + cardHeight - 8;
-        const beamHeight = Math.max(18, event.arrowY - beamTop);
-
-        const beam = document.createElement('div');
-        beam.className = `whale-beam${event.cls.red ? ' red' : ''}`;
-        beam.style.left = `${event.markerX}px`;
-        beam.style.top = `${beamTop}px`;
-        beam.style.height = `${beamHeight}px`;
-        layer.appendChild(beam);
-
-        const card = document.createElement('div');
-        card.className = `whale-card${event.cls.red ? ' red' : ''} anchor-${event.anchor}`;
-        card.style.left = `${event.cardX}px`;
-        card.style.top = `${top}px`;
-        card.style.width = `${cardWidth}px`;
-        card.innerHTML = `
-            <div class="whale-card-title">${event.cls.label}</div>
-            <div class="whale-card-meta">${formatCompactAmount(event.atom)} ATOM</div>
-        `;
-        layer.appendChild(card);
-    });
 }
 
 function applyWhaleMarkers() {

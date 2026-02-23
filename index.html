@@ -131,9 +131,9 @@
             border-color: rgba(255, 129, 129, 0.34);
             background: rgba(26, 13, 13, 0.9);
         }
-        .whale-card-title { font-size: 11px; color: #d1f6de; margin-bottom: 2px; }
+        .whale-card-title { font-size: 11px; color: #d1f6de; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .whale-card.red .whale-card-title { color: #ffd3d3; }
-        .whale-card-meta { font-size: 11px; color: #8cb49b; }
+        .whale-card-meta { font-size: 11px; color: #8cb49b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .whale-card.red .whale-card-meta { color: #c29f9f; }
         .whale-beam {
             position: absolute;
@@ -2138,29 +2138,45 @@
     if (!eventPoints.length || !chart || currentDataMode !== 'price') return;
 
     const maxCards = window.innerWidth < 700 ? 2 : 4;
-    const cardWidth = window.innerWidth < 700 ? 150 : 180;
-    const cardHeight = window.innerWidth < 700 ? 64 : 72;
+    const cardWidth = window.innerWidth < 700 ? 168 : 190;
+    const cardHeight = window.innerWidth < 700 ? 64 : 68;
     const laneCount = window.innerWidth < 700 ? 2 : 3;
-    const laneStart = 16;
+    const laneStart = 14;
     const laneStep = cardHeight + 12;
     const lanes = Array.from({ length: laneCount }, (_, i) => laneStart + i * laneStep);
-    const laneGap = 8;
+    const laneGap = 10;
     const sidePad = 8;
+    const minCardXGap = window.innerWidth < 700 ? 74 : 96;
     const layerWidth = layer.clientWidth || layer.parentElement?.clientWidth || 0;
-    if (!layerWidth) return;
+    const layerHeight = layer.clientHeight || layer.parentElement?.clientHeight || 0;
+    if (!layerWidth || !layerHeight) return;
 
     const laneOccupancy = lanes.map(() => []);
 
-    const candidates = eventPoints
+    const allPoints = eventPoints
         .map(event => {
-            const x = chart.timeScale().timeToCoordinate(event.candleTime);
+            const rawX = chart.timeScale().timeToCoordinate(event.candleTime);
             const markerPrice = chartType === 'line' ? event.representativeValue : event.representativeClose;
-            const y = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
-            return { ...event, x, y };
+            const rawY = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
+            if (!Number.isFinite(rawX) || !Number.isFinite(rawY)) return null;
+            const x = Math.max(sidePad, Math.min(layerWidth - sidePad, rawX));
+            const y = Math.max(8, Math.min(layerHeight - 8, rawY));
+            const cls = classifyWhaleEvent(event);
+            const arrowY = Math.max(8, Math.min(layerHeight - 8, y + (cls.red ? -8 : 10)));
+            return { ...event, x, y, cls, arrowY };
         })
-        .filter(c => Number.isFinite(c.x) && Number.isFinite(c.y))
-        .filter(c => c.x >= -16 && c.x <= layerWidth + 16)
-        .sort((a, b) => b.atom - a.atom);
+        .filter(Boolean)
+        .sort((a, b) => a.candleTime - b.candleTime);
+
+    // Draw all arrows in the same layer so they always align with beams/cards.
+    for (const p of allPoints) {
+        const arrow = document.createElement('div');
+        arrow.className = `whale-arrow${p.cls.red ? ' red' : ''}`;
+        arrow.style.left = `${p.x}px`;
+        arrow.style.top = `${p.arrowY}px`;
+        arrow.textContent = p.cls.red ? '↓' : '↑';
+        layer.appendChild(arrow);
+    }
 
     const collides = (left, right, ranges) =>
         ranges.some(r => !(right + laneGap < r.left || left - laneGap > r.right));
@@ -2195,10 +2211,11 @@
     }
 
     const selected = [];
-    for (const c of candidates) {
+    for (const c of allPoints.slice().sort((a, b) => b.atom - a.atom)) {
         if (selected.length >= maxCards) break;
-        const markerX = Math.max(sidePad, Math.min(layerWidth - sidePad, c.x));
-        const bounds = getAnchoredBounds(markerX);
+        if (selected.some(s => Math.abs(s.x - c.x) < minCardXGap)) continue;
+
+        const bounds = getAnchoredBounds(c.x);
 
         let laneIndex = -1;
         for (let i = 0; i < laneOccupancy.length; i++) {
@@ -2212,7 +2229,7 @@
             selected.push({
                 ...c,
                 laneIndex,
-                markerX,
+                markerX: c.x,
                 cardX: bounds.cardX,
                 cardLeft: bounds.cardLeft,
                 cardRight: bounds.cardRight,
@@ -2224,24 +2241,22 @@
     selected.sort((a, b) => a.cardLeft - b.cardLeft).forEach((event) => {
         const top = lanes[event.laneIndex];
         const beamTop = top + cardHeight - 8;
-        const beamHeight = Math.max(24, event.y - beamTop);
-        const cls = classifyWhaleEvent(event);
-        const red = cls.red;
+        const beamHeight = Math.max(18, event.arrowY - beamTop);
 
         const beam = document.createElement('div');
-        beam.className = `whale-beam${red ? ' red' : ''}`;
+        beam.className = `whale-beam${event.cls.red ? ' red' : ''}`;
         beam.style.left = `${event.markerX}px`;
         beam.style.top = `${beamTop}px`;
         beam.style.height = `${beamHeight}px`;
         layer.appendChild(beam);
 
         const card = document.createElement('div');
-        card.className = `whale-card${red ? ' red' : ''} anchor-${event.anchor}`;
+        card.className = `whale-card${event.cls.red ? ' red' : ''} anchor-${event.anchor}`;
         card.style.left = `${event.cardX}px`;
         card.style.top = `${top}px`;
         card.style.width = `${cardWidth}px`;
         card.innerHTML = `
-            <div class="whale-card-title">${cls.label}</div>
+            <div class="whale-card-title">${event.cls.label}</div>
             <div class="whale-card-meta">${formatCompactAmount(event.atom)} ATOM</div>
         `;
         layer.appendChild(card);
@@ -2288,18 +2303,7 @@ function applyWhaleMarkers() {
             }
 
             const eventPoints = Array.from(byCandle.values()).sort((a, b) => a.candleTime - b.candleTime);
-            const markers = eventPoints.map(ev => {
-                const cls = classifyWhaleEvent(ev);
-                return {
-                    time: ev.candleTime,
-                    position: cls.position,
-                    color: cls.color,
-                    shape: cls.shape,
-                    text: ''
-                };
-            });
-
-            series.setMarkers(markers);
+            series.setMarkers([]);
             renderWhaleEventCards(eventPoints);
         }
 

@@ -2136,7 +2136,14 @@
             if (!eventPoints.length || !chart || currentDataMode !== 'price') return;
 
             const maxCards = window.innerWidth < 700 ? 2 : 4;
-            const minSpacing = window.innerWidth < 700 ? 120 : 90;
+            const lanes = window.innerWidth < 700 ? [16, 66] : [16, 58, 100];
+            const cardWidth = window.innerWidth < 700 ? 150 : 180;
+            const cardHeight = window.innerWidth < 700 ? 64 : 72;
+            const laneGap = 8;
+            const sidePad = 8;
+            const xMin = sidePad + cardWidth / 2;
+            const xMax = Math.max(xMin, layer.clientWidth - sidePad - cardWidth / 2);
+            const laneOccupancy = lanes.map(() => []);
 
             const candidates = eventPoints
                 .map(event => {
@@ -2148,32 +2155,46 @@
                 .filter(c => Number.isFinite(c.x) && Number.isFinite(c.y))
                 .sort((a, b) => b.atom - a.atom);
 
+            const collides = (left, right, ranges) =>
+                ranges.some(r => !(right + laneGap < r.left || left - laneGap > r.right));
+
             const selected = [];
             for (const c of candidates) {
                 if (selected.length >= maxCards) break;
-                if (selected.every(s => Math.abs(s.x - c.x) >= minSpacing)) {
-                    selected.push(c);
+                const clampedX = Math.max(xMin, Math.min(xMax, c.x));
+                const left = clampedX - cardWidth / 2;
+                const right = clampedX + cardWidth / 2;
+
+                let laneIndex = -1;
+                for (let i = 0; i < laneOccupancy.length; i++) {
+                    if (!collides(left, right, laneOccupancy[i])) {
+                        laneIndex = i;
+                        break;
+                    }
+                }
+                if (laneIndex >= 0) {
+                    laneOccupancy[laneIndex].push({ left, right });
+                    selected.push({ ...c, laneIndex, cardX: clampedX });
                 }
             }
 
-            const lanes = window.innerWidth < 700 ? [16, 66] : [16, 58, 100];
-            selected.sort((a, b) => a.x - b.x).forEach((event, idx) => {
-                const top = lanes[idx % lanes.length];
-                const beamTop = top + 42;
+            selected.sort((a, b) => a.cardX - b.cardX).forEach((event) => {
+                const top = lanes[event.laneIndex];
+                const beamTop = top + cardHeight - 8;
                 const beamHeight = Math.max(24, event.y - beamTop);
                 const cls = classifyWhaleEvent(event);
                 const red = cls.red;
 
                 const beam = document.createElement('div');
                 beam.className = `whale-beam${red ? ' red' : ''}`;
-                beam.style.left = `${event.x}px`;
+                beam.style.left = `${event.cardX}px`;
                 beam.style.top = `${beamTop}px`;
                 beam.style.height = `${beamHeight}px`;
                 layer.appendChild(beam);
 
                 const card = document.createElement('div');
                 card.className = `whale-card${red ? ' red' : ''}`;
-                card.style.left = `${event.x}px`;
+                card.style.left = `${event.cardX}px`;
                 card.style.top = `${top}px`;
                 card.innerHTML = `
                     <div class="whale-card-title">${cls.label}</div>

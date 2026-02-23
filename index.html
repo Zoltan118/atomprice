@@ -847,6 +847,7 @@
         let unbondingFlows = null;
         let whaleEvents = null;            // individual whale events from whale-events.json
         let whalePending = null;           // pending whale undelegations from whale-pending.json
+        let topDelegations = null;         // top delegation events from top-delegations.json
         let showWhaleMarkers = true;       // toggle state for whale event markers
 
         // Whale watch state
@@ -2036,15 +2037,81 @@
             return sorted[best];
         }
 
+        function estimateTimestampFromHeight(height, anchors) {
+            if (!height || !anchors.length) return null;
+            if (anchors.length === 1) {
+                const a = anchors[0];
+                return new Date(a.ts + (height - a.height) * 6000).toISOString();
+            }
+            const sorted = anchors.slice().sort((a, b) => a.height - b.height);
+            const secsPerBlockSamples = [];
+            for (let i = 1; i < sorted.length; i++) {
+                const dh = sorted[i].height - sorted[i - 1].height;
+                const dt = (sorted[i].ts - sorted[i - 1].ts) / 1000;
+                if (dh > 0 && dt > 0) secsPerBlockSamples.push(dt / dh);
+            }
+            const secPerBlock = secsPerBlockSamples.length
+                ? secsPerBlockSamples[Math.floor(secsPerBlockSamples.length / 2)]
+                : 6;
+            const nearest = sorted.reduce((best, cur) =>
+                Math.abs(cur.height - height) < Math.abs(best.height - height) ? cur : best, sorted[0]);
+            const estTs = nearest.ts + (height - nearest.height) * secPerBlock * 1000;
+            return new Date(estTs).toISOString();
+        }
+
         function getAllWhaleEvents() {
-            return [
+            const rawEvents = [
                 ...(whaleEvents?.events || []),
                 ...(whalePending?.events || [])
-            ].map(ev => ({
-                ...ev,
-                atom: Number(ev.atom || 0),
-                unix: ev.timestamp ? Math.floor(new Date(ev.timestamp).getTime() / 1000) : null
-            })).filter(ev => ev.unix && ev.atom > 0);
+            ];
+
+            const topDelegationEvents = (topDelegations?.delegations || []).map(d => ({
+                type: 'delegate',
+                atom: Number(d.amount_atom || 0),
+                timestamp: d.timestamp || null,
+                validator: d.validator || '',
+                delegator: d.delegator || '',
+                height: Number(d.height || 0),
+                txhash: d.txhash || ''
+            }));
+
+            const txTimeMap = new Map();
+            for (const ev of rawEvents) {
+                if (ev.txhash && ev.timestamp) txTimeMap.set(ev.txhash, ev.timestamp);
+            }
+            for (const it of feedItems) {
+                if (it.txHash && it.timestamp) txTimeMap.set(it.txHash, it.timestamp);
+            }
+
+            const anchorHeights = [];
+            for (const it of feedItems) {
+                const h = Number(it.height || 0);
+                const ts = it.timestamp ? Date.parse(it.timestamp) : NaN;
+                if (h > 0 && Number.isFinite(ts)) anchorHeights.push({ height: h, ts });
+            }
+
+            const combined = [...rawEvents, ...topDelegationEvents].map(ev => {
+                let timestamp = ev.timestamp || null;
+                const tx = ev.txhash || ev.txHash || '';
+                if (!timestamp && tx && txTimeMap.has(tx)) timestamp = txTimeMap.get(tx);
+                if (!timestamp && ev.height) timestamp = estimateTimestampFromHeight(Number(ev.height), anchorHeights);
+                if (!timestamp && topDelegations?.updated_at && ev.type === 'delegate') timestamp = topDelegations.updated_at;
+                return {
+                    ...ev,
+                    txhash: tx,
+                    atom: Number(ev.atom || 0),
+                    timestamp,
+                    unix: timestamp ? Math.floor(new Date(timestamp).getTime() / 1000) : null
+                };
+            }).filter(ev => ev.unix && ev.atom > 0);
+
+            const seen = new Set();
+            return combined.filter(ev => {
+                const key = ev.txhash ? `tx:${ev.txhash}` : `${ev.type}:${ev.unix}:${Math.round(ev.atom)}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
         }
 
         function getFilteredWhaleEvents() {
@@ -2173,14 +2240,18 @@
 
         async function loadWhaleEvents() {
             try {
-                const [evRes, pendRes] = await Promise.allSettled([
+                const [evRes, pendRes, topDelRes] = await Promise.allSettled([
                     fetch('./data/whale-events.json?t=' + Date.now(), { cache: 'no-store' }),
-                    fetch('./data/whale-pending.json?t=' + Date.now(), { cache: 'no-store' })
+                    fetch('./data/whale-pending.json?t=' + Date.now(), { cache: 'no-store' }),
+                    fetch('./data/top-delegations.json?t=' + Date.now(), { cache: 'no-store' })
                 ]);
                 if (evRes.status === 'fulfilled' && evRes.value.ok) whaleEvents = await evRes.value.json();
                 if (pendRes.status === 'fulfilled' && pendRes.value.ok) whalePending = await pendRes.value.json();
+                if (topDelRes.status === 'fulfilled' && topDelRes.value.ok) {
+                    topDelegations = await topDelRes.value.json();
+                }
                 applyWhaleMarkers();
-                console.log(`🐋 Whale events: ${whaleEvents?.events?.length || 0} historical, ${whalePending?.events?.length || 0} pending`);
+                console.log(`🐋 Whale events: ${whaleEvents?.events?.length || 0} historical, ${whalePending?.events?.length || 0} pending, ${topDelegations?.delegations?.length || 0} top delegations`);
             } catch (err) {
                 console.log('ℹ️ Whale events not available:', err.message);
             }

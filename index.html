@@ -842,7 +842,7 @@
         const TICKER_MIN = 100;       // 100+ ATOM = ticker news
         const MAX_WHALES = 20;        // Top 20 whales for whale watch
         const MAX_MIDS = 100;         // Top 100 mids
-        const MAX_FEED = 100;         // Keep last 100 feed items
+        const MAX_FEED = 1000;         // Keep last 1000 feed items
         const MAX_TICKER = 200;       // Keep last 200 for ticker
         const WHALE_CYCLE_MS = 5000;  // Cycle whale watch every 5 seconds
         const CACHE_KEY = 'atomprice_cache_v5';
@@ -1529,7 +1529,9 @@ function showWhaleEventTooltip(eventPoint, x, y) {
 
             const statusEl = document.getElementById('feedStatus');
             if (statusEl) {
-                statusEl.textContent = `${filteredFeed.length} shown · ${feedItems.length} total`;
+                const dCount = filteredFeed.filter(i => i.type === 'delegate').length;
+                const uCount = filteredFeed.filter(i => i.type === 'undelegate').length;
+                statusEl.textContent = `${dCount} delegations · ${uCount} undelegations`;
             }
 
             if (!filteredFeed.length) {

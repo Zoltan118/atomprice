@@ -984,8 +984,8 @@ function showWhaleEventTooltip(eventPoint, x, y) {
         ? formatPriceWithDecimals(eventPoint.tooltipPrice, currentCurrency)
         : '—';
     const eventTime = eventPoint.timestamp
-        ? new Date(eventPoint.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-        : formatChartTooltipTime(eventPoint.candleTime);
+        ? new Date(eventPoint.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+        : new Date(eventPoint.candleTime * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 
     tooltip.innerHTML = `
         <div class="tooltip-time">${eventTime}</div>

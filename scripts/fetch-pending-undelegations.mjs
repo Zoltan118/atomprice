@@ -202,6 +202,26 @@ async function main() {
       console.log(`   ${d.date}: ${d.atom.toLocaleString()} ATOM (${d.delegator_count} delegators)`);
     }
   }
+
+  // ── Whale pending events (≥250K ATOM individuals with full timestamps) ──
+  const WHALE_MIN = 250000;
+  const whalePending = allEntries
+    .filter(e => e.atom >= WHALE_MIN)
+    .map(e => ({
+      type: "pending_undelegate",
+      atom: Math.round(e.atom),
+      timestamp: e.completion_time,  // full ISO 8601 from chain
+      validator: e.validator,
+      delegator: (e.delegator || "").slice(0, 20) + "..."
+    }))
+    .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
+
+  await fs.writeFile("data/whale-pending.json", JSON.stringify({
+    generated_at: new Date().toISOString(),
+    events: whalePending,
+  }, null, 2));
+
+  console.log(`\n🐋 Whale pending: ${whalePending.length} events ≥${WHALE_MIN.toLocaleString()} ATOM`);
 }
 
 main();

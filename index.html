@@ -209,6 +209,19 @@
         .edge-card-value.neg { color: #ef4444; }
         .edge-card-value.neu { color: #a3a3a3; }
         .edge-summary { margin-top: 8px; font-size: 11px; color: #666; }
+        .edge-method-toggle {
+            font-size: 10px; color: #333; background: none; border: none; cursor: pointer;
+            padding: 8px 0 2px; font-family: 'DM Sans', sans-serif; transition: color 0.15s;
+        }
+        .edge-method-toggle:hover { color: #666; }
+        .edge-method-body {
+            font-size: 11px; color: #444; line-height: 1.7; padding-top: 10px;
+            max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+        .edge-method-body.open { max-height: 300px; opacity: 1; }
+        .edge-method-body p { margin-bottom: 6px; }
+        .edge-method-body strong { color: #666; }
         .divider { height: 1px; background: #1a1a1a; margin-bottom: 32px; }
         .live-section { margin-bottom: 32px; }
         .live-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
@@ -775,6 +788,14 @@
                 </div>
             </div>
             <div class="edge-summary" id="edgeSummary">—</div>
+            <button class="edge-method-toggle" id="edgeMethodToggle">how calculated ↓</button>
+            <div class="edge-method-body" id="edgeMethodBody">
+                <p><strong>1) Event set:</strong> All delegation / undelegation flow is counted for totals. Edge modeling uses <span id="methodMode">exact-only</span> timestamps.</p>
+                <p><strong>2) Horizons:</strong> Forward outcomes are measured at <span id="methodHorizons">1h, 4h, 24h, 7d</span>.</p>
+                <p><strong>3) Alpha formula:</strong> alpha(h) = return_event(h) - baseline_return(h), with baseline from trailing <span id="methodLookback">30</span> days.</p>
+                <p><strong>4) Bias score:</strong> bias = 100 × tanh(net_7d / 2,000,000).</p>
+                <p><strong>5) Quality gate:</strong> n ≥ <span id="methodMinSamples">12</span> and exact coverage ≥ <span id="methodMinExact">70%</span>.</p>
+            </div>
         </div>
         
         <!-- Whale Watch removed: events are displayed directly on chart -->
@@ -2654,14 +2675,29 @@ function applyWhaleMarkers() {
             const flow7DelegateEvents = Number(flow7.delegation_events || 0);
             const delStability = eventIntelligence?.stability?.delegation_24h?.label || 'weak';
             const unlStability = eventIntelligence?.stability?.undelegation_completed_24h?.label || 'weak';
-            const delRegime = eventIntelligence?.regimes?.delegation || {};
-            const delLow = Number(delRegime?.low_vol?.median_edge);
-            const delHigh = Number(delRegime?.high_vol?.median_edge);
-            const regimeText = Number.isFinite(delLow) && Number.isFinite(delHigh)
-                ? `Regime split (delegation 24h): low-vol ${formatPctMaybe(delLow)} · high-vol ${formatPctMaybe(delHigh)}`
-                : 'Regime split calibrating';
             document.getElementById('edgeSummary').textContent =
-                `7d net flow: ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · Events: ${flow7UndelegateEvents} undelegations, ${flow7DelegateEvents} delegations · Quality: ${Math.round(exactPct * 100)}% exact, ${totalEvents} modeled events · Stability: delegation ${delStability}, unbond ${unlStability} · ${regimeText}`;
+                `7d net flow: ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · Events: ${flow7UndelegateEvents} undelegations, ${flow7DelegateEvents} delegations · Quality: ${Math.round(exactPct * 100)}% exact, ${totalEvents} modeled · Stability: delegation ${delStability}, unbond ${unlStability}`;
+
+            // Method panel dynamic values
+            const cfg = eventIntelligence?.config || {};
+            const gate = c.quality_gate || {};
+            const horizons = Array.isArray(cfg.horizons_hours) ? cfg.horizons_hours : [1,4,24,168];
+            const horizonText = horizons.map(h => h >= 24 ? (h === 24 ? '24h' : `${Math.round(h/24)}d`) : `${h}h`).join(', ');
+            const lookback = Number(cfg.baseline_lookback_days || 30);
+            const minSamples = Number(gate.min_samples || 12);
+            const minExactPct = Math.round(Number(gate.min_exact_pct || 0.7) * 100);
+            const methodMode = (del.mode || unl.mode || 'exact_only').replace('_', '-');
+
+            const methodModeEl = document.getElementById('methodMode');
+            const methodHorizonsEl = document.getElementById('methodHorizons');
+            const methodLookbackEl = document.getElementById('methodLookback');
+            const methodMinSamplesEl = document.getElementById('methodMinSamples');
+            const methodMinExactEl = document.getElementById('methodMinExact');
+            if (methodModeEl) methodModeEl.textContent = methodMode;
+            if (methodHorizonsEl) methodHorizonsEl.textContent = horizonText;
+            if (methodLookbackEl) methodLookbackEl.textContent = String(lookback);
+            if (methodMinSamplesEl) methodMinSamplesEl.textContent = String(minSamples);
+            if (methodMinExactEl) methodMinExactEl.textContent = `${minExactPct}%`;
         }
 
         async function loadEventIntelligence() {
@@ -3511,6 +3547,15 @@ function applyWhaleMarkers() {
             const isOpen = body.classList.toggle('open');
             this.textContent = isOpen ? 'how it works ↑' : 'how it works ↓';
         };
+
+        const edgeMethodToggle = document.getElementById('edgeMethodToggle');
+        if (edgeMethodToggle) {
+            edgeMethodToggle.onclick = function() {
+                const body = document.getElementById('edgeMethodBody');
+                const isOpen = body.classList.toggle('open');
+                this.textContent = isOpen ? 'how calculated ↑' : 'how calculated ↓';
+            };
+        }
 
         let gaugeCompactMeta = window.matchMedia('(max-width: 640px)').matches;
         window.addEventListener('resize', () => {

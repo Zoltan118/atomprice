@@ -15,8 +15,10 @@
 //   FEED_KEEP     default: 1000 (max items to keep in feed)
 //   PER_PAGE      default: 100
 //   LIMIT_PAGES   default: 5
+//   EXEC_LIMIT_PAGES default: 2 (MsgExec scans)
 //   RAW_KEEP_DAYS default: 90
 //   HOURLY_KEEP_DAYS default: 370
+//   INCREMENTAL  default: true (set false for deep historical backfill)
 
 import fs from "node:fs/promises";
 
@@ -35,11 +37,14 @@ const FEED_MIN = Number(process.env.FEED_MIN ?? "1000");
 const FEED_KEEP = Number(process.env.FEED_KEEP ?? "1000");
 const PER_PAGE = Number(process.env.PER_PAGE ?? "100");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");
+const EXEC_LIMIT_PAGES = Number(process.env.EXEC_LIMIT_PAGES ?? "2");
 const RAW_KEEP_DAYS = Number(process.env.RAW_KEEP_DAYS ?? "90");
 const HOURLY_KEEP_DAYS = Number(process.env.HOURLY_KEEP_DAYS ?? "370");
+const INCREMENTAL = String(process.env.INCREMENTAL ?? "true").toLowerCase() !== "false";
 
 const MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
 const MSG_UNDELEGATE = "/cosmos.staking.v1beta1.MsgUndelegate";
+const MSG_EXEC = "/cosmos.authz.v1beta1.MsgExec";
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -192,8 +197,9 @@ function parseTxEvents(txs, actionType) {
 }
 
 // ── Fetch txs from RPC ──
-async function fetchTxsByAction(msgAction, opts = {}) {
+async function fetchTxsByAction(msgAction, actionType, opts = {}) {
   const cutoffHeight = Number(opts.cutoffHeight || 0);
+  const limitPages = Number(opts.limitPages || LIMIT_PAGES);
   const knownTxHashes = opts.knownTxHashes instanceof Set ? opts.knownTxHashes : new Set();
   const query = `message.action='${msgAction}'`;
   const allItems = [];
@@ -201,7 +207,7 @@ async function fetchTxsByAction(msgAction, opts = {}) {
   let pagesScanned = 0;
   let stoppedEarly = false;
 
-  for (let page = 1; page <= LIMIT_PAGES; page++) {
+  for (let page = 1; page <= limitPages; page++) {
     if (page > 1) await sleep(400);
 
     const params = new URLSearchParams();
@@ -250,7 +256,6 @@ async function fetchTxsByAction(msgAction, opts = {}) {
     }
 
     // Parse events from this page
-    const actionType = msgAction === MSG_DELEGATE ? "delegate" : "undelegate";
     const parsed = parseTxEvents(txsForParse, actionType);
     allItems.push(...parsed);
 
@@ -346,6 +351,8 @@ async function main() {
   } catch { /* fresh start */ }
   const prevMaxHeight = prevItems.reduce((m, i) => Math.max(m, Number(i?.height || 0)), 0);
   const prevTxHashes = new Set(prevItems.map((i) => i?.txhash).filter(Boolean));
+  const cutoffHeight = INCREMENTAL ? prevMaxHeight : 0;
+  const knownTxHashes = INCREMENTAL ? prevTxHashes : new Set();
 
   let prevRawItems = [];
   try {
@@ -362,14 +369,24 @@ async function main() {
 
   // Fetch delegates and undelegates
   console.log(`\n📥 Fetching MsgDelegate (min ${FEED_MIN} ATOM)...`);
-  const delegateRes = await fetchTxsByAction(MSG_DELEGATE, { cutoffHeight: prevMaxHeight, knownTxHashes: prevTxHashes });
-  const delegates = delegateRes.items;
-  console.log(`  → ${delegates.length} delegates (${delegateRes.pagesScanned} pages${delegateRes.stoppedEarly ? ", stopped early" : ""})\n`);
+  const delegateRes = await fetchTxsByAction(MSG_DELEGATE, "delegate", { cutoffHeight, knownTxHashes });
+  console.log(`  → ${delegateRes.items.length} delegates (${delegateRes.pagesScanned} pages${delegateRes.stoppedEarly ? ", stopped early" : ""})`);
+
+  console.log(`📥 Fetching MsgExec for delegated events...`);
+  const execDelegateRes = await fetchTxsByAction(MSG_EXEC, "delegate", { cutoffHeight, knownTxHashes, limitPages: EXEC_LIMIT_PAGES });
+  const delegates = [...delegateRes.items, ...execDelegateRes.items];
+  console.log(`  → +${execDelegateRes.items.length} delegates via MsgExec (${execDelegateRes.pagesScanned} pages${execDelegateRes.stoppedEarly ? ", stopped early" : ""})`);
+  console.log(`  → ${delegates.length} total delegates\n`);
 
   console.log(`📥 Fetching MsgUndelegate (min ${FEED_MIN} ATOM)...`);
-  const undelegateRes = await fetchTxsByAction(MSG_UNDELEGATE, { cutoffHeight: prevMaxHeight, knownTxHashes: prevTxHashes });
-  const undelegates = undelegateRes.items;
-  console.log(`  → ${undelegates.length} undelegates (${undelegateRes.pagesScanned} pages${undelegateRes.stoppedEarly ? ", stopped early" : ""})\n`);
+  const undelegateRes = await fetchTxsByAction(MSG_UNDELEGATE, "undelegate", { cutoffHeight, knownTxHashes });
+  console.log(`  → ${undelegateRes.items.length} undelegates (${undelegateRes.pagesScanned} pages${undelegateRes.stoppedEarly ? ", stopped early" : ""})`);
+
+  console.log(`📥 Fetching MsgExec for undelegated events...`);
+  const execUndelegateRes = await fetchTxsByAction(MSG_EXEC, "undelegate", { cutoffHeight, knownTxHashes, limitPages: EXEC_LIMIT_PAGES });
+  const undelegates = [...undelegateRes.items, ...execUndelegateRes.items];
+  console.log(`  → +${execUndelegateRes.items.length} undelegates via MsgExec (${execUndelegateRes.pagesScanned} pages${execUndelegateRes.stoppedEarly ? ", stopped early" : ""})`);
+  console.log(`  → ${undelegates.length} total undelegates\n`);
 
   const freshItems = [...delegates, ...undelegates];
   await resolveTimestamps(freshItems);
@@ -442,16 +459,21 @@ async function main() {
     ingestion_health: {
       rpc_bases: RPC_BASES,
       pages: LIMIT_PAGES,
+      exec_pages: EXEC_LIMIT_PAGES,
       pages_scanned: {
         delegate: delegateRes.pagesScanned,
         undelegate: undelegateRes.pagesScanned,
+        exec_delegate: execDelegateRes.pagesScanned,
+        exec_undelegate: execUndelegateRes.pagesScanned,
       },
       incremental: {
-        enabled: prevMaxHeight > 0,
-        cutoff_height: prevMaxHeight || null,
+        enabled: INCREMENTAL && cutoffHeight > 0,
+        cutoff_height: cutoffHeight || null,
         stopped_early: {
           delegate: delegateRes.stoppedEarly,
           undelegate: undelegateRes.stoppedEarly,
+          exec_delegate: execDelegateRes.stoppedEarly,
+          exec_undelegate: execUndelegateRes.stoppedEarly,
         }
       },
       per_page: PER_PAGE,

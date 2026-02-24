@@ -22,6 +22,8 @@ const HORIZONS_HOURS = String(process.env.HORIZONS_HOURS ?? "1,4,24,168")
 
 const OUT_FILE = "data/event-intelligence.json";
 const KRAKEN_OHLC = "https://api.kraken.com/0/public/OHLC?pair=ATOMUSD&interval=60&since=";
+const EDGE_MIN_SAMPLES = Number(process.env.EDGE_MIN_SAMPLES ?? "12");
+const EDGE_MIN_EXACT_PCT = Number(process.env.EDGE_MIN_EXACT_PCT ?? "0.7");
 
 function median(arr) {
   if (!arr.length) return null;
@@ -179,7 +181,21 @@ function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndel
   }
 
   filtered.sort((a, b) => a.ts - b.ts);
-  return filtered;
+  const exactUnlockDays = new Set(
+    filtered
+      .filter((e) => e.category === "undelegation_completed" && !e.estimated)
+      .map((e) => new Date(e.ts * 1000).toISOString().slice(0, 10))
+  );
+
+  // If we already have an exact unlock event for a day, drop estimated daily schedule
+  // rows for the same day from edge/backtest inputs.
+  return filtered.filter((e) => {
+    if (e.category !== "undelegation_completed") return true;
+    if (!e.estimated) return true;
+    if (e.source !== "pending_schedule_daily") return true;
+    const day = new Date(e.ts * 1000).toISOString().slice(0, 10);
+    return !exactUnlockDays.has(day);
+  });
 }
 
 function buildEventOutcomes(events, candles) {
@@ -187,11 +203,47 @@ function buildEventOutcomes(events, candles) {
   const closes = candles.map((c) => c.close);
   const maxH = Math.max(...HORIZONS_HOURS) * 3600;
   const lookbackSec = BASELINE_LOOKBACK_DAYS * 86400;
+  const firstCandle = times[0];
+  const lastCandle = times[times.length - 1];
+
+  const localVol24hAt = (ts) => {
+    const baseIdx = findIndexAtOrAfter(times, ts);
+    if (baseIdx <= 1) return null;
+    const fromIdx = Math.max(1, baseIdx - 24);
+    const rets = [];
+    for (let i = fromIdx; i <= baseIdx; i++) {
+      const prev = closes[i - 1];
+      const curr = closes[i];
+      if (!Number.isFinite(prev) || prev <= 0 || !Number.isFinite(curr) || curr <= 0) continue;
+      rets.push((curr / prev) - 1);
+    }
+    if (rets.length < 12) return null;
+    return stdev(rets);
+  };
 
   const enriched = events.map((e) => {
+    if (e.ts < firstCandle || e.ts > lastCandle) {
+      return {
+        ...e,
+        outcomes: {},
+        baseline_samples: 0,
+        timestamp_quality: e.estimated ? "estimated" : "exact",
+        price_at_event: null,
+        price_time: null,
+        local_vol_24h: null,
+      };
+    }
     const baseIdx = findIndexAtOrAfter(times, e.ts);
     if (baseIdx < 0) {
-      return { ...e, outcomes: {}, baseline_samples: 0, timestamp_quality: e.estimated ? "estimated" : "exact" };
+      return {
+        ...e,
+        outcomes: {},
+        baseline_samples: 0,
+        timestamp_quality: e.estimated ? "estimated" : "exact",
+        price_at_event: null,
+        price_time: null,
+        local_vol_24h: null,
+      };
     }
     const baseTime = times[baseIdx];
     const baseClose = closes[baseIdx];
@@ -243,6 +295,7 @@ function buildEventOutcomes(events, candles) {
       timestamp_quality: e.estimated ? "estimated" : "exact",
       price_at_event: baseClose,
       price_time: baseTime,
+      local_vol_24h: localVol24hAt(e.ts),
     };
   });
 
@@ -291,6 +344,80 @@ function summarizeByCategory(enrichedEvents) {
   return out;
 }
 
+function buildRegimeSplit(enrichedEvents) {
+  const categories = ["delegation", "undelegation_completed"];
+  const out = {};
+  for (const cat of categories) {
+    const rows = enrichedEvents
+      .filter((e) => e.category === cat && !e.estimated)
+      .map((e) => {
+        const h24 = e.outcomes?.h24;
+        const edge = Number.isFinite(h24?.alpha) ? h24.alpha : h24?.return;
+        return {
+          vol: e.local_vol_24h,
+          ret: h24?.return,
+          edge,
+        };
+      })
+      .filter((r) => Number.isFinite(r.vol) && Number.isFinite(r.ret) && Number.isFinite(r.edge));
+
+    if (!rows.length) {
+      out[cat] = {
+        threshold_vol_24h: null,
+        low_vol: { count: 0, median_edge: null, win_rate: null },
+        high_vol: { count: 0, median_edge: null, win_rate: null },
+      };
+      continue;
+    }
+
+    const threshold = median(rows.map((r) => r.vol));
+    const low = rows.filter((r) => r.vol <= threshold);
+    const high = rows.filter((r) => r.vol > threshold);
+    const summarize = (arr) => ({
+      count: arr.length,
+      median_edge: arr.length ? median(arr.map((r) => r.edge)) : null,
+      win_rate: arr.length ? (arr.filter((r) => r.ret > 0).length / arr.length) : null,
+    });
+
+    out[cat] = {
+      threshold_vol_24h: threshold,
+      low_vol: summarize(low),
+      high_vol: summarize(high),
+    };
+  }
+  return out;
+}
+
+function buildStability(enrichedEvents, category) {
+  const rows = enrichedEvents
+    .filter((e) => e.category === category && !e.estimated)
+    .map((e) => {
+      const h24 = e.outcomes?.h24;
+      const edge = Number.isFinite(h24?.alpha) ? h24.alpha : h24?.return;
+      return { ts: e.ts, edge };
+    })
+    .filter((r) => Number.isFinite(r.edge))
+    .sort((a, b) => a.ts - b.ts);
+
+  const n = rows.length;
+  if (!n) return { label: "weak", n: 0, drift: null };
+
+  const mid = Math.floor(n / 2);
+  const firstHalf = rows.slice(0, mid).map((r) => r.edge);
+  const secondHalf = rows.slice(mid).map((r) => r.edge);
+  const m1 = median(firstHalf);
+  const m2 = median(secondHalf);
+  const drift = (Number.isFinite(m1) && Number.isFinite(m2)) ? Math.abs(m2 - m1) : null;
+
+  let label = "weak";
+  if (Number.isFinite(drift)) {
+    if (n >= 30 && drift <= 0.005) label = "strong";
+    else if (n >= 18 && drift <= 0.015) label = "medium";
+  }
+
+  return { label, n, drift };
+}
+
 function buildRecentBiasFromEvents(enrichedEvents) {
   const now = Math.floor(Date.now() / 1000);
   const since = now - 7 * 86400;
@@ -320,17 +447,37 @@ function buildRecentBiasFromEvents(enrichedEvents) {
   };
 }
 
-function pickEdgeCard(summary, key) {
+function pickEdgeCard(summary, coverage, key) {
   const h24 = summary?.[key]?.horizons?.h24;
-  if (!h24 || !h24.count) return { count: 0, edge: null, win_rate: null, confidence: "Low" };
+  if (!h24 || !h24.count) {
+    return {
+      count: 0,
+      edge: null,
+      win_rate: null,
+      confidence: "Low",
+      qualified: false,
+      gate_reason: "No 24h sample yet",
+      mode: "exact_only",
+      window: "24h",
+    };
+  }
   const edge = Number.isFinite(h24.median_alpha) ? h24.median_alpha : h24.median_return;
   const c = h24.count;
   const confidence = c >= 30 ? "High" : c >= 12 ? "Medium" : "Low";
+  const exactPct = Number(coverage?.exact_pct || 0);
+  const qualified = c >= EDGE_MIN_SAMPLES && exactPct >= EDGE_MIN_EXACT_PCT;
+  const reasons = [];
+  if (c < EDGE_MIN_SAMPLES) reasons.push(`n<${EDGE_MIN_SAMPLES}`);
+  if (exactPct < EDGE_MIN_EXACT_PCT) reasons.push(`exact<${Math.round(EDGE_MIN_EXACT_PCT * 100)}%`);
   return {
     count: c,
     edge,
     win_rate: h24.win_rate,
     confidence,
+    qualified,
+    gate_reason: qualified ? "Qualified" : `Calibrating (${reasons.join(", ")})`,
+    mode: "exact_only",
+    window: "24h",
   };
 }
 
@@ -364,7 +511,9 @@ async function main() {
   if (!candles.length) throw new Error("No Kraken candles loaded");
 
   const built = buildEventOutcomes(events, candles);
-  const summary = summarizeByCategory(built.events);
+  const summaryAll = summarizeByCategory(built.events);
+  const exactEvents = built.events.filter((e) => !e.estimated);
+  const summaryExact = summarizeByCategory(exactEvents);
   const eventBias = buildRecentBiasFromEvents(built.events);
 
   const now = Date.now();
@@ -404,8 +553,25 @@ async function main() {
     bias_label: flowBiasLabel,
   };
 
-  const delegateCard = pickEdgeCard(summary, "delegation");
-  const unlockCard = pickEdgeCard(summary, "undelegation_completed");
+  const coverage = {
+    delegation: {
+      exact_pct: (summaryAll?.delegation?.events || 0)
+        ? (summaryAll.delegation.exact_timestamps / summaryAll.delegation.events)
+        : 0,
+    },
+    undelegation_completed: {
+      exact_pct: (summaryAll?.undelegation_completed?.events || 0)
+        ? (summaryAll.undelegation_completed.exact_timestamps / summaryAll.undelegation_completed.events)
+        : 0,
+    },
+  };
+  const delegateCard = pickEdgeCard(summaryExact, coverage.delegation, "delegation");
+  const unlockCard = pickEdgeCard(summaryExact, coverage.undelegation_completed, "undelegation_completed");
+  const regimeSplit = buildRegimeSplit(built.events);
+  const stability = {
+    delegation_24h: buildStability(built.events, "delegation"),
+    undelegation_completed_24h: buildStability(built.events, "undelegation_completed"),
+  };
 
   const exactCount = built.events.filter((e) => !e.estimated).length;
   const estimatedCount = built.events.filter((e) => e.estimated).length;
@@ -431,7 +597,10 @@ async function main() {
       candle_end: new Date(candles[candles.length - 1].time * 1000).toISOString(),
     },
     recent_bias: flow7.count ? flowBias : eventBias,
-    historical_edge: summary,
+    historical_edge: summaryExact,
+    historical_edge_all: summaryAll,
+    regimes: regimeSplit,
+    stability,
     cards: {
       delegation_24h: delegateCard,
       undelegation_completed_24h: unlockCard,
@@ -452,6 +621,10 @@ async function main() {
         score: (flow7.count ? flowBias : eventBias).bias_score,
         net_atom: (flow7.count ? flowBias : eventBias).net_atom,
         text: `${shortAtom(Math.abs((flow7.count ? flowBias : eventBias).net_atom))} ATOM ${(flow7.count ? flowBias : eventBias).net_atom >= 0 ? "net delegation" : "net undelegation"} (7d)`,
+      },
+      quality_gate: {
+        min_samples: EDGE_MIN_SAMPLES,
+        min_exact_pct: EDGE_MIN_EXACT_PCT,
       },
     },
     events: built.events

@@ -186,7 +186,18 @@
         .stat-label { font-size: 10px; color: #444; text-transform: lowercase; }
         .edge-section { margin-bottom: 28px; }
         .edge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .edge-title-wrap { display: flex; align-items: center; gap: 8px; }
         .edge-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+        .edge-beta {
+            font-size: 9px;
+            color: #f59e0b;
+            border: 1px solid rgba(245,158,11,0.45);
+            background: rgba(245,158,11,0.08);
+            border-radius: 999px;
+            padding: 2px 7px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
         .edge-updated { font-size: 10px; color: #555; }
         .edge-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
         .edge-card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 10px; padding: 11px 12px; }
@@ -729,7 +740,10 @@
         <!-- Historical Edge -->
         <div class="edge-section" id="edgeSection" style="display: none;">
             <div class="edge-header">
-                <span class="edge-label">historical edge</span>
+                <span class="edge-title-wrap">
+                    <span class="edge-label">intelligence layer</span>
+                    <span class="edge-beta">beta</span>
+                </span>
                 <span class="edge-updated" id="edgeUpdated">—</span>
             </div>
             <div class="edge-grid">
@@ -2570,38 +2584,43 @@ function applyWhaleMarkers() {
 
             const delValueEl = document.getElementById('edgeDelegationValue');
             const delValue = Number.isFinite(del.edge) ? del.edge : null;
-            delValueEl.textContent = delValue === null ? 'n/a' : formatPctMaybe(delValue);
-            delValueEl.className = `edge-card-value ${edgeClassByValue(delValue)}`;
+            const delCalibrating = (del.qualified === false || delValue === null);
+            delValueEl.textContent = delCalibrating ? 'Calibrating' : formatPctMaybe(delValue);
+            delValueEl.className = `edge-card-value ${delCalibrating ? 'neu' : edgeClassByValue(delValue)}`;
             document.getElementById('edgeDelegationMeta').textContent = del.count
-                ? `${Math.round((del.win_rate || 0) * 100)}% win · n=${del.count} · ${del.confidence || 'Low'} conf`
+                ? `${Math.round((del.win_rate || 0) * 100)}% win · n=${del.count} · ${del.confidence || 'Low'} conf · ${del.gate_reason || ''}`.trim()
                 : 'No 24h sample yet';
 
             const unlValueEl = document.getElementById('edgeUnlockValue');
             const unlValue = Number.isFinite(unl.edge) ? unl.edge : null;
-            unlValueEl.textContent = unlValue === null ? 'n/a' : formatPctMaybe(unlValue);
-            unlValueEl.className = `edge-card-value ${edgeClassByValue(unlValue)}`;
+            const unlCalibrating = (unl.qualified === false || unlValue === null);
+            unlValueEl.textContent = unlCalibrating ? 'Calibrating' : formatPctMaybe(unlValue);
+            unlValueEl.className = `edge-card-value ${unlCalibrating ? 'neu' : edgeClassByValue(unlValue)}`;
             document.getElementById('edgeUnlockMeta').textContent = unl.count
-                ? `${Math.round((unl.win_rate || 0) * 100)}% win · n=${unl.count} · ${unl.confidence || 'Low'} conf`
+                ? `${Math.round((unl.win_rate || 0) * 100)}% win · n=${unl.count} · ${unl.confidence || 'Low'} conf · ${unl.gate_reason || ''}`.trim()
                 : 'No 24h sample yet';
 
             const biasValueEl = document.getElementById('edgeBiasValue');
             const biasScore = Number.isFinite(bias.score) ? bias.score : null;
             biasValueEl.textContent = biasScore === null ? 'n/a' : `${bias.label || 'Neutral'} ${biasScore >= 0 ? '+' : ''}${Math.round(biasScore)}`;
             biasValueEl.className = `edge-card-value ${edgeClassByValue(biasScore)}`;
-            const flow24 = c.flow_24h || {};
-            const flow24Net = Number(flow24.net_atom || 0);
-            const flow24Text = Number.isFinite(flow24Net)
-                ? `${formatAmount(Math.abs(flow24Net))} ATOM ${flow24Net >= 0 ? 'net delegation' : 'net undelegation'} (24h)`
-                : 'No flow data';
-            document.getElementById('edgeBiasMeta').textContent = flow24Text;
+            document.getElementById('edgeBiasMeta').textContent = bias.text || 'No flow data';
 
             const exactPct = Number(eventIntelligence?.data_quality?.exact_timestamp_pct || 0);
             const totalEvents = Number(eventIntelligence?.data_quality?.events_total || 0);
             const minAtom = Number(eventIntelligence?.config?.min_event_atom || 0);
             const flow7 = c.flow_7d || {};
             const flow7Net = Number(flow7.net_atom || 0);
+            const delStability = eventIntelligence?.stability?.delegation_24h?.label || 'weak';
+            const unlStability = eventIntelligence?.stability?.undelegation_completed_24h?.label || 'weak';
+            const delRegime = eventIntelligence?.regimes?.delegation || {};
+            const delLow = Number(delRegime?.low_vol?.median_edge);
+            const delHigh = Number(delRegime?.high_vol?.median_edge);
+            const regimeText = Number.isFinite(delLow) && Number.isFinite(delHigh)
+                ? `Regime split (delegation 24h): low-vol ${formatPctMaybe(delLow)} · high-vol ${formatPctMaybe(delHigh)}`
+                : 'Regime split calibrating';
             document.getElementById('edgeSummary').textContent =
-                `Vol-adjusted baseline · 7d net ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · ${Math.round(exactPct * 100)}% exact timestamps · ${totalEvents} events · min ${formatAmount(minAtom)} ATOM`;
+                `Exact-only edge · 7d net ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · ${Math.round(exactPct * 100)}% exact timestamps · ${totalEvents} events · min ${formatAmount(minAtom)} ATOM · stability: delegation ${delStability}, unbond ${unlStability} · ${regimeText}`;
         }
 
         async function loadEventIntelligence() {

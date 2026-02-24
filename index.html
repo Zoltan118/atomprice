@@ -752,18 +752,7 @@
             <div class="edge-summary" id="edgeSummary">—</div>
         </div>
         
-        <!-- Whale Watch -->
-        <div class="live-section" id="whaleSection" style="display: none;">
-            <div class="live-header">
-                <div class="live-dot" id="liveDot"></div>
-                <span class="live-label">whale watch <span style="color: #555; font-weight: 400;">(50K+ delegations)</span></span>
-            </div>
-            <div class="whale-hero">
-                <div class="whale-hero-value" id="whaleHero"></div>
-                <div class="whale-hero-label">top delegations</div>
-                <div class="whale-hero-tx" id="whaleHeroTx"></div>
-            </div>
-        </div>
+        <!-- Whale Watch removed: events are displayed directly on chart -->
         
         <!-- Delegation Feed - Telegram-style scrollable -->
         <div class="feed-section" id="feedSection" style="display: none;">
@@ -945,6 +934,7 @@
         // Pending undelegations + flow data
         let pendingUndelegations = null;
         let unbondingFlows = null;
+        let undelegationArchive = null;
         let whaleEvents = null;            // individual whale events from whale-events.json
         let whalePending = null;           // pending whale undelegations from whale-pending.json
         let topDelegations = null;         // top delegation events from top-delegations.json
@@ -2290,15 +2280,20 @@ chartContainer.onclick = () => {
                 stage: 'unlock',
                 type: ev.type || 'pending_undelegate'
             }));
-            const scheduledUnlocks = (pendingUndelegations?.schedule || []).map(d => ({
-                stage: 'unlock',
-                type: 'pending_undelegate',
-                atom: Number(d.atom || 0),
-                timestamp: d.date ? `${d.date}T12:00:00.000Z` : null,
-                txhash: '',
-                source: 'schedule',
-                delegator_count: Number(d.delegator_count || 0)
-            }));
+            const archiveUnlocks = Object.entries(undelegationArchive || {})
+                .flatMap(([date, rows]) => {
+                    if (!Array.isArray(rows)) return [];
+                    return rows.map(r => ({
+                        stage: 'unlock',
+                        type: 'pending_undelegate',
+                        atom: Number(r.atom || 0),
+                        timestamp: date ? `${date}T12:00:00.000Z` : null,
+                        txhash: '',
+                        source: 'archive',
+                        validator: r.validator || '',
+                        delegator: r.address || ''
+                    }));
+                });
 
             const topDelegationEvents = (topDelegations?.delegations || []).map(d => ({
                 stage: 'initiation',
@@ -2327,7 +2322,7 @@ chartContainer.onclick = () => {
             }
 
             const ms21d = UNBONDING_PERIOD_DAYS * 24 * 60 * 60 * 1000;
-            const combined = [...rawInitiations, ...rawUnlocks, ...scheduledUnlocks, ...topDelegationEvents].map(ev => {
+            const combined = [...rawInitiations, ...rawUnlocks, ...archiveUnlocks, ...topDelegationEvents].map(ev => {
                 let timestamp = ev.timestamp || null;
                 const tx = ev.txhash || ev.txHash || '';
                 if (!timestamp && tx && txTimeMap.has(tx)) timestamp = txTimeMap.get(tx);
@@ -2369,7 +2364,9 @@ chartContainer.onclick = () => {
 
             const seen = new Set();
             return combined.filter(ev => {
-                const key = ev.txhash ? `tx:${ev.txhash}:${ev.stage}` : `${ev.stage}:${ev.type}:${ev.unix}:${Math.round(ev.atom)}`;
+                const key = ev.txhash
+                    ? `tx:${ev.txhash}:${ev.stage}`
+                    : `${ev.stage}:${ev.type}:${ev.unix}:${Math.round(ev.atom)}:${ev.delegator || ''}:${ev.validator || ''}`;
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
@@ -2518,6 +2515,19 @@ function applyWhaleMarkers() {
                 console.log(`🐋 Whale events: ${whaleEvents?.events?.length || 0} historical, ${whalePending?.events?.length || 0} pending, ${topDelegations?.delegations?.length || 0} top delegations`);
             } catch (err) {
                 console.log('ℹ️ Whale events not available:', err.message);
+            }
+        }
+
+        async function loadUndelegationArchive() {
+            try {
+                const res = await fetch('./data/undelegation-archive.json?t=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                undelegationArchive = await res.json();
+                applyWhaleMarkers();
+                console.log(`✅ Undelegation archive loaded`);
+            } catch (err) {
+                console.log('ℹ️ Undelegation archive not available:', err.message);
+                undelegationArchive = null;
             }
         }
 
@@ -3498,6 +3508,7 @@ function applyWhaleMarkers() {
             loadPendingUndelegations();
             loadUnbondingFlows();
             loadWhaleEvents();
+            loadUndelegationArchive();
             loadEventIntelligence();
 
             // 6) Load FX rates
@@ -3519,6 +3530,7 @@ function applyWhaleMarkers() {
             setInterval(loadPendingUndelegations, 300000);   // Unbonding every 5min
             setInterval(loadUnbondingFlows, 600000);         // Flows every 10min
             setInterval(loadWhaleEvents, 600000);      // Whale events every 10min
+            setInterval(loadUndelegationArchive, 1800000);   // Archive every 30min
             setInterval(loadEventIntelligence, 3600000);      // Event intelligence hourly
             
             console.log('✅ Dashboard ready!');

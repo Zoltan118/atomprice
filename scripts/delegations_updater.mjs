@@ -12,7 +12,8 @@
 //   - data/top-delegations.json
 //
 // Env (optional):
-//   RPC_BASE        default: https://rpc.silknodes.io/cosmos
+//   RPC_BASES       comma-separated RPCs (preferred)
+//   RPC_BASE        single RPC fallback if RPC_BASES not set
 //   REST_BASE       default: https://rest.cosmos.directory/cosmoshub
 //   WINDOW_HOURS    default: 48 (changed from 24)
 //   MIN_ATOM        default: 1
@@ -29,7 +30,11 @@ import fs from "node:fs/promises";
 
 const OUT_FILE = "data/delegations_24h.json";  // Keep filename for compatibility
 
-const RPC_BASE = (process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos").replace(/\/+$/, "");
+const RPC_BASES = (process.env.RPC_BASES
+  ? process.env.RPC_BASES.split(",")
+  : [process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos"])
+  .map((s) => s.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
 const WINDOW_HOURS = Number(process.env.WINDOW_HOURS ?? "48");  // Changed to 48 hours
 const MIN_ATOM = Number(process.env.MIN_ATOM ?? "1");
@@ -53,6 +58,11 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+const rpcStats = {};
+for (const rpc of RPC_BASES) {
+  rpcStats[rpc] = { ok: 0, fail: 0, empty: 0, last_error: null };
+}
+
 async function fetchJson(url, timeoutMs = 15000) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
@@ -69,6 +79,36 @@ async function fetchJson(url, timeoutMs = 15000) {
   } finally {
     clearTimeout(t);
   }
+}
+
+async function fetchJsonFromRpcPath(path, timeoutMs = 15000, requireNonEmptyTxs = false) {
+  let lastErr = null;
+  let firstEmpty = null;
+
+  for (const rpc of RPC_BASES) {
+    const url = `${rpc}${path}`;
+    try {
+      const data = await fetchJson(url, timeoutMs);
+      if (data?.error) {
+        throw new Error(data?.error?.message || JSON.stringify(data.error));
+      }
+      const txs = data?.result?.txs;
+      if (requireNonEmptyTxs && Array.isArray(txs) && txs.length === 0) {
+        rpcStats[rpc].empty++;
+        if (!firstEmpty) firstEmpty = { data, rpc };
+        continue;
+      }
+      rpcStats[rpc].ok++;
+      return { data, rpc };
+    } catch (e) {
+      rpcStats[rpc].fail++;
+      rpcStats[rpc].last_error = String(e?.message || e);
+      lastErr = e;
+    }
+  }
+
+  if (firstEmpty) return firstEmpty;
+  throw lastErr || new Error(`All RPCs failed for path: ${path}`);
 }
 
 async function ensureOutDir() {
@@ -186,10 +226,25 @@ async function backfillMissingTimestamps(items) {
 }
 
 async function fetchRecentDelegations() {
-  const status = await fetchJson(`${RPC_BASE}/status`);
-  const latestTime = status?.result?.sync_info?.latest_block_time;
-  if (!latestTime) throw new Error(`Bad /status from ${RPC_BASE}`);
-  const nowMs = Date.parse(latestTime);
+  const statusResults = await Promise.allSettled(
+    RPC_BASES.map((rpc) => fetchJson(`${rpc}/status`, 10000).then((data) => ({ rpc, data })))
+  );
+  const healthyStatus = statusResults
+    .filter((r) => r.status === "fulfilled" && !r.value?.data?.error)
+    .map((r) => r.value);
+  if (!healthyStatus.length) {
+    throw new Error(`No healthy /status response from RPC_BASES`);
+  }
+  const bestStatus = healthyStatus
+    .map((s) => ({
+      rpc: s.rpc,
+      latestTime: s.data?.result?.sync_info?.latest_block_time,
+      latestHeight: Number(s.data?.result?.sync_info?.latest_block_height || 0),
+    }))
+    .filter((s) => s.latestTime)
+    .sort((a, b) => b.latestHeight - a.latestHeight)[0];
+
+  const nowMs = Date.parse(bestStatus.latestTime);
   const cutoffMs = nowMs - WINDOW_HOURS * 60 * 60 * 1000;
 
   const items = [];
@@ -205,11 +260,14 @@ async function fetchRecentDelegations() {
     params.set("per_page", String(PER_PAGE));
     params.set("order_by", JSON.stringify("desc"));
 
-    const url = `${RPC_BASE}/tx_search?${params.toString()}`;
+    const path = `/tx_search?${params.toString()}`;
 
     let data;
+    let usedRpc = null;
     try {
-      data = await fetchJson(url);
+      const res = await fetchJsonFromRpcPath(path, 15000, true);
+      data = res.data;
+      usedRpc = res.rpc;
     } catch (e) {
       const msg = String(e?.message || e);
       if (msg.includes("page should be within")) break;
@@ -259,10 +317,12 @@ async function fetchRecentDelegations() {
         })
       );
     }
+    console.log(`  Page ${page} via ${usedRpc}: ${txs.length} txs scanned`);
   }
 
   return {
     now_iso: new Date().toISOString(),
+    status_rpc: bestStatus.rpc,
     items: uniqueByTxhash(items),
   };
 }
@@ -294,7 +354,7 @@ async function main() {
   const prevMids = prev?.mids_top || prev?.featured?.mids_top || [];
 
   try {
-    const { items: freshItems } = await fetchRecentDelegations();
+    const { items: freshItems, status_rpc } = await fetchRecentDelegations();
 
     const whales_top = mergeTopByAmount(
       prevWhales,
@@ -318,9 +378,16 @@ async function main() {
       window_hours: WINDOW_HOURS,
       min_atom: MIN_ATOM,
       source: {
-        rpc: RPC_BASE,
+        rpc_bases: RPC_BASES,
+        status_rpc,
         query: EVENT_QUERY,
         note: "fresh items are recent; whales_top/mids_top are persistent top-by-amount sets",
+      },
+      ingestion_health: {
+        pages: LIMIT_PAGES,
+        per_page: PER_PAGE,
+        window_hours: WINDOW_HOURS,
+        rpc_stats: rpcStats,
       },
 
       // Persistent leaderboards
@@ -370,7 +437,7 @@ async function main() {
       generated_at: new Date().toISOString(),
       window_hours: WINDOW_HOURS,
       min_atom: MIN_ATOM,
-      source: { rpc: RPC_BASE, query: EVENT_QUERY },
+      source: { rpc_bases: RPC_BASES, query: EVENT_QUERY },
       whales_top: Array.isArray(prevWhales) ? prevWhales : [],
       mids_top: Array.isArray(prevMids) ? prevMids : [],
       fresh: [],

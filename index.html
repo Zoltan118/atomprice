@@ -648,8 +648,14 @@
         @media (max-width: 500px) {
             .price-row { gap: 10px; }
             .change { font-size: 14px; }
-            .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
+            .stats-row .stat:last-child {
+                grid-column: 1 / -1;
+                text-align: center;
+                margin-top: 2px;
+            }
             .stat-value { font-size: 22px; }
+            .stat-label { font-size: 9px; }
             .time-buttons { gap: 2px; padding: 3px; }
             .time-btn { padding: 5px 8px; font-size: 10px; }
             .currency-btn { width: 32px; height: 32px; font-size: 14px; }
@@ -2642,9 +2648,10 @@ function applyWhaleMarkers() {
 
             const exactPct = Number(eventIntelligence?.data_quality?.exact_timestamp_pct || 0);
             const totalEvents = Number(eventIntelligence?.data_quality?.events_total || 0);
-            const minAtom = Number(eventIntelligence?.config?.min_event_atom || 0);
             const flow7 = c.flow_7d || {};
             const flow7Net = Number(flow7.net_atom || 0);
+            const flow7UndelegateEvents = Number(flow7.undelegation_events || 0);
+            const flow7DelegateEvents = Number(flow7.delegation_events || 0);
             const delStability = eventIntelligence?.stability?.delegation_24h?.label || 'weak';
             const unlStability = eventIntelligence?.stability?.undelegation_completed_24h?.label || 'weak';
             const delRegime = eventIntelligence?.regimes?.delegation || {};
@@ -2654,7 +2661,7 @@ function applyWhaleMarkers() {
                 ? `Regime split (delegation 24h): low-vol ${formatPctMaybe(delLow)} · high-vol ${formatPctMaybe(delHigh)}`
                 : 'Regime split calibrating';
             document.getElementById('edgeSummary').textContent =
-                `Exact-only edge · 7d net ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · ${Math.round(exactPct * 100)}% exact timestamps · ${totalEvents} events · min ${formatAmount(minAtom)} ATOM · stability: delegation ${delStability}, unbond ${unlStability} · ${regimeText}`;
+                `7d net flow: ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · Events: ${flow7UndelegateEvents} undelegations, ${flow7DelegateEvents} delegations · Quality: ${Math.round(exactPct * 100)}% exact, ${totalEvents} modeled events · Stability: delegation ${delStability}, unbond ${unlStability} · ${regimeText}`;
         }
 
         async function loadEventIntelligence() {

@@ -192,10 +192,14 @@ function parseTxEvents(txs, actionType) {
 }
 
 // ── Fetch txs from RPC ──
-async function fetchTxsByAction(msgAction) {
+async function fetchTxsByAction(msgAction, opts = {}) {
+  const cutoffHeight = Number(opts.cutoffHeight || 0);
+  const knownTxHashes = opts.knownTxHashes instanceof Set ? opts.knownTxHashes : new Set();
   const query = `message.action='${msgAction}'`;
   const allItems = [];
   const seen = new Set();
+  let pagesScanned = 0;
+  let stoppedEarly = false;
 
   for (let page = 1; page <= LIMIT_PAGES; page++) {
     if (page > 1) await sleep(400);
@@ -222,6 +226,23 @@ async function fetchTxsByAction(msgAction) {
 
     const txs = data?.result?.txs ?? [];
     if (!txs.length) break;
+    pagesScanned++;
+
+    // Incremental mode: only keep txs above cutoff or unknown at cutoff height.
+    // When a page is fully known/old, stop scanning further pages.
+    const txsForParse = cutoffHeight > 0
+      ? txs.filter((tx) => {
+          const h = Number(tx?.height || 0);
+          const hash = tx?.hash || "";
+          return h > cutoffHeight || (h === cutoffHeight && hash && !knownTxHashes.has(hash));
+        })
+      : txs;
+
+    if (cutoffHeight > 0 && txsForParse.length === 0) {
+      console.log(`  Page ${page} via ${usedRpc}: all txs at/under cutoff (h=${cutoffHeight}), stopping early`);
+      stoppedEarly = true;
+      break;
+    }
 
     for (const tx of txs) {
       if (!tx?.hash || seen.has(tx.hash)) continue;
@@ -230,13 +251,13 @@ async function fetchTxsByAction(msgAction) {
 
     // Parse events from this page
     const actionType = msgAction === MSG_DELEGATE ? "delegate" : "undelegate";
-    const parsed = parseTxEvents(txs, actionType);
+    const parsed = parseTxEvents(txsForParse, actionType);
     allItems.push(...parsed);
 
-    console.log(`  Page ${page} via ${usedRpc}: ${txs.length} txs, ${parsed.length} qualifying ${actionType}s`);
+    console.log(`  Page ${page} via ${usedRpc}: ${txs.length} txs (${txsForParse.length} new), ${parsed.length} qualifying ${actionType}s`);
   }
 
-  return allItems;
+  return { items: allItems, pagesScanned, stoppedEarly };
 }
 
 // ── Resolve block timestamps ──
@@ -323,6 +344,8 @@ async function main() {
     prevItems = prev?.items || [];
     console.log(`📦 Previous feed: ${prevItems.length} items`);
   } catch { /* fresh start */ }
+  const prevMaxHeight = prevItems.reduce((m, i) => Math.max(m, Number(i?.height || 0)), 0);
+  const prevTxHashes = new Set(prevItems.map((i) => i?.txhash).filter(Boolean));
 
   let prevRawItems = [];
   try {
@@ -339,12 +362,14 @@ async function main() {
 
   // Fetch delegates and undelegates
   console.log(`\n📥 Fetching MsgDelegate (min ${FEED_MIN} ATOM)...`);
-  const delegates = await fetchTxsByAction(MSG_DELEGATE);
-  console.log(`  → ${delegates.length} delegates\n`);
+  const delegateRes = await fetchTxsByAction(MSG_DELEGATE, { cutoffHeight: prevMaxHeight, knownTxHashes: prevTxHashes });
+  const delegates = delegateRes.items;
+  console.log(`  → ${delegates.length} delegates (${delegateRes.pagesScanned} pages${delegateRes.stoppedEarly ? ", stopped early" : ""})\n`);
 
   console.log(`📥 Fetching MsgUndelegate (min ${FEED_MIN} ATOM)...`);
-  const undelegates = await fetchTxsByAction(MSG_UNDELEGATE);
-  console.log(`  → ${undelegates.length} undelegates\n`);
+  const undelegateRes = await fetchTxsByAction(MSG_UNDELEGATE, { cutoffHeight: prevMaxHeight, knownTxHashes: prevTxHashes });
+  const undelegates = undelegateRes.items;
+  console.log(`  → ${undelegates.length} undelegates (${undelegateRes.pagesScanned} pages${undelegateRes.stoppedEarly ? ", stopped early" : ""})\n`);
 
   const freshItems = [...delegates, ...undelegates];
   await resolveTimestamps(freshItems);
@@ -417,6 +442,18 @@ async function main() {
     ingestion_health: {
       rpc_bases: RPC_BASES,
       pages: LIMIT_PAGES,
+      pages_scanned: {
+        delegate: delegateRes.pagesScanned,
+        undelegate: undelegateRes.pagesScanned,
+      },
+      incremental: {
+        enabled: prevMaxHeight > 0,
+        cutoff_height: prevMaxHeight || null,
+        stopped_early: {
+          delegate: delegateRes.stoppedEarly,
+          undelegate: undelegateRes.stoppedEarly,
+        }
+      },
       per_page: PER_PAGE,
       feed_keep: FEED_KEEP,
       raw_keep_days: RAW_KEEP_DAYS,

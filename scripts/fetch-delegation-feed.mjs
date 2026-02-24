@@ -2,6 +2,10 @@
 // Fetches recent MsgDelegate + MsgUndelegate txs from Cosmos Hub
 // Resolves validator monikers, includes timestamps
 // Outputs: data/delegation_feed.json
+// Also outputs:
+//   - data/delegation-events-raw.json (tx-level archive, rolling window)
+//   - data/delegation-flow-hourly.json (hour buckets)
+//   - data/delegation-flow-daily.json (day buckets)
 //
 // Env (optional):
 //   RPC_BASES     comma-separated RPCs (preferred)
@@ -11,10 +15,15 @@
 //   FEED_KEEP     default: 1000 (max items to keep in feed)
 //   PER_PAGE      default: 100
 //   LIMIT_PAGES   default: 5
+//   RAW_KEEP_DAYS default: 90
+//   HOURLY_KEEP_DAYS default: 370
 
 import fs from "node:fs/promises";
 
 const OUT_FILE = "data/delegation_feed.json";
+const RAW_FILE = "data/delegation-events-raw.json";
+const HOURLY_FILE = "data/delegation-flow-hourly.json";
+const DAILY_FILE = "data/delegation-flow-daily.json";
 
 const RPC_BASES = (process.env.RPC_BASES
   ? process.env.RPC_BASES.split(",")
@@ -26,6 +35,8 @@ const FEED_MIN = Number(process.env.FEED_MIN ?? "1000");
 const FEED_KEEP = Number(process.env.FEED_KEEP ?? "1000");
 const PER_PAGE = Number(process.env.PER_PAGE ?? "100");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");
+const RAW_KEEP_DAYS = Number(process.env.RAW_KEEP_DAYS ?? "90");
+const HOURLY_KEEP_DAYS = Number(process.env.HOURLY_KEEP_DAYS ?? "370");
 
 const MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
 const MSG_UNDELEGATE = "/cosmos.staking.v1beta1.MsgUndelegate";
@@ -117,6 +128,19 @@ async function resolveMoniker(valoperAddr) {
     console.log(`  ⚠️ Could not resolve ${valoperAddr.slice(0, 24)}: ${e.message}`);
   }
   return "";
+}
+
+function toIsoHour(iso) {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  d.setUTCMinutes(0, 0, 0);
+  return d.toISOString();
+}
+
+function toIsoDay(iso) {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
 }
 
 // ── Parse events ──
@@ -245,6 +269,47 @@ async function resolveTimestamps(items) {
   console.log(`  ✅ Resolved ${Object.keys(heightToTime).length} timestamps`);
 }
 
+function aggregateByTime(items, keyFn, includeWindowDays = null) {
+  const nowMs = Date.now();
+  const cutoffMs = includeWindowDays ? nowMs - includeWindowDays * 86400000 : null;
+  const buckets = new Map();
+
+  for (const item of items) {
+    if (!item?.timestamp) continue;
+    const tsMs = Date.parse(item.timestamp);
+    if (!Number.isFinite(tsMs)) continue;
+    if (cutoffMs && tsMs < cutoffMs) continue;
+    const key = keyFn(item.timestamp);
+    if (!key) continue;
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        key,
+        delegate_atom: 0,
+        undelegate_atom: 0,
+        net_atom: 0,
+        delegates_count: 0,
+        undelegates_count: 0,
+        total_count: 0,
+      });
+    }
+    const b = buckets.get(key);
+    const amt = Number(item.amount_atom || 0);
+    if (!Number.isFinite(amt) || amt <= 0) continue;
+    if (item.type === "delegate") {
+      b.delegate_atom += amt;
+      b.delegates_count += 1;
+      b.net_atom += amt;
+    } else if (item.type === "undelegate") {
+      b.undelegate_atom += amt;
+      b.undelegates_count += 1;
+      b.net_atom -= amt;
+    }
+    b.total_count += 1;
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => String(a.key).localeCompare(String(b.key)));
+}
+
 // ── Main ──
 async function main() {
   await fs.mkdir("data", { recursive: true });
@@ -259,6 +324,19 @@ async function main() {
     console.log(`📦 Previous feed: ${prevItems.length} items`);
   } catch { /* fresh start */ }
 
+  let prevRawItems = [];
+  try {
+    const txt = await fs.readFile(RAW_FILE, "utf8");
+    prevRawItems = JSON.parse(txt)?.items || [];
+    console.log(`📦 Previous raw archive: ${prevRawItems.length} items`);
+  } catch { /* fresh start */ }
+
+  let prevDaily = [];
+  try {
+    const txt = await fs.readFile(DAILY_FILE, "utf8");
+    prevDaily = JSON.parse(txt)?.items || [];
+  } catch { /* fresh start */ }
+
   // Fetch delegates and undelegates
   console.log(`\n📥 Fetching MsgDelegate (min ${FEED_MIN} ATOM)...`);
   const delegates = await fetchTxsByAction(MSG_DELEGATE);
@@ -269,6 +347,7 @@ async function main() {
   console.log(`  → ${undelegates.length} undelegates\n`);
 
   const freshItems = [...delegates, ...undelegates];
+  await resolveTimestamps(freshItems);
 
   // Merge with previous, dedupe by txhash+type
   const seenKeys = new Set();
@@ -288,6 +367,26 @@ async function main() {
 
   // Resolve timestamps for items that don't have them
   await resolveTimestamps(feed);
+
+  // Build raw archive (rolling horizon)
+  const rawSeen = new Set();
+  const rawCombined = [];
+  for (const item of [...freshItems, ...prevRawItems, ...prevItems]) {
+    const key = item.txhash + ":" + item.type;
+    if (!item.txhash || rawSeen.has(key)) continue;
+    rawSeen.add(key);
+    rawCombined.push(item);
+  }
+  await resolveTimestamps(rawCombined);
+  const rawCutoffIso = new Date(Date.now() - RAW_KEEP_DAYS * 86400000).toISOString();
+  const rawArchive = rawCombined
+    .filter((i) => !i.timestamp || i.timestamp >= rawCutoffIso)
+    .sort((a, b) => {
+      const ta = Date.parse(a.timestamp || 0) || 0;
+      const tb = Date.parse(b.timestamp || 0) || 0;
+      if (tb !== ta) return tb - ta;
+      return Number(b.height || 0) - Number(a.height || 0);
+    });
 
   // Resolve validator monikers
   const unknownAddrs = [...new Set(feed.filter(i => i.validator_addr && !validatorCache[i.validator_addr]).map(i => i.validator_addr))];
@@ -320,15 +419,65 @@ async function main() {
       pages: LIMIT_PAGES,
       per_page: PER_PAGE,
       feed_keep: FEED_KEEP,
+      raw_keep_days: RAW_KEEP_DAYS,
       rpc_stats: rpcStats,
     },
     items: feed,
   };
 
   await fs.writeFile(OUT_FILE, JSON.stringify(output, null, 2));
+
+  await fs.writeFile(
+    RAW_FILE,
+    JSON.stringify({
+      generated_at: new Date().toISOString(),
+      timezone: "UTC",
+      min_atom: FEED_MIN,
+      retention_days: RAW_KEEP_DAYS,
+      total: rawArchive.length,
+      items: rawArchive,
+    }, null, 2)
+  );
+
+  const hourly = aggregateByTime(rawArchive, toIsoHour, HOURLY_KEEP_DAYS);
+  await fs.writeFile(
+    HOURLY_FILE,
+    JSON.stringify({
+      generated_at: new Date().toISOString(),
+      timezone: "UTC",
+      source: "delegation-events-raw",
+      retention_days: HOURLY_KEEP_DAYS,
+      total: hourly.length,
+      items: hourly,
+    }, null, 2)
+  );
+
+  const dailyFresh = aggregateByTime(rawArchive, toIsoDay, null);
+  const dailyMap = new Map();
+  for (const d of prevDaily) {
+    if (d?.key) dailyMap.set(d.key, d);
+  }
+  for (const d of dailyFresh) {
+    dailyMap.set(d.key, d);
+  }
+  const daily = Array.from(dailyMap.values()).sort((a, b) => String(a.key).localeCompare(String(b.key)));
+  await fs.writeFile(
+    DAILY_FILE,
+    JSON.stringify({
+      generated_at: new Date().toISOString(),
+      timezone: "UTC",
+      source: "delegation-events-raw",
+      total: daily.length,
+      items: daily,
+    }, null, 2)
+  );
+
   await saveValidatorCache();
 
   console.log(`\n✅ Feed saved: ${dCount} delegates + ${uCount} undelegates = ${feed.length} total`);
+  console.log(`✅ Raw archive: ${rawArchive.length} txs (${RAW_KEEP_DAYS}d)`);
+  console.log(`✅ Hourly buckets: ${hourly.length}`);
+  console.log(`✅ Daily buckets: ${daily.length}`);
   console.log(`   Output: ${OUT_FILE}`);
 
   // ── Whale events accumulation (≥250K ATOM individual transactions) ──

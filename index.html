@@ -171,7 +171,8 @@
             background: rgba(20, 20, 20, 0.95);
             border: 1px solid #333;
             border-radius: 8px;
-            padding: 10px 14px;
+            padding: 8px 10px;
+            max-width: 260px;
             opacity: 0;
             transition: opacity 0.15s ease;
         }
@@ -1058,31 +1059,20 @@ function showWhaleEventTooltip(eventPoint, x, y) {
     };
 
     const eventTime = formatEventDateTime(eventPoint.timestamp, eventPoint.candleTime);
-    const initiatedLabel = eventPoint.type === 'delegate' ? 'Delegated' : 'Unbond started';
-    const initiatedLine = eventPoint.initiated_at
-        ? `<div style="font-size:11px;color:#8e96a1;margin-top:5px;">${initiatedLabel}: ${formatEventDateTime(eventPoint.initiated_at, eventPoint.candleTime)}${eventPoint.initiated_estimated ? ' (est.)' : ''}</div>`
-        : '';
-    const unlockLine = eventPoint.unlock_at
-        ? `<div style="font-size:11px;color:#8e96a1;margin-top:2px;">Unbond completes: ${formatEventDateTime(eventPoint.unlock_at, eventPoint.candleTime)}${eventPoint.unlock_estimated ? ' (est.)' : ''}</div>`
-        : '';
-    const delegatorLine = eventPoint.delegator_count
-        ? `<div style="font-size:11px;color:#8e96a1;margin-top:2px;">Delegators: ${Number(eventPoint.delegator_count).toLocaleString()}</div>`
-        : '';
-    const stageLabel = eventPoint.stage === 'unlock'
-        ? 'Unbond completes'
-        : (eventPoint.type === 'delegate' ? 'Delegation event' : 'Unbond started');
+    const stageLabel = cls.label;
+    const reaction = getPostEventReaction(eventPoint);
+    const reactionLine = reaction
+        ? `<div style="font-size:11px;color:#9aa3ad;margin-top:4px;">After: ${reaction}</div>`
+        : `<div style="font-size:11px;color:#6f7782;margin-top:4px;">After: 1h n/a · 4h n/a · 24h n/a</div>`;
 
     tooltip.innerHTML = `
         <div class="tooltip-time">${eventTime}</div>
         <div class="tooltip-price">${priceText}</div>
-        <div style="margin-top:6px;font-size:12px;color:#b9c0c9;white-space:nowrap;">
+        <div style="margin-top:5px;font-size:12px;color:#b9c0c9;white-space:nowrap;">
             <span style="color:${cls.color};font-weight:600;">${formatCompactAmount(eventPoint.atom)} ATOM</span>
-            ${cls.label.toLowerCase()}
+            · ${stageLabel}
         </div>
-        <div style="font-size:11px;color:#a7b1bc;margin-top:4px;">${stageLabel}</div>
-        ${initiatedLine}
-        ${unlockLine}
-        ${delegatorLine}
+        ${reactionLine}
     `;
 
     positionChartTooltip(tooltip, chartContainer, x, y);
@@ -2186,6 +2176,47 @@ chartContainer.onclick = () => {
             return sorted[best];
         }
 
+        function findCandleAtOrAfter(sorted, target) {
+            if (!sorted.length) return null;
+            let lo = 0, hi = sorted.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (sorted[mid] < target) lo = mid + 1;
+                else hi = mid;
+            }
+            if (sorted[lo] >= target) return sorted[lo];
+            return null;
+        }
+
+        function getPostEventReaction(eventPoint) {
+            if (!eventPoint?.unix || !chartData?.length) return null;
+            const sortedTimes = chartData.map(d => d.time);
+            const intervalSec = getCurrentIntervalSeconds();
+            const baseTime = findCandleAtOrAfter(sortedTimes, eventPoint.unix) || findClosestCandle(sortedTimes, eventPoint.unix);
+            if (!baseTime) return null;
+            const baseRow = chartData.find(d => d.time === baseTime);
+            if (!baseRow || !Number.isFinite(baseRow.close) || baseRow.close <= 0) return null;
+
+            const horizons = [
+                { sec: 3600, label: '1h' },
+                { sec: 4 * 3600, label: '4h' },
+                { sec: 24 * 3600, label: '24h' }
+            ];
+
+            const parts = horizons.map(h => {
+                const t = findCandleAtOrAfter(sortedTimes, eventPoint.unix + h.sec);
+                if (!t) return `${h.label} n/a`;
+                const row = chartData.find(d => d.time === t);
+                if (!row || !Number.isFinite(row.close)) return `${h.label} n/a`;
+                if (Math.abs(t - (eventPoint.unix + h.sec)) > intervalSec * 3) return `${h.label} n/a`;
+                const pct = ((row.close - baseRow.close) / baseRow.close) * 100;
+                const sign = pct > 0 ? '+' : '';
+                return `${h.label} ${sign}${pct.toFixed(1)}%`;
+            });
+
+            return parts.join(' · ');
+        }
+
         function estimateTimestampFromHeight(height, anchors) {
             if (!height || !anchors.length) return null;
             if (anchors.length === 1) {
@@ -2331,7 +2362,8 @@ chartContainer.onclick = () => {
 
             const points = eventPoints
                 .map(event => {
-                    const rawX = chart.timeScale().timeToCoordinate(event.candleTime);
+                    const rawX = chart.timeScale().timeToCoordinate(event.unix || event.candleTime) ??
+                        chart.timeScale().timeToCoordinate(event.candleTime);
                     const markerPrice = chartType === 'line' ? event.representativeValue : event.representativeClose;
                     const rawPriceY = series?.priceToCoordinate ? series.priceToCoordinate(markerPrice) : null;
                     if (!Number.isFinite(rawX) || !Number.isFinite(rawPriceY)) return null;
@@ -2403,7 +2435,7 @@ function applyWhaleMarkers() {
                 // Hard guard: never project events outside visible range.
                 if (ev.unix < (minTime - intervalSec) || ev.unix > (maxTime + intervalSec)) continue;
 
-                const candleTime = findClosestCandle(candleTimes, ev.unix);
+                const candleTime = findCandleAtOrAfter(candleTimes, ev.unix) || findClosestCandle(candleTimes, ev.unix);
                 if (candleTime === null) continue;
 
                 // Hard guard: nearest candle must be temporally close for this timeframe.

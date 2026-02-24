@@ -526,8 +526,10 @@ async function main() {
       acc.undelegate += Number(b.undelegate_atom || 0);
       acc.net += Number(b.net_atom || 0);
       acc.count += Number(b.total_count || 0);
+      acc.delegate_events += Number(b.delegates_count || 0);
+      acc.undelegate_events += Number(b.undelegates_count || 0);
       return acc;
-    }, { delegate: 0, undelegate: 0, net: 0, count: 0 });
+    }, { delegate: 0, undelegate: 0, net: 0, count: 0, delegate_events: 0, undelegate_events: 0 });
   const flow7 = (flowDaily.items || [])
     .filter((b) => {
       const ts = Date.parse(`${b.key}T00:00:00.000Z`);
@@ -538,8 +540,10 @@ async function main() {
       acc.undelegate += Number(b.undelegate_atom || 0);
       acc.net += Number(b.net_atom || 0);
       acc.count += Number(b.total_count || 0);
+      acc.delegate_events += Number(b.delegates_count || 0);
+      acc.undelegate_events += Number(b.undelegates_count || 0);
       return acc;
-    }, { delegate: 0, undelegate: 0, net: 0, count: 0 });
+    }, { delegate: 0, undelegate: 0, net: 0, count: 0, delegate_events: 0, undelegate_events: 0 });
 
   const flowBiasScore = clamp(Math.tanh((flow7.net || 0) / 2_000_000) * 100, -100, 100);
   const flowBiasLabel = flowBiasScore >= 20 ? "Bullish" : flowBiasScore <= -20 ? "Bearish" : "Neutral";
@@ -609,12 +613,16 @@ async function main() {
         delegation_atom: flow24.delegate,
         undelegation_atom: flow24.undelegate,
         total_events: flow24.count,
+        delegation_events: flow24.delegate_events,
+        undelegation_events: flow24.undelegate_events,
       },
       flow_7d: {
         net_atom: flow7.net,
         delegation_atom: flow7.delegate,
         undelegation_atom: flow7.undelegate,
         total_events: flow7.count,
+        delegation_events: flow7.delegate_events,
+        undelegation_events: flow7.undelegate_events,
       },
       bias_7d: {
         label: (flow7.count ? flowBias : eventBias).bias_label,

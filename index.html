@@ -23,6 +23,7 @@
         body { font-family: 'DM Sans', sans-serif; background: #000; color: #fff; min-height: 100vh; -webkit-font-smoothing: antialiased; }
         .container { max-width: 700px; margin: 0 auto; padding: 50px 20px; }
         .top-nav { display: flex; justify-content: space-between; align-items: center; padding-bottom: 32px; }
+        .top-nav-links { display: inline-flex; align-items: center; gap: 16px; }
         .top-nav-brand { font-size: 16px; font-weight: 500; color: #666; letter-spacing: 0.5px; text-decoration: none; transition: color 0.2s; }
         .top-nav-brand:hover { color: #fff; }
         .top-nav-link { font-size: 14px; font-weight: 500; color: #666; text-decoration: none; letter-spacing: 0.3px; transition: color 0.2s; }
@@ -178,11 +179,11 @@
         }
         .tooltip-time { font-size: 12px; color: #888; margin-bottom: 4px; }
         .tooltip-price { font-size: 16px; font-weight: 600; color: #fff; }
-        .stats-row { display: flex; justify-content: space-between; margin-bottom: 32px; }
-        .stat { text-align: left; }
+        .stats-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); column-gap: 14px; margin-bottom: 32px; }
+        .stat { text-align: center; min-width: 0; }
         .stat.center { text-align: center; }
-        .stat.right { text-align: right; }
-        .stat-value { font-size: 32px; font-weight: 600; letter-spacing: -1px; }
+        .stat.right { text-align: center; }
+        .stat-value { font-size: 24px; font-weight: 600; letter-spacing: -0.8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .stat-label { font-size: 10px; color: #444; text-transform: lowercase; }
         .edge-section { margin-bottom: 28px; }
         .edge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -647,7 +648,8 @@
         @media (max-width: 500px) {
             .price-row { gap: 10px; }
             .change { font-size: 14px; }
-            .stat-value { font-size: 26px; }
+            .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .stat-value { font-size: 22px; }
             .time-buttons { gap: 2px; padding: 3px; }
             .time-btn { padding: 5px 8px; font-size: 10px; }
             .currency-btn { width: 32px; height: 32px; font-size: 14px; }
@@ -667,7 +669,10 @@
     <div class="container">
         <nav class="top-nav">
             <a href="/" class="top-nav-brand">atomprice.com</a>
-            <a href="/buy" class="top-nav-link">Compare ATOM Prices →</a>
+            <span class="top-nav-links">
+                <a href="/analytics/" class="top-nav-link">Analytics</a>
+                <a href="/buy" class="top-nav-link">Compare ATOM Prices →</a>
+            </span>
         </nav>
         <div class="label">ATOM</div>
         <div class="price-row">
@@ -732,7 +737,8 @@
         <div class="stats-row">
             <div class="stat"><div class="stat-value" id="stakingRatio">—</div><div class="stat-label">staking ratio</div></div>
             <div class="stat"><div class="stat-value" id="totalStaked">—</div><div class="stat-label">total staked</div></div>
-            <div class="stat"><div class="stat-value" id="stakePressure">—</div><div class="stat-label">stake pressure</div></div>
+            <div class="stat"><div class="stat-value" id="circulatingSupply">—</div><div class="stat-label">circulating supply</div></div>
+            <div class="stat"><div class="stat-value" id="volume24h">—</div><div class="stat-label">24h volume</div></div>
             <div class="stat right"><div class="stat-value" id="inflationRate">—</div><div class="stat-label">inflation rate</div></div>
         </div>
         <div class="divider"></div>
@@ -926,6 +932,8 @@
         let feedItems = [];           // Delegation feed (delegates + undelegates)
         let tickerDelegations = [];
         let stakingRatio = null;
+        let circulatingSupplyAtom = null;
+        let volume24hUsd = null;
         let prices = { usd: null, eur: null };
         let fxRates = { gbp: 0.79, try: 35.8, jpy: 156, cny: 7.25 };
         let change24h = null;
@@ -1144,7 +1152,9 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                     whaleDelegations: whaleDelegations.slice(0, MAX_WHALES),
                     feedItems: feedItems.slice(0, MAX_FEED),
                     tickerDelegations: tickerDelegations.slice(0, MAX_TICKER),
-                    stakingRatio
+                    stakingRatio,
+                    circulatingSupplyAtom,
+                    volume24hUsd
                 };
                 localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
                 console.log(`💾 Cached: ${data.tickerDelegations.length} delegations`);
@@ -1161,6 +1171,8 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                 feedItems = cached.feedItems || [];
                 tickerDelegations = cached.tickerDelegations || [];
                 if (cached.stakingRatio) stakingRatio = cached.stakingRatio;
+                if (Number.isFinite(cached.circulatingSupplyAtom)) circulatingSupplyAtom = cached.circulatingSupplyAtom;
+                if (Number.isFinite(cached.volume24hUsd)) volume24hUsd = cached.volume24hUsd;
 
                 updateWhaleWatch();
                 renderFeed();
@@ -1291,38 +1303,61 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             return false;
         }
 
+        async function fetchCoinGeckoMarketStats() {
+            try {
+                const url = 'https://api.coingecko.com/api/v3/coins/cosmos?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false';
+                const res = await fetch(url, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const market = data?.market_data || {};
+                const circ = Number(market?.circulating_supply);
+                const vol = Number(market?.total_volume?.usd);
+
+                if (Number.isFinite(circ) && circ > 0) circulatingSupplyAtom = circ;
+                if (Number.isFinite(vol) && vol >= 0) volume24hUsd = vol;
+
+                updateStakingDisplay();
+                saveCache();
+                return true;
+            } catch (err) {
+                console.log('⚠️ CoinGecko market stats unavailable:', err.message);
+                return false;
+            }
+        }
+
         function updateStakingDisplay() {
             if (stakingRatio !== null) {
                 document.getElementById('stakingRatio').textContent = stakingRatio.toFixed(2) + '%';
-                updateStakePressure(stakingRatio);
             }
 
-            // Update total staked display if we have the data
-            if (historicalTotalStaked.length > 0) {
+            // Total staked (from historical-total-staked.json, in millions)
+            const totalEl = document.getElementById('totalStaked');
+            if (totalEl && historicalTotalStaked.length > 0) {
                 const latestTotal = historicalTotalStaked[historicalTotalStaked.length - 1];
-                document.getElementById('totalStaked').textContent = latestTotal.total.toFixed(1) + 'M';
+                const totalM = Number(latestTotal?.total);
+                if (Number.isFinite(totalM)) {
+                    totalEl.textContent = totalM.toFixed(1) + 'M';
+                }
+            }
+
+            const circEl = document.getElementById('circulatingSupply');
+            if (circEl && Number.isFinite(circulatingSupplyAtom)) {
+                circEl.textContent = formatCompactAmount(circulatingSupplyAtom);
+            } else if (circEl && circEl.textContent === '') {
+                circEl.textContent = '—';
+            }
+
+            const volEl = document.getElementById('volume24h');
+            if (volEl && Number.isFinite(volume24hUsd)) {
+                volEl.textContent = '$' + formatCompactAmount(volume24hUsd);
+            } else if (volEl && volEl.textContent === '') {
+                volEl.textContent = '—';
             }
 
             const inflEl = document.getElementById('inflationRate');
             if (inflEl.textContent === '—') {
                 inflEl.textContent = '10.00%';
             }
-        }
-
-        function updateStakePressure(ratio) {
-            let dots;
-            if (ratio >= 60) {
-                dots = '●●●●●';
-            } else if (ratio >= 56) {
-                dots = '●●●●○';
-            } else if (ratio >= 50) {
-                dots = '●●●○○';
-            } else if (ratio >= 45) {
-                dots = '●●○○○';
-            } else {
-                dots = '●○○○○';
-            }
-            document.getElementById('stakePressure').textContent = dots;
         }
 
         // ========== FX RATES ==========
@@ -3540,10 +3575,12 @@ function applyWhaleMarkers() {
             fetchPrice();
             fetchChart(15, 96);  // Default: 1D with 15min candles
             fetchStakingData();
+            fetchCoinGeckoMarketStats();
 
             // 9) Refresh intervals
             setInterval(fetchPrice, 60000);           // Price every 60s
             setInterval(fetchStakingData, 300000);    // Staking every 5min
+            setInterval(fetchCoinGeckoMarketStats, 600000); // Circulating supply + volume every 10min
             setInterval(loadDelegationSnapshot, 300000);  // Delegations every 5min
             setInterval(fetchDelegationFeed, 300000);       // Feed every 5min
             setInterval(loadPendingUndelegations, 300000);   // Unbonding every 5min
@@ -3566,6 +3603,7 @@ function applyWhaleMarkers() {
                 loadDelegationSnapshot();
                 fetchDelegationFeed();
                 loadPendingUndelegations();
+                fetchCoinGeckoMarketStats();
             }
         });
         

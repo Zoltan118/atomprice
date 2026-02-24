@@ -225,7 +225,9 @@ async function backfillMissingTimestamps(items) {
   return out;
 }
 
-async function fetchRecentDelegations() {
+async function fetchRecentDelegations(opts = {}) {
+  const cutoffHeight = Number(opts.cutoffHeight || 0);
+  const knownTxHashes = opts.knownTxHashes instanceof Set ? opts.knownTxHashes : new Set();
   const statusResults = await Promise.allSettled(
     RPC_BASES.map((rpc) => fetchJson(`${rpc}/status`, 10000).then((data) => ({ rpc, data })))
   );
@@ -249,6 +251,8 @@ async function fetchRecentDelegations() {
 
   const items = [];
   const seen = new Set();
+  let pagesScanned = 0;
+  let stoppedEarly = false;
 
   for (let page = 1; page <= LIMIT_PAGES; page++) {
     if (page > 1) await sleep(350);
@@ -276,8 +280,23 @@ async function fetchRecentDelegations() {
 
     const txs = data?.result?.txs ?? [];
     if (!txs.length) break;
+    pagesScanned++;
 
-    for (const tx of txs) {
+    const txsForParse = cutoffHeight > 0
+      ? txs.filter((tx) => {
+          const h = Number(tx?.height || 0);
+          const hash = tx?.hash || "";
+          return h > cutoffHeight || (h === cutoffHeight && hash && !knownTxHashes.has(hash));
+        })
+      : txs;
+
+    if (cutoffHeight > 0 && txsForParse.length === 0) {
+      console.log(`  Page ${page} via ${usedRpc}: all txs at/under cutoff (h=${cutoffHeight}), stopping early`);
+      stoppedEarly = true;
+      break;
+    }
+
+    for (const tx of txsForParse) {
       const txhash = tx?.hash;
       const height = Number(tx?.height ?? 0);
       if (!txhash || !height) continue;
@@ -317,13 +336,19 @@ async function fetchRecentDelegations() {
         })
       );
     }
-    console.log(`  Page ${page} via ${usedRpc}: ${txs.length} txs scanned`);
+    console.log(`  Page ${page} via ${usedRpc}: ${txs.length} txs (${txsForParse.length} new) scanned`);
   }
 
   return {
     now_iso: new Date().toISOString(),
     status_rpc: bestStatus.rpc,
     items: uniqueByTxhash(items),
+    pages_scanned: pagesScanned,
+    incremental: {
+      enabled: cutoffHeight > 0,
+      cutoff_height: cutoffHeight || null,
+      stopped_early: stoppedEarly,
+    },
   };
 }
 
@@ -352,9 +377,20 @@ async function main() {
   const prev = await readPrev();
   const prevWhales = prev?.whales_top || prev?.featured?.whales_top || [];
   const prevMids = prev?.mids_top || prev?.featured?.mids_top || [];
+  const prevFresh = Array.isArray(prev?.fresh) ? prev.fresh : [];
+  const prevMaxHeight = prevFresh.reduce((m, i) => Math.max(m, Number(i?.height || 0)), 0);
+  const prevTxHashes = new Set(prevFresh.map((i) => i?.txhash).filter(Boolean));
 
   try {
-    const { items: freshItems, status_rpc } = await fetchRecentDelegations();
+    const {
+      items: freshItems,
+      status_rpc,
+      pages_scanned,
+      incremental,
+    } = await fetchRecentDelegations({
+      cutoffHeight: prevMaxHeight,
+      knownTxHashes: prevTxHashes,
+    });
 
     const whales_top = mergeTopByAmount(
       prevWhales,
@@ -385,8 +421,10 @@ async function main() {
       },
       ingestion_health: {
         pages: LIMIT_PAGES,
+        pages_scanned,
         per_page: PER_PAGE,
         window_hours: WINDOW_HOURS,
+        incremental,
         rpc_stats: rpcStats,
       },
 

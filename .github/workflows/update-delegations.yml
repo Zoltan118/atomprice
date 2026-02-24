@@ -3,8 +3,8 @@ name: Update delegations
 on:
   workflow_dispatch:
   schedule:
-    # every 15 minutes, offset from feed workflow to reduce collisions
-    - cron: "8,23,38,53 * * * *"
+    # backup run every 2 hours (main 15m pipeline is update-delegation-feed.yml)
+    - cron: "17 */2 * * *"
 
 permissions:
   contents: write

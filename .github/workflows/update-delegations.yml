@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -38,5 +40,16 @@ jobs:
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
           git add data/delegations_24h.json data/top-delegations.json data/recent-delegations.json
-          git diff --cached --quiet || git commit -m "Update delegation snapshot"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update delegation snapshot"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Failed to push after retries."
+          exit 1

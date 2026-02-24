@@ -3,8 +3,8 @@ name: Update delegations
 on:
   workflow_dispatch:
   schedule:
-    # every 5 minutes (safe, not spamming)
-    - cron: "*/5 * * * *"
+    # every 15 minutes (safe, not spamming)
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: write
@@ -12,7 +12,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repo
@@ -25,9 +25,9 @@ jobs:
 
       - name: Run delegation updater
         env:
-          RPC_BASE: "https://rpc.silknodes.io/cosmos"
-          WINDOW_HOURS: "48"
-          LIMIT_PAGES: "10"
+          RPC_BASES: "https://cosmos-rpc.publicnode.com,https://rpc.cosmos.directory/cosmoshub,https://rpc.silknodes.io/cosmos"
+          WINDOW_HOURS: "72"
+          LIMIT_PAGES: "20"
           PER_PAGE: "100"
           MIN_ATOM: "100"
         run: |

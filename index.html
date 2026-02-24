@@ -1055,6 +1055,32 @@
             return currencies[currency].symbol + formatNumber(p, decimals);
         }
 
+        function amountBucket(atom) {
+            const n = Number(atom || 0);
+            if (n >= 1_000_000) return '1m_plus';
+            if (n >= 250_000) return '250k_1m';
+            if (n >= 100_000) return '100k_250k';
+            if (n >= 10_000) return '10k_100k';
+            if (n >= 1_000) return '1k_10k';
+            return 'lt_1k';
+        }
+
+        function trackEvent(name, params = {}) {
+            if (typeof gtag !== 'function') return;
+            try {
+                gtag('event', name, {
+                    page_path: window.location.pathname,
+                    data_mode: currentDataMode,
+                    timeframe: currentTimeframe,
+                    currency: currentCurrency,
+                    chart_type: chartType,
+                    ...params
+                });
+            } catch (e) {
+                // Ignore analytics errors
+            }
+        }
+
         function getCurrentPrice() {
             if (currencies[currentCurrency].hasPair) return prices[currentCurrency];
             return prices.usd ? prices.usd * fxRates[currentCurrency] : null;
@@ -1544,7 +1570,7 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             }
 
             tx.textContent = shortTxHash(w.txHash);
-            hero.onclick = () => openMintscanPanel(w.txHash, w.height);
+            hero.onclick = () => openMintscanPanel(w.txHash, w.height, 'hero');
             hero.style.cursor = 'pointer';
         }
 
@@ -1587,10 +1613,16 @@ function showWhaleEventTooltip(eventPoint, x, y) {
         }
 
         // ========== MINTSCAN PANEL ==========
-        function openMintscanPanel(hash, height) {
+        function openMintscanPanel(hash, height, source = 'unknown') {
             const url = height
                 ? `https://www.mintscan.io/cosmos/tx/${hash}?height=${height}`
                 : `https://www.mintscan.io/cosmos/tx/${hash}`;
+
+            trackEvent('tx_panel_open', {
+                source,
+                tx_short: hash ? String(hash).slice(0, 10) : '',
+                has_height: !!height
+            });
 
             document.getElementById('slidePanelOpen').href = url;
             document.getElementById('slidePanelIframe').src = url;
@@ -1682,6 +1714,7 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                     currentFeedFilter = btn.dataset.feedFilter || 'all';
                     localStorage.setItem(FEED_FILTER_KEY, currentFeedFilter);
                     row.querySelectorAll('.feed-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+                    trackEvent('feed_filter_change', { feed_filter: currentFeedFilter });
                     renderFeed();
                 };
             });
@@ -1742,7 +1775,7 @@ function showWhaleEventTooltip(eventPoint, x, y) {
 
             // Click to open Mintscan panel
             container.querySelectorAll('.feed-msg').forEach(el => {
-                el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
+                el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height, 'feed');
             });
         }
 
@@ -1861,7 +1894,7 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             });
             
             document.querySelectorAll('#tickerTrack .ticker-item').forEach(el => {
-                el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height);
+                el.onclick = () => openMintscanPanel(el.dataset.tx, el.dataset.height, 'ticker');
             });
         }
 
@@ -2526,6 +2559,13 @@ chartContainer.onclick = () => {
                     e.preventDefault();
                     e.stopPropagation();
                     whaleTooltipLocked = true;
+                    trackEvent('chart_whale_marker_click', {
+                        event_stage: p.stage || 'unknown',
+                        event_type: p.type || 'unknown',
+                        amount_bucket: amountBucket(p.atom || 0),
+                        amount_atom: Math.round(Number(p.atom || 0)),
+                        event_time_utc: new Date((p.unix || 0) * 1000).toISOString()
+                    });
                     showWhaleEventTooltip(p, p.x, p.focusY);
                 };
 
@@ -2737,6 +2777,7 @@ function applyWhaleMarkers() {
                 document.querySelector('.currency-btn.active').classList.remove('active');
                 btn.classList.add('active');
                 currentCurrency = btn.dataset.currency;
+                trackEvent('currency_change', { selected_currency: currentCurrency });
                 lastDisplayedPrice = null;
                 animatingPrice = null;
                 
@@ -2761,6 +2802,7 @@ function applyWhaleMarkers() {
                 document.querySelector('.chart-type-btn.active').classList.remove('active');
                 btn.classList.add('active');
                 chartType = btn.dataset.type;
+                trackEvent('chart_type_change', { selected_chart_type: chartType });
                 createSeries();
             };
         });
@@ -2773,6 +2815,10 @@ function applyWhaleMarkers() {
                 document.querySelector('.time-btn.active').classList.remove('active');
                 btn.classList.add('active');
                 currentTimeframe = btn.dataset.d;
+                trackEvent('timeframe_change', {
+                    selected_timeframe: currentTimeframe,
+                    selected_mode: currentDataMode
+                });
 
                 if (currentDataMode !== 'price') {
                     // In staking/APR/unbonding mode, filter and redisplay
@@ -2802,6 +2848,7 @@ function applyWhaleMarkers() {
                     document.querySelectorAll('.staking-sub-toggle .data-mode-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     currentStakingSubMode = submode;
+                    trackEvent('staking_submode_change', { selected_submode: currentStakingSubMode });
 
                     // Redraw chart with new submode
                     showHistoricalChart('staking', submode);
@@ -2812,6 +2859,7 @@ function applyWhaleMarkers() {
                 document.querySelectorAll('.data-mode-toggle .data-mode-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentDataMode = mode;
+                trackEvent('data_mode_change', { selected_mode: currentDataMode });
 
                 // Show/hide sub-toggle based on mode
                 const subToggle = document.getElementById('stakingSubToggle');
@@ -3563,6 +3611,7 @@ function applyWhaleMarkers() {
             const body = document.getElementById('gaugeInfoBody');
             const isOpen = body.classList.toggle('open');
             this.textContent = isOpen ? 'how it works ↑' : 'how it works ↓';
+            trackEvent('gauge_method_toggle', { is_open: isOpen });
         };
 
         const edgeMethodToggle = document.getElementById('edgeMethodToggle');
@@ -3571,6 +3620,7 @@ function applyWhaleMarkers() {
                 const body = document.getElementById('edgeMethodBody');
                 const isOpen = body.classList.toggle('open');
                 this.textContent = isOpen ? 'how calculated ↑' : 'how calculated ↓';
+                trackEvent('edge_method_toggle', { is_open: isOpen });
             };
         }
 
@@ -3589,6 +3639,7 @@ function applyWhaleMarkers() {
             markerToggleInputEl.onchange = function() {
                 showWhaleMarkers = this.checked;
                 localStorage.setItem(WHALE_MARKER_ENABLED_KEY, String(showWhaleMarkers));
+                trackEvent('whale_events_toggle', { enabled: showWhaleMarkers });
                 applyWhaleMarkers();
             };
         }
@@ -3656,6 +3707,27 @@ function applyWhaleMarkers() {
             setInterval(loadWhaleEvents, 600000);      // Whale events every 10min
             setInterval(loadUndelegationArchive, 1800000);   // Archive every 30min
             setInterval(loadEventIntelligence, 3600000);      // Event intelligence hourly
+
+            const compareLink = document.querySelector('.top-nav-link');
+            if (compareLink) {
+                compareLink.addEventListener('click', () => {
+                    trackEvent('external_nav_click', { target: 'compare_atom_prices' });
+                });
+            }
+
+            const simulatorCta = document.querySelector('.cta-link');
+            if (simulatorCta) {
+                simulatorCta.addEventListener('click', () => {
+                    trackEvent('external_nav_click', { target: 'tokenomics_simulator' });
+                });
+            }
+
+            const panelOpen = document.getElementById('slidePanelOpen');
+            if (panelOpen) {
+                panelOpen.addEventListener('click', () => {
+                    trackEvent('tx_panel_external_open', { target: 'mintscan' });
+                });
+            }
             
             console.log('✅ Dashboard ready!');
         }

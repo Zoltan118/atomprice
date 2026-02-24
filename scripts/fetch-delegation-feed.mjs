@@ -4,10 +4,11 @@
 // Outputs: data/delegation_feed.json
 //
 // Env (optional):
-//   RPC_BASE      default: https://rpc.silknodes.io/cosmos
+//   RPC_BASES     comma-separated RPCs (preferred)
+//   RPC_BASE      single RPC fallback if RPC_BASES not set
 //   REST_BASE     default: https://rest.cosmos.directory/cosmoshub
 //   FEED_MIN      default: 1000 (minimum ATOM to include)
-//   FEED_KEEP     default: 200 (max items to keep in feed)
+//   FEED_KEEP     default: 1000 (max items to keep in feed)
 //   PER_PAGE      default: 100
 //   LIMIT_PAGES   default: 5
 
@@ -15,10 +16,14 @@ import fs from "node:fs/promises";
 
 const OUT_FILE = "data/delegation_feed.json";
 
-const RPC_BASE = (process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos").replace(/\/+$/, "");
+const RPC_BASES = (process.env.RPC_BASES
+  ? process.env.RPC_BASES.split(",")
+  : [process.env.RPC_BASE || "https://rpc.silknodes.io/cosmos"])
+  .map((s) => s.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
 const FEED_MIN = Number(process.env.FEED_MIN ?? "1000");
-const FEED_KEEP = Number(process.env.FEED_KEEP ?? "200");
+const FEED_KEEP = Number(process.env.FEED_KEEP ?? "1000");
 const PER_PAGE = Number(process.env.PER_PAGE ?? "100");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");
 
@@ -27,6 +32,11 @@ const MSG_UNDELEGATE = "/cosmos.staking.v1beta1.MsgUndelegate";
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+const rpcStats = {};
+for (const rpc of RPC_BASES) {
+  rpcStats[rpc] = { ok: 0, fail: 0, empty: 0, last_error: null };
 }
 
 async function fetchJson(url, timeoutMs = 15000) {
@@ -45,6 +55,36 @@ async function fetchJson(url, timeoutMs = 15000) {
   } finally {
     clearTimeout(t);
   }
+}
+
+async function fetchJsonFromRpcPath(path, timeoutMs = 15000, requireNonEmptyTxs = false) {
+  let lastErr = null;
+  let firstEmpty = null;
+
+  for (const rpc of RPC_BASES) {
+    const url = `${rpc}${path}`;
+    try {
+      const data = await fetchJson(url, timeoutMs);
+      if (data?.error) {
+        throw new Error(data?.error?.message || JSON.stringify(data.error));
+      }
+      const txs = data?.result?.txs;
+      if (requireNonEmptyTxs && Array.isArray(txs) && txs.length === 0) {
+        rpcStats[rpc].empty++;
+        if (!firstEmpty) firstEmpty = { data, rpc };
+        continue;
+      }
+      rpcStats[rpc].ok++;
+      return { data, rpc };
+    } catch (e) {
+      rpcStats[rpc].fail++;
+      rpcStats[rpc].last_error = String(e?.message || e);
+      lastErr = e;
+    }
+  }
+
+  if (firstEmpty) return firstEmpty;
+  throw lastErr || new Error(`All RPCs failed for path: ${path}`);
 }
 
 // ── Validator moniker cache ──
@@ -143,11 +183,14 @@ async function fetchTxsByAction(msgAction) {
     params.set("per_page", String(PER_PAGE));
     params.set("order_by", JSON.stringify("desc"));
 
-    const url = `${RPC_BASE}/tx_search?${params.toString()}`;
+    const path = `/tx_search?${params.toString()}`;
 
     let data;
+    let usedRpc = null;
     try {
-      data = await fetchJson(url);
+      const res = await fetchJsonFromRpcPath(path, 15000, true);
+      data = res.data;
+      usedRpc = res.rpc;
     } catch (e) {
       if (String(e?.message || "").includes("page should be within")) break;
       throw e;
@@ -166,7 +209,7 @@ async function fetchTxsByAction(msgAction) {
     const parsed = parseTxEvents(txs, actionType);
     allItems.push(...parsed);
 
-    console.log(`  Page ${page}: ${txs.length} txs, ${parsed.length} qualifying ${actionType}s`);
+    console.log(`  Page ${page} via ${usedRpc}: ${txs.length} txs, ${parsed.length} qualifying ${actionType}s`);
   }
 
   return allItems;
@@ -184,7 +227,7 @@ async function resolveTimestamps(items) {
     const batch = heightsToResolve.slice(i, i + 5);
     const results = await Promise.allSettled(
       batch.map(async (h) => {
-        const d = await fetchJson(`${RPC_BASE}/block?height=${h}`, 10000);
+        const { data: d } = await fetchJsonFromRpcPath(`/block?height=${h}`, 10000, false);
         const time = d?.result?.block?.header?.time;
         if (time) heightToTime[h] = new Date(time).toISOString();
       })
@@ -272,6 +315,13 @@ async function main() {
     total: feed.length,
     delegates: dCount,
     undelegates: uCount,
+    ingestion_health: {
+      rpc_bases: RPC_BASES,
+      pages: LIMIT_PAGES,
+      per_page: PER_PAGE,
+      feed_keep: FEED_KEEP,
+      rpc_stats: rpcStats,
+    },
     items: feed,
   };
 

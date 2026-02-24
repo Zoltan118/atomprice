@@ -3,7 +3,8 @@ name: Update delegation feed
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
+    # every 15 minutes
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: write
@@ -11,7 +12,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repo
@@ -24,12 +25,12 @@ jobs:
 
       - name: Run delegation feed fetcher
         env:
-          RPC_BASE: "https://rpc.silknodes.io/cosmos"
+          RPC_BASES: "https://cosmos-rpc.publicnode.com,https://rpc.cosmos.directory/cosmoshub,https://rpc.silknodes.io/cosmos"
           REST_BASE: "https://rest.cosmos.directory/cosmoshub"
-          FEED_MIN: "100"
-          FEED_KEEP: "200"
+          FEED_MIN: "1000"
+          FEED_KEEP: "1000"
           PER_PAGE: "100"
-          LIMIT_PAGES: "5"
+          LIMIT_PAGES: "15"
         run: |
           node scripts/fetch-delegation-feed.mjs
 
@@ -37,6 +38,6 @@ jobs:
         run: |
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
-          git add data/delegation_feed.json data/validator_cache.json
+          git add data/delegation_feed.json data/validator_cache.json data/whale-events.json
           git diff --cached --quiet || git commit -m "Update delegation feed"
           git push

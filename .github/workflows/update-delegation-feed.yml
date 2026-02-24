@@ -3,8 +3,8 @@ name: Update delegation feed
 on:
   workflow_dispatch:
   schedule:
-    # every 15 minutes
-    - cron: "*/15 * * * *"
+    # every 15 minutes, staggered off quarter-hour hotspots
+    - cron: "3,18,33,48 * * * *"
 
 permissions:
   contents: write
@@ -13,6 +13,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: update-delegation-feed
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repo

@@ -208,7 +208,7 @@
         .edge-card-value.pos { color: #22c55e; }
         .edge-card-value.neg { color: #ef4444; }
         .edge-card-value.neu { color: #a3a3a3; }
-        .edge-summary { margin-top: 8px; font-size: 11px; color: #666; }
+        .edge-summary { display: none; margin-top: 8px; font-size: 11px; color: #666; }
         .edge-method-toggle {
             font-size: 10px; color: #333; background: none; border: none; cursor: pointer;
             padding: 8px 0 2px; font-family: 'DM Sans', sans-serif; transition: color 0.15s;
@@ -642,6 +642,18 @@
             transform: translateX(4px);
             color: #fff;
         }
+        .footer-line {
+            margin-top: 14px;
+            text-align: center;
+            font-size: 10px;
+            color: #3f3f3f;
+            letter-spacing: 0.2px;
+        }
+        .footer-line a {
+            color: #666;
+            text-decoration: none;
+        }
+        .footer-line a:hover { color: #999; }
 
         /* Compare CTA - between currency selector and chart */
         .compare-cta-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
@@ -915,6 +927,9 @@
                 <span class="cta-text">ATOM Tokenomics Simulator</span>
                 <span class="cta-arrow">→</span>
             </a>
+        </div>
+        <div class="footer-line">
+            built by <a href="https://x.com/ZoltanAtom" target="_blank" rel="noopener">Zoltan</a> · no financial advice
         </div>
         
 
@@ -2675,8 +2690,10 @@ function applyWhaleMarkers() {
             const flow7DelegateEvents = Number(flow7.delegation_events || 0);
             const delStability = eventIntelligence?.stability?.delegation_24h?.label || 'weak';
             const unlStability = eventIntelligence?.stability?.undelegation_completed_24h?.label || 'weak';
-            document.getElementById('edgeSummary').textContent =
-                `7d net flow: ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · Events: ${flow7UndelegateEvents} undelegations, ${flow7DelegateEvents} delegations · Quality: ${Math.round(exactPct * 100)}% exact, ${totalEvents} modeled · Stability: delegation ${delStability}, unbond ${unlStability}`;
+            const edgeSummaryEl = document.getElementById('edgeSummary');
+            if (edgeSummaryEl) {
+                edgeSummaryEl.textContent = '';
+            }
 
             // Method panel dynamic values
             const cfg = eventIntelligence?.config || {};

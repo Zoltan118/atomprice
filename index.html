@@ -184,6 +184,19 @@
         .stat.right { text-align: right; }
         .stat-value { font-size: 32px; font-weight: 600; letter-spacing: -1px; }
         .stat-label { font-size: 10px; color: #444; text-transform: lowercase; }
+        .edge-section { margin-bottom: 28px; }
+        .edge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .edge-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+        .edge-updated { font-size: 10px; color: #555; }
+        .edge-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .edge-card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 10px; padding: 11px 12px; }
+        .edge-card-title { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .edge-card-value { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 4px; }
+        .edge-card-meta { font-size: 11px; color: #777; line-height: 1.4; }
+        .edge-card-value.pos { color: #22c55e; }
+        .edge-card-value.neg { color: #ef4444; }
+        .edge-card-value.neu { color: #a3a3a3; }
+        .edge-summary { margin-top: 8px; font-size: 11px; color: #666; }
         .divider { height: 1px; background: #1a1a1a; margin-bottom: 32px; }
         .live-section { margin-bottom: 32px; }
         .live-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
@@ -414,6 +427,7 @@
             .gauge-confidence, .gauge-delta, .gauge-narrative { font-size: 10px; }
             .gauge-components { flex-direction: column; gap: 6px; }
             .gauge-score-card { padding: 20px 16px; }
+            .edge-grid { grid-template-columns: 1fr; }
         }
 
         /* Split-flap character animation (whale watch) */
@@ -711,6 +725,32 @@
             <div class="stat right"><div class="stat-value" id="inflationRate">—</div><div class="stat-label">inflation rate</div></div>
         </div>
         <div class="divider"></div>
+
+        <!-- Historical Edge -->
+        <div class="edge-section" id="edgeSection" style="display: none;">
+            <div class="edge-header">
+                <span class="edge-label">historical edge</span>
+                <span class="edge-updated" id="edgeUpdated">—</span>
+            </div>
+            <div class="edge-grid">
+                <div class="edge-card">
+                    <div class="edge-card-title">Delegation · 24H</div>
+                    <div class="edge-card-value neu" id="edgeDelegationValue">—</div>
+                    <div class="edge-card-meta" id="edgeDelegationMeta">—</div>
+                </div>
+                <div class="edge-card">
+                    <div class="edge-card-title">Unbond Complete · 24H</div>
+                    <div class="edge-card-value neu" id="edgeUnlockValue">—</div>
+                    <div class="edge-card-meta" id="edgeUnlockMeta">—</div>
+                </div>
+                <div class="edge-card">
+                    <div class="edge-card-title">Net Flow Bias · 7D</div>
+                    <div class="edge-card-value neu" id="edgeBiasValue">—</div>
+                    <div class="edge-card-meta" id="edgeBiasMeta">—</div>
+                </div>
+            </div>
+            <div class="edge-summary" id="edgeSummary">—</div>
+        </div>
         
         <!-- Whale Watch -->
         <div class="live-section" id="whaleSection" style="display: none;">
@@ -908,6 +948,7 @@
         let whaleEvents = null;            // individual whale events from whale-events.json
         let whalePending = null;           // pending whale undelegations from whale-pending.json
         let topDelegations = null;         // top delegation events from top-delegations.json
+        let eventIntelligence = null;      // historical edge / event intelligence layer
         let showWhaleMarkers = true;       // toggle state for whale event markers
         let whaleTooltipLocked = false;    // when true, arrow hover/click tooltip is active
         let currentFeedFilter = 'all';
@@ -2480,6 +2521,93 @@ function applyWhaleMarkers() {
             }
         }
 
+        function formatPctMaybe(v) {
+            if (!Number.isFinite(v)) return 'n/a';
+            const p = v * 100;
+            return `${p >= 0 ? '+' : ''}${p.toFixed(2)}%`;
+        }
+
+        function edgeClassByValue(v) {
+            if (!Number.isFinite(v)) return 'neu';
+            if (v > 0) return 'pos';
+            if (v < 0) return 'neg';
+            return 'neu';
+        }
+
+        function renderHistoricalEdge() {
+            const section = document.getElementById('edgeSection');
+            if (!eventIntelligence || !eventIntelligence.cards) {
+                setVisible(section, false);
+                return;
+            }
+            setVisible(section, true);
+
+            const c = eventIntelligence.cards || {};
+            const del = c.delegation_24h || {};
+            const unl = c.undelegation_completed_24h || {};
+            const bias = c.bias_7d || {};
+
+            const updated = eventIntelligence.generated_at
+                ? new Date(eventIntelligence.generated_at).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                })
+                : '—';
+            document.getElementById('edgeUpdated').textContent = `UTC ${updated}`;
+
+            const delValueEl = document.getElementById('edgeDelegationValue');
+            const delValue = Number.isFinite(del.edge) ? del.edge : null;
+            delValueEl.textContent = delValue === null ? 'n/a' : formatPctMaybe(delValue);
+            delValueEl.className = `edge-card-value ${edgeClassByValue(delValue)}`;
+            document.getElementById('edgeDelegationMeta').textContent = del.count
+                ? `${Math.round((del.win_rate || 0) * 100)}% win · n=${del.count} · ${del.confidence || 'Low'} conf`
+                : 'No 24h sample yet';
+
+            const unlValueEl = document.getElementById('edgeUnlockValue');
+            const unlValue = Number.isFinite(unl.edge) ? unl.edge : null;
+            unlValueEl.textContent = unlValue === null ? 'n/a' : formatPctMaybe(unlValue);
+            unlValueEl.className = `edge-card-value ${edgeClassByValue(unlValue)}`;
+            document.getElementById('edgeUnlockMeta').textContent = unl.count
+                ? `${Math.round((unl.win_rate || 0) * 100)}% win · n=${unl.count} · ${unl.confidence || 'Low'} conf`
+                : 'No 24h sample yet';
+
+            const biasValueEl = document.getElementById('edgeBiasValue');
+            const biasScore = Number.isFinite(bias.score) ? bias.score : null;
+            biasValueEl.textContent = biasScore === null ? 'n/a' : `${bias.label || 'Neutral'} ${biasScore >= 0 ? '+' : ''}${Math.round(biasScore)}`;
+            biasValueEl.className = `edge-card-value ${edgeClassByValue(biasScore)}`;
+            const flow24 = c.flow_24h || {};
+            const flow24Net = Number(flow24.net_atom || 0);
+            const flow24Text = Number.isFinite(flow24Net)
+                ? `${formatAmount(Math.abs(flow24Net))} ATOM ${flow24Net >= 0 ? 'net delegation' : 'net undelegation'} (24h)`
+                : 'No flow data';
+            document.getElementById('edgeBiasMeta').textContent = flow24Text;
+
+            const exactPct = Number(eventIntelligence?.data_quality?.exact_timestamp_pct || 0);
+            const totalEvents = Number(eventIntelligence?.data_quality?.events_total || 0);
+            const minAtom = Number(eventIntelligence?.config?.min_event_atom || 0);
+            const flow7 = c.flow_7d || {};
+            const flow7Net = Number(flow7.net_atom || 0);
+            document.getElementById('edgeSummary').textContent =
+                `Vol-adjusted baseline · 7d net ${formatAmount(Math.abs(flow7Net))} ATOM ${flow7Net >= 0 ? 'delegation' : 'undelegation'} · ${Math.round(exactPct * 100)}% exact timestamps · ${totalEvents} events · min ${formatAmount(minAtom)} ATOM`;
+        }
+
+        async function loadEventIntelligence() {
+            try {
+                const res = await fetch(`./data/event-intelligence.json?t=${Date.now()}`, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                eventIntelligence = await res.json();
+                renderHistoricalEdge();
+                console.log(`✅ Event intelligence loaded: ${eventIntelligence?.data_quality?.events_total || 0} events`);
+            } catch (err) {
+                console.log('ℹ️ Event intelligence not available:', err.message);
+                eventIntelligence = null;
+                renderHistoricalEdge();
+            }
+        }
+
         // ========== EVENT LISTENERS ==========
         document.querySelectorAll('.currency-btn').forEach(btn => {
             btn.onclick = () => {
@@ -3370,6 +3498,7 @@ function applyWhaleMarkers() {
             loadPendingUndelegations();
             loadUnbondingFlows();
             loadWhaleEvents();
+            loadEventIntelligence();
 
             // 6) Load FX rates
             await loadFxRates();
@@ -3390,6 +3519,7 @@ function applyWhaleMarkers() {
             setInterval(loadPendingUndelegations, 300000);   // Unbonding every 5min
             setInterval(loadUnbondingFlows, 600000);         // Flows every 10min
             setInterval(loadWhaleEvents, 600000);      // Whale events every 10min
+            setInterval(loadEventIntelligence, 3600000);      // Event intelligence hourly
             
             console.log('✅ Dashboard ready!');
         }

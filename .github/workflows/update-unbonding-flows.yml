@@ -3,8 +3,8 @@ name: Update unbonding flows
 on:
   workflow_dispatch:
   schedule:
-    # every 2 hours — flow analysis is retrospective
-    - cron: "0 */2 * * *"
+    # every 1 hours — flow analysis is retrospective
+    - cron: "0 */1 * * *"
 
 permissions:
   contents: write
@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -39,5 +41,16 @@ jobs:
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
           git add data/unbonding-flows.json data/undelegation-archive.json data/undelegation-history.json
-          git diff --cached --quiet || git commit -m "Update unbonding flows"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update unbonding flows"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Failed to push after retries."
+          exit 1

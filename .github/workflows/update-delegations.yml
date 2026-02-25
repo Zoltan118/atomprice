@@ -36,7 +36,15 @@ jobs:
           PER_PAGE: "100"
           MIN_ATOM: "100"
         run: |
-          node scripts/delegations_updater.mjs
+          for i in 1 2 3; do
+            echo "Delegation snapshot attempt $i/3..."
+            if node scripts/delegations_updater.mjs; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Delegation snapshot failed after retries. Keeping previous published data and skipping hard-fail."
+          exit 0
 
       - name: Commit & push if changed
         run: |
@@ -54,5 +62,5 @@ jobs:
             git rebase --abort || true
             sleep 2
           done
-          echo "Failed to push after retries."
-          exit 1
+          echo "Push failed after retries (likely transient non-fast-forward). Skipping hard-fail; next run will retry."
+          exit 0

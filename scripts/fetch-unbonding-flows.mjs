@@ -34,6 +34,10 @@ const FLOW_MIN_ATOM = Number(process.env.FLOW_MIN_ATOM ?? "1000");
 const MEMO_MIN_ATOM = Number(process.env.MEMO_MIN_ATOM ?? "1000");
 const MAX_DELEGATORS = Number(process.env.MAX_DELEGATORS ?? "50");
 const LOOKBACK_DAYS = Number(process.env.LOOKBACK_DAYS ?? "3");
+const ICF_EXCLUDED_DELEGATORS = new Set([
+  "cosmos1sufkm72dw7ua9crpfhhp0dqpyuggtlhdse98e7",
+  "cosmos1z6czaavlk6kjd48rpf58kqqw9ssad2uaxnazgl",
+]);
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -283,7 +287,8 @@ async function main() {
       continue;
     }
 
-    const delegators = allDelegatorsByDate[date] || [];
+    const delegators = (allDelegatorsByDate[date] || [])
+      .filter((d) => !ICF_EXCLUDED_DELEGATORS.has(String(d.address || "").toLowerCase()));
     const totalMatured = delegators.reduce((s, d) => s + d.atom, 0);
 
     // Filter to top delegators by amount

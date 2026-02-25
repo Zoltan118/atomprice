@@ -11,6 +11,9 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    concurrency:
+      group: atomprice-data-updates
+      cancel-in-progress: false
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -31,5 +34,16 @@ jobs:
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
           git add data/staking_ratio.json
-          git diff --cached --quiet || git commit -m "Update staking ratio snapshot"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update staking ratio snapshot"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Failed to push after retries."
+          exit 1

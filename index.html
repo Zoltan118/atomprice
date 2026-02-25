@@ -1179,6 +1179,26 @@ function positionChartTooltip(tooltip, chartContainer, x, y) {
     tooltip.style.top = `${top}px`;
 }
 
+function getUtcDayKeyFromIso(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return '';
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function getIcfUndelegationTotalForUtcDay(dayKey) {
+    if (!dayKey || !Array.isArray(feedItems) || !feedItems.length) return 0;
+    return feedItems.reduce((sum, it) => {
+        if (it.type !== 'undelegate') return sum;
+        if (!isIcfDelegator(it.delegator)) return sum;
+        if (getUtcDayKeyFromIso(it.timestamp) !== dayKey) return sum;
+        return sum + Number(it.amount || 0);
+    }, 0);
+}
+
 function showWhaleEventTooltip(eventPoint, x, y) {
     const tooltip = document.getElementById('chartTooltip');
     const chartContainer = document.getElementById('chartContainer');
@@ -1216,8 +1236,17 @@ function showWhaleEventTooltip(eventPoint, x, y) {
     const reactionLine = reaction
         ? `<div style="font-size:11px;color:#9aa3ad;margin-top:4px;">After: ${reaction}</div>`
         : `<div style="font-size:11px;color:#6f7782;margin-top:4px;">After: 1h n/a · 4h n/a · 24h n/a</div>`;
-    const icfNote = isIcfDelegator(eventPoint.delegator)
-        ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px;">ICF validator-program rotation (excluded from pressure/intelligence scoring; planned re-delegation program).</div>`
+    const isIcfEvent = isIcfDelegator(eventPoint.delegator);
+    const eventDayKey = getUtcDayKeyFromIso(eventPoint.timestamp || new Date((eventPoint.candleTime || 0) * 1000).toISOString());
+    const icfDayTotal = isIcfEvent ? getIcfUndelegationTotalForUtcDay(eventDayKey) : 0;
+    const icfDayLabel = eventDayKey
+        ? new Date(`${eventDayKey}T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : 'that day';
+    const icfSummaryLine = isIcfEvent
+        ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px;">${formatCompactAmount(icfDayTotal || eventPoint.atom)} ICF undelegations on ${icfDayLabel} (UTC).</div>`
+        : '';
+    const icfNote = isIcfEvent
+        ? `<div style="font-size:11px;color:#a7864b;margin-top:2px;">Excluded from pressure/intelligence scoring (validator program rotation).</div>`
         : '';
 
     tooltip.innerHTML = `
@@ -1228,6 +1257,7 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             · ${stageLabel}
         </div>
         ${reactionLine}
+        ${icfSummaryLine}
         ${icfNote}
     `;
 

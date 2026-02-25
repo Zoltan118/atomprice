@@ -3,8 +3,8 @@ name: Update unbonding flows
 on:
   workflow_dispatch:
   schedule:
-    # every 1 hours — flow analysis is retrospective
-    - cron: "0 */1 * * *"
+    # every 2 hours — flow analysis is retrospective
+    - cron: "0 */2 * * *"
 
 permissions:
   contents: write
@@ -13,6 +13,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: atomprice-data-updates
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repo

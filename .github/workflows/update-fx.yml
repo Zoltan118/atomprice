@@ -11,6 +11,9 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    concurrency:
+      group: atomprice-data-updates
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,5 +28,16 @@ jobs:
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
           git add data/fx_rates.json
-          git diff --cached --quiet || git commit -m "Update FX rates (ECB)"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update FX rates (ECB)"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Failed to push after retries."
+          exit 1

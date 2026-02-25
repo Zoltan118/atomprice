@@ -6,13 +6,13 @@
 //   data/event-intelligence.json
 //
 // Env (optional):
-//   MIN_EVENT_ATOM       default: 100000
+//   MIN_EVENT_ATOM       default: 1
 //   BASELINE_LOOKBACK_DAYS default: 30
 //   HORIZONS_HOURS       default: "1,4,24,168"
 
 import fs from "node:fs/promises";
 
-const MIN_EVENT_ATOM = Number(process.env.MIN_EVENT_ATOM ?? "100000");
+const MIN_EVENT_ATOM = Number(process.env.MIN_EVENT_ATOM ?? "1");
 const BASELINE_LOOKBACK_DAYS = Number(process.env.BASELINE_LOOKBACK_DAYS ?? "30");
 const HORIZONS_HOURS = String(process.env.HORIZONS_HOURS ?? "1,4,24,168")
   .split(",")
@@ -24,6 +24,10 @@ const OUT_FILE = "data/event-intelligence.json";
 const KRAKEN_OHLC = "https://api.kraken.com/0/public/OHLC?pair=ATOMUSD&interval=60&since=";
 const EDGE_MIN_SAMPLES = Number(process.env.EDGE_MIN_SAMPLES ?? "12");
 const EDGE_MIN_EXACT_PCT = Number(process.env.EDGE_MIN_EXACT_PCT ?? "0.7");
+const ICF_EXCLUDED_DELEGATORS = new Set([
+  "cosmos1sufkm72dw7ua9crpfhhp0dqpyuggtlhdse98e7",
+  "cosmos1z6czaavlk6kjd48rpf58kqqw9ssad2uaxnazgl",
+]);
 
 function median(arr) {
   if (!arr.length) return null;
@@ -112,8 +116,21 @@ function findIndexAtOrAfter(times, target) {
   return lo;
 }
 
-function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndelegations }) {
+function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndelegations, rawEvents }) {
   const out = [];
+
+  for (const e of rawEvents?.items || []) {
+    out.push({
+      category: e.type === "delegate" ? "delegation" : "undelegation_initiated",
+      stage: "initiation",
+      atom: Number(e.amount_atom || 0),
+      timestamp: e.timestamp || null,
+      delegator: e.delegator || "",
+      estimated: false,
+      txhash: e.txhash || "",
+      source: "raw_archive",
+    });
+  }
 
   for (const d of topDelegations?.delegations || []) {
     out.push({
@@ -121,6 +138,7 @@ function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndel
       stage: "initiation",
       atom: Number(d.amount_atom || 0),
       timestamp: d.timestamp || null,
+      delegator: d.delegator || "",
       estimated: false,
       txhash: d.txhash || "",
       source: "top_delegations",
@@ -133,6 +151,7 @@ function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndel
       stage: "initiation",
       atom: Number(e.atom || 0),
       timestamp: e.timestamp || null,
+      delegator: e.delegator || "",
       estimated: false,
       txhash: e.txhash || "",
       source: "whale_events",
@@ -145,13 +164,15 @@ function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndel
       stage: "unlock",
       atom: Number(e.atom || 0),
       timestamp: e.timestamp || null,
+      delegator: e.delegator || "",
       estimated: false,
       txhash: e.txhash || "",
       source: "whale_pending",
     });
   }
 
-  for (const d of pendingUndelegations?.schedule || []) {
+  const pendingSchedule = pendingUndelegations?.schedule_excluding_icf || pendingUndelegations?.schedule || [];
+  for (const d of pendingSchedule) {
     out.push({
       category: "undelegation_completed",
       stage: "unlock",
@@ -166,6 +187,8 @@ function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndel
   const dedupe = new Set();
   const filtered = [];
   for (const e of out) {
+    const delegator = String(e.delegator || "").toLowerCase();
+    if (delegator && ICF_EXCLUDED_DELEGATORS.has(delegator)) continue;
     const tsMs = e.timestamp ? Date.parse(e.timestamp) : NaN;
     if (!Number.isFinite(tsMs)) continue;
     if (!Number.isFinite(e.atom) || e.atom < MIN_EVENT_ATOM) continue;
@@ -488,10 +511,11 @@ async function main() {
   const whaleEvents = await readJson("data/whale-events.json", { events: [] });
   const whalePending = await readJson("data/whale-pending.json", { events: [] });
   const pendingUndelegations = await readJson("data/pending-undelegations.json", { schedule: [] });
+  const rawEvents = await readJson("data/delegation-events-raw.json", { items: [] });
   const flowHourly = await readJson("data/delegation-flow-hourly.json", { items: [] });
   const flowDaily = await readJson("data/delegation-flow-daily.json", { items: [] });
 
-  const events = buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndelegations });
+  const events = buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndelegations, rawEvents });
   if (!events.length) {
     const out = {
       generated_at: new Date().toISOString(),
@@ -590,6 +614,9 @@ async function main() {
       horizons_hours: HORIZONS_HOURS,
       baseline_lookback_days: BASELINE_LOOKBACK_DAYS,
       price_source: "Kraken OHLC 1h",
+      excluded_delegators: {
+        icf: Array.from(ICF_EXCLUDED_DELEGATORS),
+      },
     },
     data_quality: {
       events_total: totalCount,

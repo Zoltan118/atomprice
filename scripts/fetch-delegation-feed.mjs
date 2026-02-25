@@ -423,8 +423,11 @@ async function main() {
   // Sort by height descending (newest first)
   merged.sort((a, b) => Number(b.height) - Number(a.height));
 
-  // Resolve timestamps for items that don't have them
-  await resolveTimestamps(feed);
+  // Resolve timestamps for any merged rows still missing them
+  const mergedMissingTs = merged.filter((i) => !i.timestamp);
+  if (mergedMissingTs.length) {
+    await resolveTimestamps(mergedMissingTs);
+  }
 
   // Build raw ledger
   // - Immutable mode: append-only, never trims previous rows

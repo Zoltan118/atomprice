@@ -16,6 +16,10 @@ const OUT_FILE = "data/pending-undelegations.json";
 const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
 const MIN_ATOM = Number(process.env.MIN_ATOM ?? "100");
 const BATCH_SIZE = Number(process.env.BATCH_SIZE ?? "5");
+const ICF_EXCLUDED_DELEGATORS = new Set([
+  "cosmos1sufkm72dw7ua9crpfhhp0dqpyuggtlhdse98e7",
+  "cosmos1z6czaavlk6kjd48rpf58kqqw9ssad2uaxnazgl",
+]);
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -179,11 +183,31 @@ async function main() {
   }
 
   const totalUnbonding = schedule.reduce((s, d) => s + d.atom, 0);
+  const byDateExcludingIcf = {};
+  for (const [date, entries] of Object.entries(byDate)) {
+    const filtered = entries.filter((e) => !ICF_EXCLUDED_DELEGATORS.has((e.address || "").toLowerCase()));
+    byDateExcludingIcf[date] = filtered;
+  }
+  const scheduleExcludingIcf = dates.map((date) => {
+    const entries = byDateExcludingIcf[date] || [];
+    const totalAtom = entries.reduce((s, e) => s + e.atom, 0);
+    return {
+      date,
+      atom: Math.round(totalAtom),
+      delegator_count: new Set(entries.map((e) => e.address)).size,
+    };
+  });
+  const totalUnbondingExcludingIcf = scheduleExcludingIcf.reduce((s, d) => s + d.atom, 0);
 
   const output = {
     generated_at: new Date().toISOString(),
     total_unbonding_atom: totalUnbonding,
+    total_unbonding_atom_excluding_icf: totalUnbondingExcludingIcf,
+    excluded_delegators: {
+      icf: Array.from(ICF_EXCLUDED_DELEGATORS),
+    },
     schedule,
+    schedule_excluding_icf: scheduleExcludingIcf,
     delegators_by_date: delegatorsByDate,
   };
 
@@ -212,7 +236,7 @@ async function main() {
       atom: Math.round(e.atom),
       timestamp: e.completion_time,  // full ISO 8601 from chain
       validator: e.validator,
-      delegator: (e.delegator || "").slice(0, 20) + "..."
+      delegator: e.delegator || ""
     }))
     .sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
 

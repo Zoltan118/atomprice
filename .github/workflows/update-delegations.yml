@@ -2,6 +2,9 @@ name: Update delegations
 
 on:
   workflow_dispatch:
+  schedule:
+    # lightweight snapshot refresh (separate from 15m feed job)
+    - cron: "17 * * * *"
 
 permissions:
   contents: write

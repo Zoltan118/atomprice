@@ -13,6 +13,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: atomprice-data-updates
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repo
@@ -28,7 +31,7 @@ jobs:
       - name: Run pending undelegations fetcher
         env:
           REST_BASE: "https://rest.cosmos.directory/cosmoshub"
-          MIN_ATOM: "100"
+          MIN_ATOM: "1"
           BATCH_SIZE: "5"
         run: |
           node scripts/fetch-pending-undelegations.mjs

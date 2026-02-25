@@ -35,28 +35,26 @@ jobs:
           FEED_MIN: "1"
           FEED_KEEP: "1000"
           PER_PAGE: "100"
-          LIMIT_PAGES: "15"
+          LIMIT_PAGES: "10"
           EXEC_LIMIT_PAGES: "2"
           RAW_KEEP_DAYS: "90"
           HOURLY_KEEP_DAYS: "370"
         run: |
-          node scripts/fetch-delegation-feed.mjs
-
-      - name: Run delegation snapshot updater
-        env:
-          RPC_BASES: "https://cosmos-rpc.publicnode.com,https://rpc.cosmos.directory/cosmoshub,https://rpc.silknodes.io/cosmos"
-          WINDOW_HOURS: "72"
-          LIMIT_PAGES: "20"
-          PER_PAGE: "100"
-          MIN_ATOM: "100"
-        run: |
-          node scripts/delegations_updater.mjs
+          for i in 1 2 3; do
+            echo "Feed fetch attempt $i/3..."
+            if node scripts/fetch-delegation-feed.mjs; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Feed fetch failed after retries."
+          exit 1
 
       - name: Commit & push if changed
         run: |
           git config user.name "atomprice-bot"
           git config user.email "actions@github.com"
-          git add data/delegation_feed.json data/validator_cache.json data/whale-events.json data/delegation-events-raw.json data/delegation-flow-hourly.json data/delegation-flow-daily.json data/delegations_24h.json data/top-delegations.json data/recent-delegations.json
+          git add data/delegation_feed.json data/validator_cache.json data/whale-events.json data/delegation-events-raw.json data/delegation-flow-hourly.json data/delegation-flow-daily.json
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
@@ -68,5 +66,5 @@ jobs:
             git rebase --abort || true
             sleep 2
           done
-          echo "Failed to push after retries."
-          exit 1
+          echo "Push failed after retries (likely transient non-fast-forward). Skipping hard-fail; next run will retry."
+          exit 0

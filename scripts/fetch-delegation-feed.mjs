@@ -13,6 +13,8 @@
 //   REST_BASE     default: https://rest.cosmos.directory/cosmoshub
 //   FEED_MIN      default: 1000 (minimum ATOM to include)
 //   FEED_KEEP     default: 1000 (max items to keep in feed)
+//   WHALE_FEED_MIN default: 100000 (always keep whale rows in feed)
+//   WHALE_FEED_DAYS default: 30 (rolling whale retention window)
 //   PER_PAGE      default: 100
 //   LIMIT_PAGES   default: 5
 //   EXEC_LIMIT_PAGES default: 2 (MsgExec scans)
@@ -36,6 +38,8 @@ const RPC_BASES = (process.env.RPC_BASES
 const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
 const FEED_MIN = Number(process.env.FEED_MIN ?? "1000");
 const FEED_KEEP = Number(process.env.FEED_KEEP ?? "1000");
+const WHALE_FEED_MIN = Number(process.env.WHALE_FEED_MIN ?? "100000");
+const WHALE_FEED_DAYS = Number(process.env.WHALE_FEED_DAYS ?? "30");
 const PER_PAGE = Number(process.env.PER_PAGE ?? "100");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");
 const EXEC_LIMIT_PAGES = Number(process.env.EXEC_LIMIT_PAGES ?? "2");
@@ -419,9 +423,6 @@ async function main() {
   // Sort by height descending (newest first)
   merged.sort((a, b) => Number(b.height) - Number(a.height));
 
-  // Keep top N
-  const feed = merged.slice(0, FEED_KEEP);
-
   // Resolve timestamps for items that don't have them
   await resolveTimestamps(feed);
 
@@ -448,6 +449,27 @@ async function main() {
   if (RAW_IMMUTABLE && prevRawItems.length && rawArchive.length < prevRawItems.length) {
     throw new Error(`Raw ledger shrink blocked in immutable mode (${prevRawItems.length} -> ${rawArchive.length})`);
   }
+
+  // Build feed set:
+  // 1) recent live window capped by FEED_KEEP
+  // 2) always include whale events (>= WHALE_FEED_MIN) from last WHALE_FEED_DAYS
+  const recentFeed = merged.slice(0, FEED_KEEP);
+  const whaleCutoffIso = new Date(Date.now() - WHALE_FEED_DAYS * 86400000).toISOString();
+  const whaleFeed = rawArchive.filter((i) =>
+    Number(i.amount_atom || 0) >= WHALE_FEED_MIN &&
+    (!i.timestamp || i.timestamp >= whaleCutoffIso)
+  );
+
+  const feedById = new Map();
+  for (const item of [...recentFeed, ...whaleFeed]) {
+    feedById.set(makeEventId(item), item);
+  }
+  const feed = Array.from(feedById.values()).sort((a, b) => {
+    const ta = Date.parse(a.timestamp || 0) || 0;
+    const tb = Date.parse(b.timestamp || 0) || 0;
+    if (tb !== ta) return tb - ta;
+    return Number(b.height || 0) - Number(a.height || 0);
+  });
 
   // Resolve validator monikers
   const unknownAddrs = [...new Set(feed.filter(i => i.validator_addr && !validatorCache[i.validator_addr]).map(i => i.validator_addr))];
@@ -497,6 +519,8 @@ async function main() {
       },
       per_page: PER_PAGE,
       feed_keep: FEED_KEEP,
+      whale_feed_min: WHALE_FEED_MIN,
+      whale_feed_days: WHALE_FEED_DAYS,
       raw_keep_days: RAW_IMMUTABLE ? null : RAW_KEEP_DAYS,
       raw_immutable: RAW_IMMUTABLE,
       raw_appended_in_run: newRawItems.length,

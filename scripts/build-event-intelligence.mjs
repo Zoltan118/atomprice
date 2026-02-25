@@ -9,11 +9,13 @@
 //   MIN_EVENT_ATOM       default: 1
 //   BASELINE_LOOKBACK_DAYS default: 30
 //   HORIZONS_HOURS       default: "1,4,24,168"
+//   EVENT_WINDOW_DAYS    default: 30 (rolling window for event set)
 
 import fs from "node:fs/promises";
 
 const MIN_EVENT_ATOM = Number(process.env.MIN_EVENT_ATOM ?? "1");
 const BASELINE_LOOKBACK_DAYS = Number(process.env.BASELINE_LOOKBACK_DAYS ?? "30");
+const EVENT_WINDOW_DAYS = Number(process.env.EVENT_WINDOW_DAYS ?? "30");
 const HORIZONS_HOURS = String(process.env.HORIZONS_HOURS ?? "1,4,24,168")
   .split(",")
   .map((s) => Number(s.trim()))
@@ -186,11 +188,13 @@ function buildEventSet({ topDelegations, whaleEvents, whalePending, pendingUndel
 
   const dedupe = new Set();
   const filtered = [];
+  const windowCutoffMs = Date.now() - EVENT_WINDOW_DAYS * 86400000;
   for (const e of out) {
     const delegator = String(e.delegator || "").toLowerCase();
     if (delegator && ICF_EXCLUDED_DELEGATORS.has(delegator)) continue;
     const tsMs = e.timestamp ? Date.parse(e.timestamp) : NaN;
     if (!Number.isFinite(tsMs)) continue;
+    if (tsMs < windowCutoffMs) continue;
     if (!Number.isFinite(e.atom) || e.atom < MIN_EVENT_ATOM) continue;
     const key = e.txhash
       ? `${e.category}:${e.txhash}`
@@ -457,7 +461,7 @@ function buildRecentBiasFromEvents(enrichedEvents) {
 
   const net = delegate - undelegateStart - undelegateComplete;
   const score = clamp(Math.tanh(net / 2_000_000) * 100, -100, 100);
-  const label = score >= 20 ? "Bullish" : score <= -20 ? "Bearish" : "Neutral";
+  const label = score >= 20 ? "More Delegation" : score <= -20 ? "More Undelegation" : "Balanced";
 
   return {
     window: "7d",
@@ -570,7 +574,7 @@ async function main() {
     }, { delegate: 0, undelegate: 0, net: 0, count: 0, delegate_events: 0, undelegate_events: 0 });
 
   const flowBiasScore = clamp(Math.tanh((flow7.net || 0) / 2_000_000) * 100, -100, 100);
-  const flowBiasLabel = flowBiasScore >= 20 ? "Bullish" : flowBiasScore <= -20 ? "Bearish" : "Neutral";
+  const flowBiasLabel = flowBiasScore >= 20 ? "More Delegation" : flowBiasScore <= -20 ? "More Undelegation" : "Balanced";
   const flowBias = {
     window: "7d",
     delegation_atom: flow7.delegate,
@@ -613,6 +617,7 @@ async function main() {
       min_event_atom: MIN_EVENT_ATOM,
       horizons_hours: HORIZONS_HOURS,
       baseline_lookback_days: BASELINE_LOOKBACK_DAYS,
+      event_window_days: EVENT_WINDOW_DAYS,
       price_source: "Kraken OHLC 1h",
       excluded_delegators: {
         icf: Array.from(ICF_EXCLUDED_DELEGATORS),

@@ -967,6 +967,11 @@
         const FEED_FILTER_KEY = 'atomprice_feed_filter_v1';
         const WHALE_MARKER_MIN = 250000;
         const UNBONDING_PERIOD_DAYS = 21;
+        const FEED_DISPLAY_MIN = 500;
+        const ICF_EXCLUDED_DELEGATORS = new Set([
+            'cosmos1sufkm72dw7ua9crpfhhp0dqpyuggtlhdse98e7',
+            'cosmos1z6czaavlk6kjd48rpf58kqqw9ssad2uaxnazgl'
+        ]);
 
         // ========== STATE ==========
         let whaleDelegations = [];
@@ -1044,6 +1049,11 @@
             if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
             if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
             return Math.round(n).toLocaleString();
+        }
+
+        function isIcfDelegator(address) {
+            if (!address) return false;
+            return ICF_EXCLUDED_DELEGATORS.has(String(address).toLowerCase());
         }
 
         function formatNumber(n, d) {
@@ -1184,6 +1194,9 @@ function showWhaleEventTooltip(eventPoint, x, y) {
     const reactionLine = reaction
         ? `<div style="font-size:11px;color:#9aa3ad;margin-top:4px;">After: ${reaction}</div>`
         : `<div style="font-size:11px;color:#6f7782;margin-top:4px;">After: 1h n/a · 4h n/a · 24h n/a</div>`;
+    const icfNote = isIcfDelegator(eventPoint.delegator)
+        ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px;">ICF validator-program rotation (excluded from pressure/intelligence scoring; planned re-delegation program).</div>`
+        : '';
 
     tooltip.innerHTML = `
         <div class="tooltip-time">${eventTime}</div>
@@ -1193,6 +1206,7 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             · ${stageLabel}
         </div>
         ${reactionLine}
+        ${icfNote}
     `;
 
     positionChartTooltip(tooltip, chartContainer, x, y);
@@ -1731,7 +1745,8 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                 return;
             }
 
-            const filteredFeed = feedItems.filter(item => matchesFeedFilter(item.amount));
+            const displayCandidates = feedItems.filter(item => Number(item.amount || 0) >= FEED_DISPLAY_MIN);
+            const filteredFeed = displayCandidates.filter(item => matchesFeedFilter(item.amount));
             setVisible(section, true);
 
             const statusEl = document.getElementById('feedStatus');
@@ -3330,7 +3345,7 @@ function applyWhaleMarkers() {
         }
 
         function calculateSellPressure() {
-            const schedule = pendingUndelegations?.schedule;
+            const schedule = pendingUndelegations?.schedule_excluding_icf || pendingUndelegations?.schedule;
             const flows = unbondingFlows?.daily_flows || [];
             if (!schedule?.length) return null;
 

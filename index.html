@@ -319,6 +319,28 @@
             font-size: 10px;
             color: #333;
         }
+        .feed-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-size: 9px;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+        }
+        .feed-pill.whale {
+            color: #9de2b8;
+            border-color: rgba(34, 197, 94, 0.35);
+            background: rgba(34, 197, 94, 0.10);
+        }
+        .feed-pill.icf {
+            color: #f7c48b;
+            border-color: rgba(245, 158, 11, 0.35);
+            background: rgba(245, 158, 11, 0.10);
+        }
         .feed-meta a { color: #333; text-decoration: none; transition: color 0.15s; }
         .feed-meta a:hover { color: #888; }
         .feed-empty { color: #333; font-size: 12px; padding: 30px 0; text-align: center; }
@@ -950,7 +972,7 @@
     
     <script>
         // Version - increment this to bust cache for returning users
-        const APP_VERSION = '2.0.0';
+        const APP_VERSION = '2.0.2';
         console.log(`ATOM Dashboard v${APP_VERSION}`);
         
         // ========== CONFIG ==========
@@ -961,7 +983,7 @@
         const MAX_FEED = 1000;         // Keep last 1000 feed items
         const MAX_TICKER = 200;       // Keep last 200 for ticker
         const WHALE_CYCLE_MS = 5000;  // Cycle whale watch every 5 seconds
-        const CACHE_KEY = 'atomprice_cache_v5';
+        const CACHE_KEY = 'atomprice_cache_v7';
         const CACHE_TTL_MS = 172800000;  // 48 hours
         const WHALE_MARKER_ENABLED_KEY = 'atomprice_whale_markers_enabled_v1';
         const FEED_FILTER_KEY = 'atomprice_feed_filter_v1';
@@ -1692,6 +1714,8 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                         timestamp: it.timestamp || null,
                         validator: it.validator_name || '',
                         validatorAddr: it.validator_addr || '',
+                        delegator: it.delegator || '',
+                        isWhale: Number(it.amount_atom || 0) >= 100000,
                     }));
                 }
 
@@ -1753,7 +1777,8 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             if (statusEl) {
                 const dCount = filteredFeed.filter(i => i.type === 'delegate').length;
                 const uCount = filteredFeed.filter(i => i.type === 'undelegate').length;
-                statusEl.textContent = `${dCount} delegations · ${uCount} undelegations`;
+                const whaleCount = filteredFeed.filter(i => i.isWhale).length;
+                statusEl.textContent = `${dCount} delegations · ${uCount} undelegations${whaleCount ? ` · ${whaleCount} whales` : ''}`;
             }
 
             if (!filteredFeed.length) {
@@ -1771,13 +1796,16 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                 const shortHash = item.txHash ? item.txHash.slice(0, 8) + '…' : '';
                 const amtStr = formatAmount(item.amount);
                 const timeStr = formatFeedTime(item.timestamp);
+                const isIcf = isIcfDelegator(item.delegator);
+                const pillWhale = item.isWhale ? '<span class="feed-pill whale">whale</span>' : '';
+                const pillIcf = isIcf ? '<span class="feed-pill icf">icf</span>' : '';
 
                 return `<div class="feed-msg" data-tx="${item.txHash}" data-height="${item.height || ''}">
                     <div class="feed-icon ${item.type}">${icon}</div>
                     <div class="feed-body">
                         <div class="feed-text">
                             <span class="feed-amount ${item.type}">${amtStr} ATOM</span>
-                            <span>${label}</span>${valName ? ` <span class="feed-validator">→ ${valName}</span>` : ''}
+                            <span>${label}</span>${pillWhale}${pillIcf}${valName ? ` <span class="feed-validator">→ ${valName}</span>` : ''}
                         </div>
                         <div class="feed-meta">
                             ${timeStr ? `<span>${timeStr}</span>` : ''}

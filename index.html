@@ -241,7 +241,22 @@
         /* Delegation Feed - Telegram-style scrollable */
         .feed-section { margin-bottom: 32px; }
         .feed-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .feed-label-wrap { display: inline-flex; align-items: center; gap: 6px; }
         .feed-label { font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+        .feed-beta {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 7px;
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            border-radius: 999px;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.08);
+            cursor: help;
+            user-select: none;
+        }
         .feed-status { font-size: 10px; color: #333; letter-spacing: 0.5px; }
         .feed-filter-row { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
         .feed-filter-row::-webkit-scrollbar { display: none; }
@@ -837,7 +852,10 @@
         <!-- Delegation Feed - Telegram-style scrollable -->
         <div class="feed-section" id="feedSection" style="display: none;">
             <div class="feed-header">
-                <div class="feed-label">delegation feed</div>
+                <div class="feed-label-wrap">
+                    <div class="feed-label">delegation feed</div>
+                    <span class="feed-beta" title="Beta: delegation feed can be delayed or occasionally miss some transactions due to RPC/indexer limits.">beta</span>
+                </div>
                 <div class="feed-status" id="feedStatus">loading...</div>
             </div>
             <div class="feed-filter-row" id="feedFilterRow">
@@ -1028,6 +1046,7 @@
         let whaleEvents = null;            // individual whale events from whale-events.json
         let whalePending = null;           // pending whale undelegations from whale-pending.json
         let topDelegations = null;         // top delegation events from top-delegations.json
+        let icfUndelegationTotalsByDay = new Map(); // authoritative UTC-day ICF totals
         let eventIntelligence = null;      // historical edge / event intelligence layer
         let showWhaleMarkers = true;       // toggle state for whale event markers
         let whaleTooltipLocked = false;    // when true, arrow hover/click tooltip is active
@@ -1190,6 +1209,9 @@ function getUtcDayKeyFromIso(iso) {
 }
 
 function getIcfUndelegationTotalForUtcDay(dayKey) {
+    if (icfUndelegationTotalsByDay && icfUndelegationTotalsByDay.has(dayKey)) {
+        return Number(icfUndelegationTotalsByDay.get(dayKey) || 0);
+    }
     if (!dayKey || !Array.isArray(feedItems) || !feedItems.length) return 0;
     return feedItems.reduce((sum, it) => {
         if (it.type !== 'undelegate') return sum;
@@ -1245,9 +1267,6 @@ function showWhaleEventTooltip(eventPoint, x, y) {
     const icfSummaryLine = isIcfEvent
         ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px;">${formatCompactAmount(icfDayTotal || eventPoint.atom)} ICF undelegations on ${icfDayLabel} (UTC).</div>`
         : '';
-    const icfNote = isIcfEvent
-        ? `<div style="font-size:11px;color:#a7864b;margin-top:2px;">Excluded from pressure/intelligence scoring (validator program rotation).</div>`
-        : '';
 
     tooltip.innerHTML = `
         <div class="tooltip-time">${eventTime}</div>
@@ -1258,7 +1277,6 @@ function showWhaleEventTooltip(eventPoint, x, y) {
         </div>
         ${reactionLine}
         ${icfSummaryLine}
-        ${icfNote}
     `;
 
     positionChartTooltip(tooltip, chartContainer, x, y);
@@ -2734,6 +2752,27 @@ function applyWhaleMarkers() {
             }
         }
 
+        async function loadIcfUndelegationTotals() {
+            try {
+                const res = await fetch('./data/delegation-events-raw.json?t=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const raw = await res.json();
+                const next = new Map();
+                for (const it of (raw?.items || [])) {
+                    if (it?.type !== 'undelegate') continue;
+                    if (!isIcfDelegator(it?.delegator)) continue;
+                    const dayKey = getUtcDayKeyFromIso(it?.timestamp);
+                    if (!dayKey) continue;
+                    const cur = Number(next.get(dayKey) || 0);
+                    next.set(dayKey, cur + Number(it?.amount_atom || 0));
+                }
+                icfUndelegationTotalsByDay = next;
+                console.log(`✅ ICF day totals loaded: ${icfUndelegationTotalsByDay.size} days`);
+            } catch (err) {
+                console.log('ℹ️ ICF day totals not available:', err.message);
+            }
+        }
+
         function formatPctMaybe(v) {
             if (!Number.isFinite(v)) return 'n/a';
             const p = v * 100;
@@ -3755,6 +3794,7 @@ function applyWhaleMarkers() {
             loadUnbondingFlows();
             loadWhaleEvents();
             loadUndelegationArchive();
+            loadIcfUndelegationTotals();
             // Intelligence layer intentionally disabled for now (kept in code for future re-enable)
 
             // 6) Load FX rates
@@ -3779,6 +3819,7 @@ function applyWhaleMarkers() {
             setInterval(loadUnbondingFlows, 600000);         // Flows every 10min
             setInterval(loadWhaleEvents, 600000);      // Whale events every 10min
             setInterval(loadUndelegationArchive, 1800000);   // Archive every 30min
+            setInterval(loadIcfUndelegationTotals, 600000);  // ICF totals every 10min
             // setInterval(loadEventIntelligence, 3600000);   // disabled
 
             const compareLink = document.querySelector('.top-nav-link');
@@ -3816,6 +3857,7 @@ function applyWhaleMarkers() {
                 loadDelegationSnapshot();
                 fetchDelegationFeed();
                 loadPendingUndelegations();
+                loadIcfUndelegationTotals();
                 fetchCoinGeckoMarketStats();
             }
         });

@@ -2733,7 +2733,7 @@ function applyWhaleMarkers() {
 
             const biasValueEl = document.getElementById('edgeBiasValue');
             const biasScore = Number.isFinite(bias.score) ? bias.score : null;
-            biasValueEl.textContent = biasScore === null ? 'n/a' : `${bias.label || 'Neutral'} ${biasScore >= 0 ? '+' : ''}${Math.round(biasScore)}`;
+            biasValueEl.textContent = biasScore === null ? 'n/a' : `${bias.label || 'Balanced'} ${biasScore >= 0 ? '+' : ''}${Math.round(biasScore)}`;
             biasValueEl.className = `edge-card-value ${edgeClassByValue(biasScore)}`;
             document.getElementById('edgeBiasMeta').textContent = bias.text || 'No flow data';
 
@@ -3697,7 +3697,7 @@ function applyWhaleMarkers() {
             loadUnbondingFlows();
             loadWhaleEvents();
             loadUndelegationArchive();
-            loadEventIntelligence();
+            // Intelligence layer intentionally disabled for now (kept in code for future re-enable)
 
             // 6) Load FX rates
             await loadFxRates();
@@ -3721,7 +3721,7 @@ function applyWhaleMarkers() {
             setInterval(loadUnbondingFlows, 600000);         // Flows every 10min
             setInterval(loadWhaleEvents, 600000);      // Whale events every 10min
             setInterval(loadUndelegationArchive, 1800000);   // Archive every 30min
-            setInterval(loadEventIntelligence, 3600000);      // Event intelligence hourly
+            // setInterval(loadEventIntelligence, 3600000);   // disabled
 
             const compareLink = document.querySelector('.top-nav-link');
             if (compareLink) {

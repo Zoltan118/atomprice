@@ -8,6 +8,9 @@ on:
 jobs:
   update-metrics:
     runs-on: ubuntu-latest
+    concurrency:
+      group: atomprice-data-updates
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repository
@@ -26,4 +29,16 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           git add data/daily-metrics.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update daily metrics (staking ratio + APR)" && git push)
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Update daily metrics (staking ratio + APR)"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Failed to push after retries."
+          exit 1

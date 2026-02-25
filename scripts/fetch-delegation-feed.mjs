@@ -561,7 +561,7 @@ async function main() {
       height: i.height,
       txhash: i.txhash,
       validator_name: i.validator_name || (i.validator_addr ? (validatorCache[i.validator_addr] || "") : ""),
-      delegator: (i.delegator || "").slice(0, 20) + "..."
+      delegator: i.delegator || ""
     }));
 
   // Resolve timestamps for whale events missing them

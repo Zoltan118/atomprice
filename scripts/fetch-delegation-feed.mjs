@@ -3,7 +3,7 @@
 // Resolves validator monikers, includes timestamps
 // Outputs: data/delegation_feed.json
 // Also outputs:
-//   - data/delegation-events-raw.json (tx-level archive, rolling window)
+//   - data/delegation-events-raw.json (event-level raw ledger; append-only by default)
 //   - data/delegation-flow-hourly.json (hour buckets)
 //   - data/delegation-flow-daily.json (day buckets)
 //
@@ -16,7 +16,8 @@
 //   PER_PAGE      default: 100
 //   LIMIT_PAGES   default: 5
 //   EXEC_LIMIT_PAGES default: 2 (MsgExec scans)
-//   RAW_KEEP_DAYS default: 90
+//   RAW_KEEP_DAYS default: 90 (used only when RAW_IMMUTABLE=false)
+//   RAW_IMMUTABLE default: true (append-only; no trimming)
 //   HOURLY_KEEP_DAYS default: 370
 //   INCREMENTAL  default: true (set false for deep historical backfill)
 
@@ -41,6 +42,7 @@ const EXEC_LIMIT_PAGES = Number(process.env.EXEC_LIMIT_PAGES ?? "2");
 const RAW_KEEP_DAYS = Number(process.env.RAW_KEEP_DAYS ?? "90");
 const HOURLY_KEEP_DAYS = Number(process.env.HOURLY_KEEP_DAYS ?? "370");
 const INCREMENTAL = String(process.env.INCREMENTAL ?? "true").toLowerCase() !== "false";
+const RAW_IMMUTABLE = String(process.env.RAW_IMMUTABLE ?? "true").toLowerCase() !== "false";
 
 const MSG_DELEGATE = "/cosmos.staking.v1beta1.MsgDelegate";
 const MSG_UNDELEGATE = "/cosmos.staking.v1beta1.MsgUndelegate";
@@ -160,6 +162,19 @@ function parseUatom(str) {
   if (!str || typeof str !== "string") return 0;
   const m = str.match(/^(\d+)\s*uatom$/i);
   return m ? Number(m[1]) / 1_000_000 : 0;
+}
+
+function makeEventId(item) {
+  const atom = Number(item?.amount_atom || 0);
+  const atomKey = Number.isFinite(atom) ? atom.toFixed(6) : "0";
+  return [
+    item?.txhash || "",
+    item?.type || "",
+    item?.delegator || "",
+    item?.validator_addr || "",
+    atomKey,
+    String(item?.height || "")
+  ].join(":");
 }
 
 function parseTxEvents(txs, actionType) {
@@ -391,11 +406,11 @@ async function main() {
   const freshItems = [...delegates, ...undelegates];
   await resolveTimestamps(freshItems);
 
-  // Merge with previous, dedupe by txhash+type
+  // Merge with previous feed, dedupe by stable event identity
   const seenKeys = new Set();
   const merged = [];
   for (const item of [...freshItems, ...prevItems]) {
-    const key = item.txhash + ":" + item.type;
+    const key = makeEventId(item);
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
     merged.push(item);
@@ -410,25 +425,29 @@ async function main() {
   // Resolve timestamps for items that don't have them
   await resolveTimestamps(feed);
 
-  // Build raw archive (rolling horizon)
-  const rawSeen = new Set();
-  const rawCombined = [];
-  for (const item of [...freshItems, ...prevRawItems, ...prevItems]) {
-    const key = item.txhash + ":" + item.type;
-    if (!item.txhash || rawSeen.has(key)) continue;
-    rawSeen.add(key);
-    rawCombined.push(item);
+  // Build raw ledger
+  // - Immutable mode: append-only, never trims previous rows
+  // - Legacy mode: rolling retention by RAW_KEEP_DAYS
+  const prevRawIds = new Set(prevRawItems.map(makeEventId));
+  const newRawItems = freshItems.filter((i) => !prevRawIds.has(makeEventId(i)));
+  await resolveTimestamps(newRawItems);
+  let rawArchive = [...prevRawItems, ...newRawItems];
+
+  if (!RAW_IMMUTABLE) {
+    const rawCutoffIso = new Date(Date.now() - RAW_KEEP_DAYS * 86400000).toISOString();
+    rawArchive = rawArchive.filter((i) => !i.timestamp || i.timestamp >= rawCutoffIso);
   }
-  await resolveTimestamps(rawCombined);
-  const rawCutoffIso = new Date(Date.now() - RAW_KEEP_DAYS * 86400000).toISOString();
-  const rawArchive = rawCombined
-    .filter((i) => !i.timestamp || i.timestamp >= rawCutoffIso)
-    .sort((a, b) => {
-      const ta = Date.parse(a.timestamp || 0) || 0;
-      const tb = Date.parse(b.timestamp || 0) || 0;
-      if (tb !== ta) return tb - ta;
-      return Number(b.height || 0) - Number(a.height || 0);
-    });
+
+  rawArchive.sort((a, b) => {
+    const ta = Date.parse(a.timestamp || 0) || 0;
+    const tb = Date.parse(b.timestamp || 0) || 0;
+    if (tb !== ta) return tb - ta;
+    return Number(b.height || 0) - Number(a.height || 0);
+  });
+
+  if (RAW_IMMUTABLE && prevRawItems.length && rawArchive.length < prevRawItems.length) {
+    throw new Error(`Raw ledger shrink blocked in immutable mode (${prevRawItems.length} -> ${rawArchive.length})`);
+  }
 
   // Resolve validator monikers
   const unknownAddrs = [...new Set(feed.filter(i => i.validator_addr && !validatorCache[i.validator_addr]).map(i => i.validator_addr))];
@@ -478,7 +497,9 @@ async function main() {
       },
       per_page: PER_PAGE,
       feed_keep: FEED_KEEP,
-      raw_keep_days: RAW_KEEP_DAYS,
+      raw_keep_days: RAW_IMMUTABLE ? null : RAW_KEEP_DAYS,
+      raw_immutable: RAW_IMMUTABLE,
+      raw_appended_in_run: newRawItems.length,
       rpc_stats: rpcStats,
     },
     items: feed,
@@ -492,7 +513,9 @@ async function main() {
       generated_at: new Date().toISOString(),
       timezone: "UTC",
       min_atom: FEED_MIN,
-      retention_days: RAW_KEEP_DAYS,
+      retention_days: RAW_IMMUTABLE ? null : RAW_KEEP_DAYS,
+      immutable: RAW_IMMUTABLE,
+      appended_in_run: newRawItems.length,
       total: rawArchive.length,
       items: rawArchive,
     }, null, 2)
@@ -534,7 +557,7 @@ async function main() {
   await saveValidatorCache();
 
   console.log(`\n✅ Feed saved: ${dCount} delegates + ${uCount} undelegates = ${feed.length} total`);
-  console.log(`✅ Raw archive: ${rawArchive.length} txs (${RAW_KEEP_DAYS}d)`);
+  console.log(`✅ Raw archive: ${rawArchive.length} events${RAW_IMMUTABLE ? " (immutable)" : ` (${RAW_KEEP_DAYS}d)`}`);
   console.log(`✅ Hourly buckets: ${hourly.length}`);
   console.log(`✅ Daily buckets: ${daily.length}`);
   console.log(`   Output: ${OUT_FILE}`);
@@ -550,9 +573,9 @@ async function main() {
     prevWhaleEvents = JSON.parse(txt)?.events || [];
   } catch { /* fresh start */ }
 
-  // Filter from ALL merged items (before FEED_KEEP truncation) for ≥250K
+  // Filter from raw archive so multi-event txs are preserved for markers.
   // Keep height for timestamp resolution, then strip it
-  const freshWhales = merged
+  const freshWhales = rawArchive
     .filter(i => i.amount_atom >= WHALE_MIN)
     .map(i => ({
       type: i.type,
@@ -576,11 +599,17 @@ async function main() {
     }
   }
 
-  // Merge with previous, dedupe by txhash
+  // Merge with previous, dedupe by event identity (not just txhash)
   const seenWhale = new Set();
   const allWhales = [];
   for (const w of [...freshWhales, ...prevWhaleEvents]) {
-    const key = w.txhash;
+    const key = [
+      w.txhash || '',
+      w.type || '',
+      String(Math.round(Number(w.atom || 0))),
+      String(w.delegator || ''),
+      String(w.validator_name || '')
+    ].join(':');
     if (!key || seenWhale.has(key)) continue;
     seenWhale.add(key);
     allWhales.push(w);

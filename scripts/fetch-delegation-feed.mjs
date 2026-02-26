@@ -17,7 +17,7 @@
 //   WHALE_FEED_DAYS default: 30 (rolling whale retention window)
 //   PER_PAGE      default: 100
 //   LIMIT_PAGES   default: 5
-//   EXEC_LIMIT_PAGES default: 2 (MsgExec scans)
+//   EXEC_LIMIT_PAGES default: 100 (MsgExec scans)
 //   RAW_KEEP_DAYS default: 90 (used only when RAW_IMMUTABLE=false)
 //   RAW_IMMUTABLE default: true (append-only; no trimming)
 //   HOURLY_KEEP_DAYS default: 370
@@ -42,7 +42,7 @@ const WHALE_FEED_MIN = Number(process.env.WHALE_FEED_MIN ?? "50000");
 const WHALE_FEED_DAYS = Number(process.env.WHALE_FEED_DAYS ?? "30");
 const PER_PAGE = Number(process.env.PER_PAGE ?? "100");
 const LIMIT_PAGES = Number(process.env.LIMIT_PAGES ?? "5");
-const EXEC_LIMIT_PAGES = Number(process.env.EXEC_LIMIT_PAGES ?? "2");
+const EXEC_LIMIT_PAGES = Number(process.env.EXEC_LIMIT_PAGES ?? "100");
 const RAW_KEEP_DAYS = Number(process.env.RAW_KEEP_DAYS ?? "90");
 const HOURLY_KEEP_DAYS = Number(process.env.HOURLY_KEEP_DAYS ?? "370");
 const INCREMENTAL = String(process.env.INCREMENTAL ?? "true").toLowerCase() !== "false";
@@ -177,7 +177,8 @@ function makeEventId(item) {
     item?.delegator || "",
     item?.validator_addr || "",
     atomKey,
-    String(item?.height || "")
+    String(item?.height || ""),
+    String(item?.event_index ?? 0)
   ].join(":");
 }
 
@@ -190,7 +191,7 @@ function parseTxEvents(txs, actionType) {
     const height = Number(tx?.height ?? 0);
     if (!txhash || !height) continue;
 
-    for (const ev of tx?.tx_result?.events ?? []) {
+    for (const [eventIndex, ev] of (tx?.tx_result?.events ?? []).entries()) {
       if (ev?.type !== eventType) continue;
 
       const amount = parseUatom(getAttr(ev, "amount"));
@@ -207,6 +208,7 @@ function parseTxEvents(txs, actionType) {
         validator_name: "",
         height,
         txhash,
+        event_index: eventIndex,
         timestamp: null,
       });
     }

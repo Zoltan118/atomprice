@@ -1005,7 +1005,7 @@
         const CACHE_TTL_MS = 172800000;  // 48 hours
         const WHALE_MARKER_ENABLED_KEY = 'atomprice_whale_markers_enabled_v1';
         const FEED_FILTER_KEY = 'atomprice_feed_filter_v1';
-        const WHALE_MARKER_MIN = 250000;
+        const WHALE_MARKER_MIN = 100000;
         const UNBONDING_PERIOD_DAYS = 21;
         const FEED_DISPLAY_MIN = 500;
         const ICF_EXCLUDED_DELEGATORS = new Set([
@@ -1111,6 +1111,7 @@
             if (n >= 1_000_000) return '1m_plus';
             if (n >= 250_000) return '250k_1m';
             if (n >= 100_000) return '100k_250k';
+            if (n >= 50_000) return '50k_100k';
             if (n >= 10_000) return '10k_100k';
             if (n >= 1_000) return '1k_10k';
             return 'lt_1k';
@@ -1217,7 +1218,7 @@ function getIcfUndelegationTotalForUtcDay(dayKey) {
         if (it.type !== 'undelegate') return sum;
         if (!isIcfDelegator(it.delegator)) return sum;
         if (getUtcDayKeyFromIso(it.timestamp) !== dayKey) return sum;
-        return sum + Number(it.amount || 0);
+        return sum + Number(it.amount_atom || it.amount || 0);
     }, 0);
 }
 
@@ -1763,7 +1764,7 @@ function showWhaleEventTooltip(eventPoint, x, y) {
                         validator: it.validator_name || '',
                         validatorAddr: it.validator_addr || '',
                         delegator: it.delegator || '',
-                        isWhale: Number(it.amount_atom || 0) >= 100000,
+                        isWhale: Number(it.amount_atom || 0) >= 50000,
                     }));
                 }
 

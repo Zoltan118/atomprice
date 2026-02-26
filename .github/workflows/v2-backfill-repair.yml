@@ -11,7 +11,7 @@ permissions:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     concurrency:
       group: atomprice-v2-backfill
       cancel-in-progress: false
@@ -38,7 +38,7 @@ jobs:
           WHALE_EVENT_MIN: "50000"
           WHALE_FEED_DAYS: "30"
           LIMIT_PAGES: "20"
-          EXEC_LIMIT_PAGES: "6"
+          EXEC_LIMIT_PAGES: "100"
           RUN_PENDING: "true"
           RUN_UNBONDING: "true"
         run: node scripts/v2/backfill-repair-v2.mjs

@@ -8,6 +8,8 @@
 //   REST_BASE     default: https://rest.cosmos.directory/cosmoshub
 //   MIN_ATOM      default: 100 (minimum ATOM per entry to include)
 //   BATCH_SIZE    default: 5 (concurrent validator requests)
+//   VALIDATOR_STATUS optional: BOND_STATUS_BONDED | BOND_STATUS_UNBONDED | BOND_STATUS_UNBONDING
+//                    default: all statuses (recommended for full coverage)
 
 import fs from "node:fs/promises";
 
@@ -16,6 +18,7 @@ const OUT_FILE = "data/pending-undelegations.json";
 const REST_BASE = (process.env.REST_BASE || "https://rest.cosmos.directory/cosmoshub").replace(/\/+$/, "");
 const MIN_ATOM = Number(process.env.MIN_ATOM ?? "100");
 const BATCH_SIZE = Number(process.env.BATCH_SIZE ?? "5");
+const VALIDATOR_STATUS = (process.env.VALIDATOR_STATUS || "").trim();
 const ICF_EXCLUDED_DELEGATORS = new Set([
   "cosmos1sufkm72dw7ua9crpfhhp0dqpyuggtlhdse98e7",
   "cosmos1z6czaavlk6kjd48rpf58kqqw9ssad2uaxnazgl",
@@ -43,19 +46,19 @@ async function fetchJson(url, timeoutMs = 20000) {
   }
 }
 
-// ── Fetch all bonded validators ──
-async function fetchBondedValidators() {
+// ── Fetch validators (all statuses by default for full unbonding coverage) ──
+async function fetchValidators() {
   const validators = [];
   let nextKey = null;
 
   for (let page = 0; page < 10; page++) {
     const params = new URLSearchParams();
-    params.set("status", "BOND_STATUS_BONDED");
+    if (VALIDATOR_STATUS) params.set("status", VALIDATOR_STATUS);
     params.set("pagination.limit", "100");
     if (nextKey) params.set("pagination.key", nextKey);
 
     const url = `${REST_BASE}/cosmos/staking/v1beta1/validators?${params}`;
-    console.log(`📡 Fetching validators page ${page + 1}...`);
+    console.log(`📡 Fetching validators page ${page + 1}${VALIDATOR_STATUS ? ` (${VALIDATOR_STATUS})` : " (all statuses)"}...`);
 
     const data = await fetchJson(url);
     const vals = data?.validators ?? [];
@@ -67,7 +70,7 @@ async function fetchBondedValidators() {
     await sleep(300);
   }
 
-  console.log(`  ✅ ${validators.length} bonded validators found`);
+  console.log(`  ✅ ${validators.length} validators found`);
   return validators;
 }
 
@@ -109,7 +112,7 @@ async function fetchUnbondingForValidator(valoperAddr) {
     }
 
     nextKey = data?.pagination?.next_key;
-    if (!nextKey || !responses.length) break;
+    if (!nextKey) break;
 
     await sleep(200);
   }
@@ -121,8 +124,8 @@ async function fetchUnbondingForValidator(valoperAddr) {
 async function main() {
   await fs.mkdir("data", { recursive: true });
 
-  // 1. Fetch all bonded validators
-  const validators = await fetchBondedValidators();
+  // 1. Fetch validators (all statuses by default)
+  const validators = await fetchValidators();
 
   // 2. Fetch unbonding delegations for each validator (batched)
   console.log(`\n📥 Fetching unbonding delegations (min ${MIN_ATOM} ATOM)...`);

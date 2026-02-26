@@ -181,6 +181,21 @@
             white-space: nowrap;
         }
         .whale-count-badge.red { color: #f59292; }
+        .whale-amount-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            font-size: 9px;
+            font-weight: 600;
+            line-height: 1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            background: rgba(20, 20, 20, 0.88);
+            color: #9de2b8;
+            pointer-events: none;
+            white-space: nowrap;
+            letter-spacing: 0.2px;
+        }
+        .whale-amount-label.red { color: #f59292; }
         .chart-tooltip {
             position: absolute;
             pointer-events: none;
@@ -1120,8 +1135,14 @@
         }
 
         function formatCompactAmount(n) {
-            if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
-            if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+            if (n >= 1_000_000) {
+                const m = n / 1_000_000;
+                return (m >= 10 ? m.toFixed(1) : m.toFixed(2)).replace(/\.?0+$/, '') + 'M';
+            }
+            if (n >= 1_000) {
+                const k = n / 1_000;
+                return (k >= 100 ? Math.round(k) : k.toFixed(1)).toString().replace(/\.0$/, '') + 'K';
+            }
             return Math.round(n).toLocaleString();
         }
 
@@ -2687,7 +2708,9 @@ chartContainer.onclick = () => {
 
         function getFilteredWhaleEvents() {
             if (!showWhaleMarkers) return [];
-            return getAllWhaleEvents().filter(ev => ev.atom >= WHALE_MARKER_MIN);
+            return getAllWhaleEvents().filter(ev =>
+                ev.atom >= WHALE_MARKER_MIN || isIcfDelegator(ev.delegator)
+            );
         }
 
         function getWhaleMarkerSize(totalAtom) {
@@ -2785,13 +2808,24 @@ chartContainer.onclick = () => {
 
                 layer.appendChild(arrow);
 
+                // Amount label above the marker
+                const displayAtom = p.totalAtom || p.atom;
+                if (displayAtom >= 1000) {
+                    const amtLabel = document.createElement('span');
+                    amtLabel.className = `whale-amount-label${p.cls.red ? ' red' : ''}`;
+                    amtLabel.textContent = formatCompactAmount(displayAtom);
+                    amtLabel.style.left = `${p.x}px`;
+                    amtLabel.style.top = `${p.markerY - 12}px`;
+                    layer.appendChild(amtLabel);
+                }
+
                 // Count badge for collapsed events
                 if (p.eventCount > 1) {
                     const badge = document.createElement('span');
                     badge.className = `whale-count-badge${p.cls.red ? ' red' : ''}`;
                     badge.textContent = `x${p.eventCount}`;
                     badge.style.left = `${p.x + 4}px`;
-                    badge.style.top = `${p.markerY - 2}px`;
+                    badge.style.top = `${p.markerY - 24}px`;
                     layer.appendChild(badge);
                 }
             }

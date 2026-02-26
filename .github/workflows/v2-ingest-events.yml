@@ -11,7 +11,7 @@ permissions:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 45
     concurrency:
       group: atomprice-v2-ingest
       cancel-in-progress: false
@@ -27,6 +27,9 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Guardrails preflight
+        run: node scripts/v2/guardrails-v2.mjs --mode=preflight
+
       - name: Ingest events (multi-RPC quorum)
         env:
           OVERLAP_HOURS: "6"
@@ -37,7 +40,7 @@ jobs:
           FEED_KEEP: "1000"
           WHALE_FEED_MIN: "50000"
           LIMIT_PAGES: "10"
-          EXEC_LIMIT_PAGES: "2"
+          EXEC_LIMIT_PAGES: "100"
         run: |
           for i in 1 2 3; do
             echo "Ingest attempt $i/3..."

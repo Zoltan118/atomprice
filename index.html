@@ -3408,12 +3408,21 @@ function applyWhaleMarkers() {
                     const baseline = Math.max(remaining, Number(flowEntry?.total_matured_atom || 0));
                     const scheduled = baseline;
                     const completed = Math.max(0, baseline - remaining);
+                    const dayRows = pendingUndelegations?.delegators_by_date?.[dateStr] || [];
+                    const icfAmount = dayRows.reduce((sum, row) => {
+                        if (!isIcfDelegator(row?.address)) return sum;
+                        return sum + Number(row?.atom || 0);
+                    }, 0);
+                    const icfLine = icfAmount > 0
+                        ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px;">${formatCompactAmount(icfAmount)} ICF undelegations · New Delegation Program: 13.5M planned re-delegation.</div>`
+                        : '';
 
                     tooltip.innerHTML = `
                         <div class="tooltip-time">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                         <div class="tooltip-price">${formatAmount(remaining)} ATOM remaining today</div>
                         <div style="font-size:11px;color:#777;margin-top:2px;">Scheduled ${formatAmount(scheduled)} · Completed ${formatAmount(completed)}</div>
                         ${delegators ? `<div style="font-size:11px;color:#666;margin-top:2px">${delegators} delegators</div>` : ''}
+                        ${icfLine}
                     `;
                     tooltip.style.opacity = '1';
                     tooltip.style.left = Math.min(p.point.x + 10, container.clientWidth - 160) + 'px';

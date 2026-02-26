@@ -163,22 +163,53 @@
     color: #f05b5b;
     text-shadow: 0 0 6px rgba(240,91,91,0.42);
 }
-        .whale-arrow.stage-initiation { font-size: 9px; opacity: 0.86; }
-        .whale-arrow.stage-unlock { font-size: 11px; opacity: 0.95; }
-        .chart-tooltip { 
-            position: absolute; 
-            pointer-events: none; 
-            z-index: 10; 
+        .whale-arrow.size-sm  { font-size: 8px;  opacity: 0.75; }
+        .whale-arrow.size-md  { font-size: 10px; opacity: 0.85; }
+        .whale-arrow.size-lg  { font-size: 12px; opacity: 0.92; }
+        .whale-arrow.size-xl  { font-size: 14px; opacity: 1.0; }
+        .whale-count-badge {
+            position: absolute;
+            transform: translate(2px, -100%);
+            font-size: 8px;
+            font-weight: 700;
+            line-height: 1;
+            padding: 1px 3px;
+            border-radius: 6px;
+            background: rgba(30, 30, 30, 0.85);
+            color: #9de2b8;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .whale-count-badge.red { color: #f59292; }
+        .chart-tooltip {
+            position: absolute;
+            pointer-events: none;
+            z-index: 10;
             background: rgba(20, 20, 20, 0.95);
             border: 1px solid #333;
             border-radius: 8px;
             padding: 8px 10px;
-            max-width: 260px;
+            max-width: 280px;
             opacity: 0;
             transition: opacity 0.15s ease;
         }
         .tooltip-time { font-size: 12px; color: #888; margin-bottom: 4px; }
         .tooltip-price { font-size: 16px; font-weight: 600; color: #fff; }
+        .whale-tooltip-list {
+            max-height: 160px;
+            overflow-y: auto;
+            margin-top: 6px;
+            scrollbar-width: thin;
+            scrollbar-color: #444 transparent;
+        }
+        .whale-tooltip-list::-webkit-scrollbar { width: 4px; }
+        .whale-tooltip-list::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+        .whale-tooltip-item {
+            padding: 4px 0;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 11px;
+        }
+        .whale-tooltip-item:first-child { border-top: none; }
         .stats-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); column-gap: 14px; margin-bottom: 32px; }
         .stat { text-align: center; min-width: 0; }
         .stat.center { text-align: center; }
@@ -771,6 +802,7 @@
                 <div class="marker-toggle" id="markerToggle">
                     <input id="markerToggleInput" type="checkbox" checked>
                     <span>Whale events</span>
+                    <span id="whaleMarkerSummary" style="color:#555;font-size:10px;margin-left:2px;"></span>
                 </div>
                 <div class="chart-type-toggle">
                     <button class="chart-type-btn active" data-type="line">
@@ -1050,6 +1082,7 @@
         let eventIntelligence = null;      // historical edge / event intelligence layer
         let showWhaleMarkers = true;       // toggle state for whale event markers
         let whaleTooltipLocked = false;    // when true, arrow hover/click tooltip is active
+        let validatorNameCache = null;      // address-to-name mapping from validator_cache.json
         let currentFeedFilter = 'all';
 
         // Whale watch state
@@ -1090,6 +1123,11 @@
             if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
             if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
             return Math.round(n).toLocaleString();
+        }
+
+        function resolveValidatorName(addr) {
+            if (!addr) return '';
+            return (validatorNameCache && validatorNameCache[addr]) || '';
         }
 
         function isIcfDelegator(address) {
@@ -1161,7 +1199,10 @@
     if (layer) layer.innerHTML = '';
     whaleTooltipLocked = false;
     const tooltip = document.getElementById('chartTooltip');
-    if (tooltip) tooltip.style.opacity = '0';
+    if (tooltip) {
+        tooltip.style.opacity = '0';
+        tooltip.style.pointerEvents = 'none';
+    }
 }
 
 function formatChartTooltipTime(unixSec) {
@@ -1235,50 +1276,79 @@ function showWhaleEventTooltip(eventPoint, x, y) {
     const formatEventDateTime = (iso, fallbackUnix) => {
         if (iso) {
             return new Date(iso).toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
+                month: 'short', day: 'numeric', year: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
             });
         }
         return new Date(fallbackUnix * 1000).toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
         });
     };
 
+    const events = eventPoint.allEvents || [eventPoint];
+    const isSingle = events.length <= 1;
     const eventTime = formatEventDateTime(eventPoint.timestamp, eventPoint.candleTime);
-    const stageLabel = cls.label;
-    const reaction = getPostEventReaction(eventPoint);
-    const reactionLine = reaction
-        ? `<div style="font-size:11px;color:#9aa3ad;margin-top:4px;">After: ${reaction}</div>`
-        : `<div style="font-size:11px;color:#6f7782;margin-top:4px;">After: 1h n/a · 4h n/a · 24h n/a</div>`;
-    const isIcfEvent = isIcfDelegator(eventPoint.delegator);
-    const eventDayKey = getUtcDayKeyFromIso(eventPoint.timestamp || new Date((eventPoint.candleTime || 0) * 1000).toISOString());
-    const icfDayTotal = isIcfEvent ? getIcfUndelegationTotalForUtcDay(eventDayKey) : 0;
-    const icfDayLabel = eventDayKey
-        ? new Date(`${eventDayKey}T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        : 'that day';
-    const icfSummaryLine = isIcfEvent
-        ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px;">${formatCompactAmount(icfDayTotal || eventPoint.atom)} ICF undelegations on ${icfDayLabel} (UTC).</div>`
-        : '';
 
-    tooltip.innerHTML = `
-        <div class="tooltip-time">${eventTime}</div>
-        <div class="tooltip-price">${priceText}</div>
-        <div style="margin-top:5px;font-size:12px;color:#b9c0c9;white-space:nowrap;">
-            <span style="color:${cls.color};font-weight:600;">${formatCompactAmount(eventPoint.atom)} ATOM</span>
-            · ${stageLabel}
-        </div>
-        ${reactionLine}
-        ${icfSummaryLine}
-    `;
+    if (isSingle) {
+        // Single event — keep existing tooltip format
+        const stageLabel = cls.label;
+        const reaction = getPostEventReaction(eventPoint);
+        const reactionLine = reaction
+            ? `<div style="font-size:11px;color:#9aa3ad;margin-top:4px;">After: ${reaction}</div>`
+            : `<div style="font-size:11px;color:#6f7782;margin-top:4px;">After: 1h n/a · 4h n/a · 24h n/a</div>`;
+        const isIcfEvent = isIcfDelegator(eventPoint.delegator);
+        const eventDayKey = getUtcDayKeyFromIso(eventPoint.timestamp || new Date((eventPoint.candleTime || 0) * 1000).toISOString());
+        const icfDayTotal = isIcfEvent ? getIcfUndelegationTotalForUtcDay(eventDayKey) : 0;
+        const icfDayLabel = eventDayKey
+            ? new Date(`${eventDayKey}T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : 'that day';
+        const icfSummaryLine = isIcfEvent
+            ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px;">${formatCompactAmount(icfDayTotal || eventPoint.atom)} ICF undelegations on ${icfDayLabel} (UTC).</div>`
+            : '';
+        const valName = eventPoint.validator_name || resolveValidatorName(eventPoint.validator || eventPoint.validator_addr) || '';
+        const valLine = valName ? `<div style="font-size:11px;color:#777;margin-top:2px;">${valName}</div>` : '';
+
+        tooltip.innerHTML = `
+            <div class="tooltip-time">${eventTime}</div>
+            <div class="tooltip-price">${priceText}</div>
+            <div style="margin-top:5px;font-size:12px;color:#b9c0c9;white-space:nowrap;">
+                <span style="color:${cls.color};font-weight:600;">${formatCompactAmount(eventPoint.atom)} ATOM</span>
+                · ${stageLabel}
+            </div>
+            ${valLine}
+            ${reactionLine}
+            ${icfSummaryLine}
+        `;
+        tooltip.style.pointerEvents = 'none';
+    } else {
+        // Multi-event — aggregate header + scrollable list
+        const totalAtom = events.reduce((s, e) => s + e.atom, 0);
+
+        const listHtml = events.map(ev => {
+            const evCls = classifyWhaleEvent(ev);
+            const valName = ev.validator_name || resolveValidatorName(ev.validator || ev.validator_addr) || '';
+            const reaction = getPostEventReaction(ev);
+            const reactionStr = reaction
+                ? `<div style="font-size:10px;color:#6f7782;">After: ${reaction}</div>`
+                : '';
+            return `<div class="whale-tooltip-item">
+                <span style="color:${evCls.color};font-weight:600;">${formatCompactAmount(ev.atom)} ATOM</span>${valName ? ` <span style="color:#666;">· ${valName}</span>` : ''}
+                ${reactionStr}
+            </div>`;
+        }).join('');
+
+        tooltip.innerHTML = `
+            <div class="tooltip-time">${eventTime}</div>
+            <div class="tooltip-price">${priceText}</div>
+            <div style="margin-top:5px;font-size:12px;color:#b9c0c9;">
+                <span style="color:${cls.color};font-weight:700;">${formatCompactAmount(totalAtom)} ATOM total</span>
+                · ${events.length} events · ${cls.label}
+            </div>
+            <div class="whale-tooltip-list">${listHtml}</div>
+        `;
+        tooltip.style.pointerEvents = 'auto'; // enable scroll
+    }
 
     positionChartTooltip(tooltip, chartContainer, x, y);
     tooltip.style.opacity = '1';
@@ -2519,7 +2589,8 @@ chartContainer.onclick = () => {
             const rawUnlocks = (whalePending?.events || []).map(ev => ({
                 ...ev,
                 stage: 'unlock',
-                type: ev.type || 'pending_undelegate'
+                type: ev.type || 'pending_undelegate',
+                validator_name: ev.validator_name || resolveValidatorName(ev.validator)
             }));
             const archiveUnlocks = Object.entries(undelegationArchive || {})
                 .flatMap(([date, rows]) => {
@@ -2619,6 +2690,13 @@ chartContainer.onclick = () => {
             return getAllWhaleEvents().filter(ev => ev.atom >= WHALE_MARKER_MIN);
         }
 
+        function getWhaleMarkerSize(totalAtom) {
+            if (totalAtom >= 350000) return 'xl';
+            if (totalAtom >= 250000) return 'lg';
+            if (totalAtom >= 150000) return 'md';
+            return 'sm';
+        }
+
         function classifyWhaleEvent(ev) {
             if (ev.stage === 'unlock') {
                 return { red: true, label: 'Unbond completes', color: '#ef4444', shape: 'arrowDown', position: 'aboveBar' };
@@ -2658,20 +2736,37 @@ chartContainer.onclick = () => {
                     : a.candleTime - b.candleTime);
 
             for (const p of points) {
+                const sizeClass = getWhaleMarkerSize(p.totalAtom || p.atom);
                 const arrow = document.createElement('div');
-                arrow.className = `whale-arrow stage-${p.stage}${p.cls.red ? ' red' : ''}`;
+                arrow.className = `whale-arrow size-${sizeClass}${p.cls.red ? ' red' : ''}`;
                 arrow.style.left = `${p.x}px`;
                 arrow.style.top = `${p.markerY}px`;
                 arrow.textContent = p.stage === 'unlock' ? '▼' : '●';
 
                 arrow.onmouseenter = () => {
                     whaleTooltipLocked = true;
+                    // Show whale beam from marker to price level
+                    const beam = document.createElement('div');
+                    beam.className = `whale-beam${p.cls.red ? ' red' : ''}`;
+                    beam.id = 'activeWhaleBeam';
+                    const beamTop = Math.max(0, p.focusY);
+                    beam.style.left = `${p.x}px`;
+                    beam.style.top = `${beamTop}px`;
+                    beam.style.height = `${Math.max(0, p.markerY - beamTop)}px`;
+                    beam.style.pointerEvents = 'none';
+                    beam.style.zIndex = '7';
+                    layer.appendChild(beam);
                     showWhaleEventTooltip(p, p.x, p.focusY);
                 };
                 arrow.onmouseleave = () => {
                     whaleTooltipLocked = false;
+                    const beam = document.getElementById('activeWhaleBeam');
+                    if (beam) beam.remove();
                     const tooltip = document.getElementById('chartTooltip');
-                    if (tooltip) tooltip.style.opacity = '0';
+                    if (tooltip) {
+                        tooltip.style.opacity = '0';
+                        tooltip.style.pointerEvents = 'none';
+                    }
                 };
                 arrow.onclick = (e) => {
                     e.preventDefault();
@@ -2680,14 +2775,25 @@ chartContainer.onclick = () => {
                     trackEvent('chart_whale_marker_click', {
                         event_stage: p.stage || 'unknown',
                         event_type: p.type || 'unknown',
-                        amount_bucket: amountBucket(p.atom || 0),
-                        amount_atom: Math.round(Number(p.atom || 0)),
+                        amount_bucket: amountBucket(p.totalAtom || p.atom || 0),
+                        amount_atom: Math.round(Number(p.totalAtom || p.atom || 0)),
+                        event_count: p.eventCount || 1,
                         event_time_utc: new Date((p.unix || 0) * 1000).toISOString()
                     });
                     showWhaleEventTooltip(p, p.x, p.focusY);
                 };
 
                 layer.appendChild(arrow);
+
+                // Count badge for collapsed events
+                if (p.eventCount > 1) {
+                    const badge = document.createElement('span');
+                    badge.className = `whale-count-badge${p.cls.red ? ' red' : ''}`;
+                    badge.textContent = `x${p.eventCount}`;
+                    badge.style.left = `${p.x + 4}px`;
+                    badge.style.top = `${p.markerY - 2}px`;
+                    layer.appendChild(badge);
+                }
             }
         }
 
@@ -2699,6 +2805,8 @@ function applyWhaleMarkers() {
             if (!showWhaleMarkers) {
                 series.setMarkers([]);
                 clearWhaleEventCards();
+                const summaryEl = document.getElementById('whaleMarkerSummary');
+                if (summaryEl) summaryEl.textContent = '';
                 return;
             }
 
@@ -2706,6 +2814,8 @@ function applyWhaleMarkers() {
             if (!filteredEvents.length) {
                 series.setMarkers([]);
                 clearWhaleEventCards();
+                const summaryEl = document.getElementById('whaleMarkerSummary');
+                if (summaryEl) summaryEl.textContent = '';
                 return;
             }
 
@@ -2730,34 +2840,53 @@ function applyWhaleMarkers() {
                 const row = chartData.find(d => d.time === candleTime);
                 if (!row) continue;
                 const bucketKey = `${candleTime}:${ev.stage}`;
-                const existing = byCandle.get(bucketKey);
-                // Keep only the largest individual event per candle (no totals)
-                if (!existing || ev.atom > existing.atom) {
-                    byCandle.set(bucketKey, {
-                        ...ev,
-                        candleTime,
-                        representativeValue: row.value * getConversionRate(),
-                        representativeClose: row.close * getConversionRate()
-                    });
-                }
+                if (!byCandle.has(bucketKey)) byCandle.set(bucketKey, []);
+                byCandle.get(bucketKey).push({
+                    ...ev,
+                    candleTime,
+                    representativeValue: row.value * getConversionRate(),
+                    representativeClose: row.close * getConversionRate()
+                });
             }
 
-            const eventPoints = Array.from(byCandle.values()).sort((a, b) => a.candleTime - b.candleTime);
+            // Build event groups: each group has the largest event as primary + allEvents array
+            const eventGroups = Array.from(byCandle.values()).map(events => {
+                const sorted = events.sort((a, b) => b.atom - a.atom); // largest first
+                return {
+                    ...sorted[0],
+                    allEvents: sorted,
+                    totalAtom: sorted.reduce((s, e) => s + e.atom, 0),
+                    eventCount: sorted.length
+                };
+            }).sort((a, b) => a.candleTime - b.candleTime);
+
             series.setMarkers([]);
-            renderWhaleEventCards(eventPoints);
+            renderWhaleEventCards(eventGroups);
+
+            // Update summary stat next to toggle
+            const summaryEl = document.getElementById('whaleMarkerSummary');
+            if (summaryEl) {
+                const totalEvents = eventGroups.reduce((s, g) => s + g.eventCount, 0);
+                const totalAtom = eventGroups.reduce((s, g) => s + g.totalAtom, 0);
+                summaryEl.textContent = totalEvents ? `(${totalEvents} · ${formatCompactAmount(totalAtom)})` : '';
+            }
         }
 
         async function loadWhaleEvents() {
             try {
-                const [evRes, pendRes, topDelRes] = await Promise.allSettled([
+                const [evRes, pendRes, topDelRes, valCacheRes] = await Promise.allSettled([
                     fetch('./data/whale-events.json?t=' + Date.now(), { cache: 'no-store' }),
                     fetch('./data/whale-pending.json?t=' + Date.now(), { cache: 'no-store' }),
-                    fetch('./data/top-delegations.json?t=' + Date.now(), { cache: 'no-store' })
+                    fetch('./data/top-delegations.json?t=' + Date.now(), { cache: 'no-store' }),
+                    fetch('./data/validator_cache.json?t=' + Date.now(), { cache: 'no-store' })
                 ]);
                 if (evRes.status === 'fulfilled' && evRes.value.ok) whaleEvents = await evRes.value.json();
                 if (pendRes.status === 'fulfilled' && pendRes.value.ok) whalePending = await pendRes.value.json();
                 if (topDelRes.status === 'fulfilled' && topDelRes.value.ok) {
                     topDelegations = await topDelRes.value.json();
+                }
+                if (valCacheRes.status === 'fulfilled' && valCacheRes.value.ok) {
+                    validatorNameCache = await valCacheRes.value.json();
                 }
                 applyWhaleMarkers();
                 console.log(`🐋 Whale events: ${whaleEvents?.events?.length || 0} historical, ${whalePending?.events?.length || 0} pending, ${topDelegations?.delegations?.length || 0} top delegations`);

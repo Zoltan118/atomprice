@@ -1,0 +1,69 @@
+name: v2 ingest events
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "2,17,32,47 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    concurrency:
+      group: atomprice-v2-ingest
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Ingest events (multi-RPC quorum)
+        env:
+          OVERLAP_HOURS: "6"
+          RPC_PROVIDERS: "https://cosmos-rpc.publicnode.com,https://rpc.cosmos.directory/cosmoshub,https://rpc.silknodes.io/cosmos,https://cosmos.drpc.org"
+          RPC_QUORUM_MIN: "2"
+          REST_BASE: "https://rest.cosmos.directory/cosmoshub"
+          FEED_MIN: "1"
+          FEED_KEEP: "1000"
+          WHALE_FEED_MIN: "50000"
+          LIMIT_PAGES: "10"
+          EXEC_LIMIT_PAGES: "2"
+        run: |
+          for i in 1 2 3; do
+            echo "Ingest attempt $i/3..."
+            if node scripts/v2/ingest-events-v2.mjs; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Ingest failed after retries"
+          exit 1
+
+      - name: Commit and push
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/ledger data/source-status.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "v2 ingest events"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Push failed"
+          exit 1

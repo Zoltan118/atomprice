@@ -1,0 +1,68 @@
+name: v2 rebuild derived
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["v2 ingest events"]
+    types: [completed]
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: atomprice-v2-rebuild
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Rebuild derived files
+        env:
+          FEED_KEEP: "1000"
+          WHALE_FEED_MIN: "50000"
+          WHALE_EVENT_MIN: "50000"
+          WHALE_FEED_DAYS: "30"
+          RAW_KEEP_DAYS: "365"
+          HOURLY_KEEP_DAYS: "370"
+          RUN_PENDING: "true"
+          RUN_UNBONDING: "true"
+          REST_BASE: "https://rest.cosmos.directory/cosmoshub"
+          BATCH_SIZE: "5"
+          MIN_ATOM: "100"
+        run: |
+          node scripts/v2/rebuild-derived-v2.mjs
+          node scripts/v2/reconcile-health-v2.mjs
+
+      - name: Commit and push
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/delegation_feed.json data/delegation-events-raw.json data/delegation-flow-hourly.json data/delegation-flow-daily.json data/whale-events.json data/pending-undelegations.json data/whale-pending.json data/unbonding-flows.json data/undelegation-archive.json data/undelegation-history.json data/ingestion-health.json data/source-status.json data/validator_cache.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "v2 rebuild derived data"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Push failed"
+          exit 1

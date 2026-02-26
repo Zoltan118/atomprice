@@ -1,0 +1,50 @@
+name: v2 reconcile health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "11 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: atomprice-v2-reconcile
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Reconcile health
+        run: node scripts/v2/reconcile-health-v2.mjs
+
+      - name: Commit and push
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/ingestion-health.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "v2 reconcile ingestion health"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Push failed"
+          exit 1

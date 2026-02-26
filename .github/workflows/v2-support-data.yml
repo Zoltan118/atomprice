@@ -1,0 +1,108 @@
+name: v2 support data
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["v2 rebuild derived"]
+    types: [completed]
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  support:
+    if: ${{ github.event_name != 'workflow_run' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: atomprice-v2-support
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Update fast support data
+        run: |
+          node scripts/staking_ratio_updater.mjs
+          node scripts/fx_ecb_updater.mjs
+
+      - name: Update hourly support data
+        run: |
+          M=$(date -u +%M)
+          if [ "$M" = "00" ]; then
+            node scripts/fetch-daily-metrics.js
+            node scripts/fetch-total-staked.js
+            node scripts/build-event-intelligence.mjs
+          else
+            echo "Skip hourly support scripts at minute $M"
+          fi
+
+      - name: Commit and push support data
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/staking_ratio.json data/fx_rates.json data/daily-metrics.json data/historical-total-staked.json data/event-intelligence.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "v2 support data refresh"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Push failed"
+          exit 1
+
+  intelligence_after_rebuild:
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: atomprice-v2-support-intel
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build event intelligence
+        run: node scripts/build-event-intelligence.mjs
+
+      - name: Commit and push event intelligence
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/event-intelligence.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "v2 event intelligence refresh"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Push failed"
+          exit 1

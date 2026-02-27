@@ -235,7 +235,7 @@ async function main() {
   // ── Whale pending events (≥50K ATOM individuals with full timestamps) ──
   const WHALE_MIN = Number(process.env.WHALE_PENDING_MIN ?? "50000");
   const whalePending = allEntries
-    .filter(e => e.atom >= WHALE_MIN)
+    .filter(e => e.atom >= WHALE_MIN || ICF_EXCLUDED_DELEGATORS.has(e.delegator))
     .map(e => ({
       type: "pending_undelegate",
       atom: Math.round(e.atom),

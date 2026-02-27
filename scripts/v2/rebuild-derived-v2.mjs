@@ -23,6 +23,11 @@ const HOURLY_KEEP_DAYS = Number(process.env.HOURLY_KEEP_DAYS ?? '370');
 const RUN_PENDING = String(process.env.RUN_PENDING ?? 'true').toLowerCase() !== 'false';
 const RUN_UNBONDING = String(process.env.RUN_UNBONDING ?? 'true').toLowerCase() !== 'false';
 
+const ICF_DELEGATORS = new Set([
+  'cosmos1sufkm72dw7ua9crpfhhp0dqpyuggtlhdse98e7',
+  'cosmos1z6czaavlk6kjd48rpf58kqqw9ssad2uaxnazgl',
+]);
+
 const validatorCache = {};
 
 function toIsoHour(iso) {
@@ -270,7 +275,7 @@ async function main() {
 
   const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString();
   const whales = events
-    .filter((e) => Number(e.amount_atom || 0) >= WHALE_EVENT_MIN)
+    .filter((e) => Number(e.amount_atom || 0) >= WHALE_EVENT_MIN || ICF_DELEGATORS.has(e.delegator))
     .filter((e) => !e.timestamp || e.timestamp >= yearAgo)
     .map((e) => ({
       type: e.type,

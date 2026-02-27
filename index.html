@@ -458,9 +458,9 @@
         }
         .gauge-narrative { font-size: 12px; color: #666; line-height: 1.5; letter-spacing: 0.2px; }
 
-        .gauge-components { display: flex; gap: 8px; margin-top: 12px; }
+        .gauge-components { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
         .gauge-component {
-            flex: 1; padding: 12px; background: #0a0a0a; border-radius: 8px; border: 1px solid #111;
+            flex: 1 1 120px; min-width: 120px; padding: 12px; background: #0a0a0a; border-radius: 8px; border: 1px solid #111;
         }
         .gauge-component-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
         .gauge-component-name { font-size: 9px; color: #444; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -934,16 +934,34 @@
                     <div class="gauge-component" id="gaugeCompSupply">
                         <div class="gauge-component-header">
                             <span class="gauge-component-name">Supply</span>
-                            <span class="gauge-component-score" id="gaugeSupplyScore">0/40</span>
+                            <span class="gauge-component-score" id="gaugeSupplyScore">0/25</span>
                         </div>
                         <div class="gauge-component-bar">
                             <div class="gauge-component-bar-fill" id="gaugeSupplyBar" style="width: 0%"></div>
                         </div>
                     </div>
+                    <div class="gauge-component" id="gaugeCompAbsorption">
+                        <div class="gauge-component-header">
+                            <span class="gauge-component-name">Absorption</span>
+                            <span class="gauge-component-score" id="gaugeAbsorptionScore">0/25</span>
+                        </div>
+                        <div class="gauge-component-bar">
+                            <div class="gauge-component-bar-fill" id="gaugeAbsorptionBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="gauge-component" id="gaugeCompPnl">
+                        <div class="gauge-component-header">
+                            <span class="gauge-component-name">P&L Position</span>
+                            <span class="gauge-component-score" id="gaugePnlScore">0/15</span>
+                        </div>
+                        <div class="gauge-component-bar">
+                            <div class="gauge-component-bar-fill" id="gaugePnlBar" style="width: 0%"></div>
+                        </div>
+                    </div>
                     <div class="gauge-component" id="gaugeCompConc">
                         <div class="gauge-component-header">
                             <span class="gauge-component-name">Concentration</span>
-                            <span class="gauge-component-score" id="gaugeConcScore">0/20</span>
+                            <span class="gauge-component-score" id="gaugeConcScore">0/15</span>
                         </div>
                         <div class="gauge-component-bar">
                             <div class="gauge-component-bar-fill" id="gaugeConcBar" style="width: 0%"></div>
@@ -952,7 +970,7 @@
                     <div class="gauge-component" id="gaugeCompBehavior">
                         <div class="gauge-component-header">
                             <span class="gauge-component-name">Behavior</span>
-                            <span class="gauge-component-score" id="gaugeBehaviorScore">0/40</span>
+                            <span class="gauge-component-score" id="gaugeBehaviorScore">0/20</span>
                         </div>
                         <div class="gauge-component-bar">
                             <div class="gauge-component-bar-fill" id="gaugeBehaviorBar" style="width: 0%"></div>
@@ -961,10 +979,12 @@
                 </div>
                 <button class="gauge-info-toggle" id="gaugeInfoToggle">how it works ↓</button>
                 <div class="gauge-info-body" id="gaugeInfoBody">
-                    <p>The unbonding pressure gauge is a composite 0–100 score built from on-chain data:</p>
-                    <p><strong>Supply (0–40):</strong> Compares the upcoming 7-day unlock volume against the full schedule average. Tomorrow's unlock is weighted more heavily than day 7.</p>
-                    <p><strong>Concentration (0–20):</strong> Measures whether unlocks are clustered on a single day or spread evenly. Spikes increase the score.</p>
-                    <p><strong>Behavior (0–40):</strong> Tracks what happens after ATOM unbonds — held, re-staked, sent to exchanges, or bridged. This signal calibrates over 7 days of observed data.</p>
+                    <p>The unbonding pressure gauge is a composite 0–100 score built from on-chain + market data:</p>
+                    <p><strong>Supply (0–25):</strong> Compares the upcoming 7-day unlock volume against the full schedule average using log scaling. Tomorrow's unlock is weighted more heavily.</p>
+                    <p><strong>Absorption (0–25):</strong> Measures whether the market can absorb the unlocks by comparing unlock volume to trading volume. High ratio = harder to absorb.</p>
+                    <p><strong>P&L Position (0–15):</strong> Looks up the ATOM price when undelegation was initiated (21 days before unlock). If unlockers are underwater, panic-sell risk is higher.</p>
+                    <p><strong>Concentration (0–15):</strong> Measures whether unlocks are clustered on a single day or spread evenly using HHI. Spikes increase the score.</p>
+                    <p><strong>Behavior (0–20):</strong> Tracks what happens after ATOM unbonds — held, re-staked, sent to exchanges, or bridged. Requires 3+ days of observed data.</p>
                     <p class="gauge-disclaimer">This is on-chain data analysis only — not financial advice. Always do your own research.</p>
                 </div>
             </div>
@@ -1050,6 +1070,8 @@
         let currentTimeframe = '1d';
         let currentDataMode = 'price'; // 'price', 'staking', 'apr', or 'unbonding'
         let currentStakingSubMode = 'ratio'; // 'ratio' or 'total'
+
+        let dailyPriceHistory = [];  // [{time, close}] — 45 days of daily closes for P&L lookback
 
         // Historical data for staking/APR
         let historicalStaking = [];
@@ -1536,6 +1558,23 @@ function showWhaleEventTooltip(eventPoint, x, y) {
             } catch (err) {
                 console.log('⚠️ CoinGecko market stats unavailable:', err.message);
                 return false;
+            }
+        }
+
+        async function fetchDailyPriceHistory() {
+            try {
+                const since = Math.floor(Date.now() / 1000 - 45 * 86400);
+                const res = await fetch('https://api.kraken.com/0/public/OHLC?pair=ATOMUSD&interval=1440&since=' + since);
+                const json = await res.json();
+                const key = Object.keys(json.result || {}).find(k => k !== 'last');
+                if (!key || !json.result[key]) return;
+                dailyPriceHistory = json.result[key].map(k => ({
+                    time: parseInt(k[0]),
+                    close: parseFloat(k[4])
+                }));
+                console.log(`📈 Daily price history: ${dailyPriceHistory.length} days loaded`);
+            } catch (err) {
+                console.warn('⚠️ Daily price history unavailable:', err.message);
             }
         }
 
@@ -3608,6 +3647,16 @@ function applyWhaleMarkers() {
                 return n.toLocaleString();
             }
 
+            function lookupPrice(dateStr) {
+                const targetUnix = Math.floor(new Date(dateStr + 'T12:00:00Z').getTime() / 1000);
+                let closest = null, minDist = Infinity;
+                for (const p of dailyPriceHistory) {
+                    const dist = Math.abs(p.time - targetUnix);
+                    if (dist < minDist) { minDist = dist; closest = p; }
+                }
+                return closest?.close || null;
+            }
+
             function computeSupplyAndConcentration(slice, future) {
                 let weightedSum = 0, totalWeight = 0;
                 for (let i = 0; i < slice.length; i++) {
@@ -3620,7 +3669,7 @@ function applyWhaleMarkers() {
                     ? future.reduce((s, d) => s + Number(d.atom || 0), 0) / future.length
                     : 0;
                 const supplyRatio = baseline > 0 ? weightedAvgDaily / baseline : 0;
-                const supplyScore = Math.min(40, Math.round(supplyRatio * 20));
+                const supplyScore = Math.min(25, Math.round(Math.log2(1 + supplyRatio) * 12));
 
                 const weekTotal = slice.reduce((s, d) => s + Number(d.atom || 0), 0);
                 let concentrationScore = 0;
@@ -3630,7 +3679,7 @@ function applyWhaleMarkers() {
                     const hhi = shares.reduce((s, p) => s + p * p, 0);
                     const minHHI = 1 / slice.length;
                     const normalizedHHI = minHHI < 1 ? (hhi - minHHI) / (1 - minHHI) : 0;
-                    concentrationScore = Math.round(normalizedHHI * 20);
+                    concentrationScore = Math.round(normalizedHHI * 15);
 
                     const peakDay = slice.reduce((a, b) => (Number(b.atom || 0) > Number(a.atom || 0) ? b : a));
                     const peakShare = Number(peakDay.atom || 0) / weekTotal;
@@ -3643,7 +3692,7 @@ function applyWhaleMarkers() {
                 return { supplyScore, concentrationScore, concExplanation };
             }
 
-            // ===== SUPPLY PRESSURE (0-40) =====
+            // ===== SUPPLY PRESSURE (0-25) =====
             const { supplyScore, concentrationScore, concExplanation } = computeSupplyAndConcentration(next7, allFuture);
 
             let supplyExplanation;
@@ -3654,13 +3703,62 @@ function applyWhaleMarkers() {
                 supplyExplanation = shortAtom(weekSum) + ' ATOM unlocking this week';
             }
 
-            // ===== BEHAVIOR SIGNAL (0-40) =====
+            // ===== ABSORPTION (0-25) =====
+            let absorptionScore = 0;
+            let absorptionExplanation = '';
+            const dailyVolumeAtom = (volume24hUsd && prices.usd && prices.usd > 0)
+                ? volume24hUsd / prices.usd : 0;
+
+            if (dailyVolumeAtom > 0) {
+                const weekUnlockAtom = next7.reduce((s, d) => s + Number(d.atom || 0), 0);
+                const unlockVolumeRatio = weekUnlockAtom / (dailyVolumeAtom * 7);
+                absorptionScore = Math.min(25, Math.round(Math.sqrt(unlockVolumeRatio) * 25));
+
+                if (unlockVolumeRatio >= 0.3) {
+                    absorptionExplanation = 'unlocks = ' + Math.round(unlockVolumeRatio * 100) + '% of weekly volume';
+                } else if (unlockVolumeRatio >= 0.1) {
+                    absorptionExplanation = 'unlock/volume ratio ' + Math.round(unlockVolumeRatio * 100) + '%';
+                }
+            }
+
+            // ===== P&L POSITION (0-15) =====
+            let pnlScore = 0;
+            let pnlExplanation = '';
+            const currentPrice = prices.usd;
+
+            if (currentPrice > 0 && dailyPriceHistory.length >= 14) {
+                let weightedPnlSum = 0, pnlWeightTotal = 0;
+                for (const day of next7) {
+                    const initDate = new Date(new Date(day.date + 'T00:00:00').getTime() - 21 * 86400000)
+                        .toISOString().slice(0, 10);
+                    const priceAtInit = lookupPrice(initDate);
+                    if (!priceAtInit) continue;
+                    const pnlPct = (currentPrice - priceAtInit) / priceAtInit;
+                    const atomAmount = Number(day.atom || 0);
+                    weightedPnlSum += pnlPct * atomAmount;
+                    pnlWeightTotal += atomAmount;
+                }
+
+                if (pnlWeightTotal > 0) {
+                    const weightedPnl = weightedPnlSum / pnlWeightTotal;
+
+                    if (weightedPnl < 0) {
+                        pnlScore = Math.min(15, Math.round(Math.abs(weightedPnl) * 50));
+                        pnlExplanation = 'avg unlocker down ' + Math.abs(Math.round(weightedPnl * 100)) + '% since initiation';
+                    } else {
+                        pnlScore = Math.min(8, Math.round(weightedPnl * 15));
+                        pnlExplanation = 'avg unlocker up ' + Math.round(weightedPnl * 100) + '% since initiation';
+                    }
+                }
+            }
+
+            // ===== BEHAVIOR SIGNAL (0-20) =====
             const numFlowDays = flows.length;
             const calibrating = numFlowDays < 7;
             let behaviorScore = 0;
             let behaviorExplanation = 'no historical data yet';
 
-            if (numFlowDays > 0) {
+            if (numFlowDays >= 3) {
                 let totalWeightedExPct = 0, totalWeightedRsPct = 0, totalBW = 0;
                 for (let i = 0; i < flows.length; i++) {
                     const dayWeight = 1 + (flows.length - 1 - i) * 0.5;
@@ -3671,12 +3769,11 @@ function applyWhaleMarkers() {
                 const avgExchangePct = totalWeightedExPct / totalBW;
                 const avgRestakePct = totalWeightedRsPct / totalBW;
 
-                behaviorScore = Math.round(Math.sqrt(avgExchangePct / 100) * 40);
+                behaviorScore = Math.round(Math.sqrt(avgExchangePct / 100) * 20);
                 if (avgRestakePct > 50) behaviorScore = Math.round(behaviorScore * 0.7);
 
                 if (calibrating) {
-                    const confidence = numFlowDays / 7;
-                    behaviorScore = Math.round(behaviorScore * confidence);
+                    behaviorScore = Math.round(behaviorScore * (numFlowDays / 7));
                 }
 
                 if (avgExchangePct > 20) {
@@ -3689,16 +3786,21 @@ function applyWhaleMarkers() {
             }
 
             // ===== COMPOSITE =====
-            const total = Math.max(0, Math.min(100, supplyScore + concentrationScore + behaviorScore));
-            const scoreFormula = `${supplyScore} + ${concentrationScore} + ${behaviorScore} = ${total}`;
+            const total = Math.max(0, Math.min(100,
+                supplyScore + absorptionScore + pnlScore + concentrationScore + behaviorScore
+            ));
+            const scoreFormula = `${supplyScore} + ${absorptionScore} + ${pnlScore} + ${concentrationScore} + ${behaviorScore} = ${total}`;
 
             // ===== CONFIDENCE =====
             let confidenceLabel = 'Low';
             let confidenceColor = '#f59e0b';
-            if (numFlowDays >= 14) {
+            const hasVolume = dailyVolumeAtom > 0;
+            const hasPriceHistory = dailyPriceHistory.length >= 14;
+            const dataSignals = (numFlowDays >= 7 ? 1 : 0) + (hasVolume ? 1 : 0) + (hasPriceHistory ? 1 : 0);
+            if (dataSignals >= 3) {
                 confidenceLabel = 'High';
                 confidenceColor = '#22c55e';
-            } else if (numFlowDays >= 7) {
+            } else if (dataSignals >= 2) {
                 confidenceLabel = 'Medium';
                 confidenceColor = '#60a5fa';
             }
@@ -3712,7 +3814,9 @@ function applyWhaleMarkers() {
             if (prevFuture.length > 0) {
                 const prevSlice = prevFuture.slice(0, 7);
                 const prevScores = computeSupplyAndConcentration(prevSlice, prevFuture);
-                const prevTotal = Math.max(0, Math.min(100, prevScores.supplyScore + prevScores.concentrationScore + behaviorScore));
+                const prevTotal = Math.max(0, Math.min(100,
+                    prevScores.supplyScore + absorptionScore + pnlScore + prevScores.concentrationScore + behaviorScore
+                ));
                 deltaVsYesterday = total - prevTotal;
             }
             const rollingTotals = [];
@@ -3722,7 +3826,9 @@ function applyWhaleMarkers() {
                 const slice = future.slice(0, 7);
                 if (!slice.length) continue;
                 const scores = computeSupplyAndConcentration(slice, future);
-                rollingTotals.push(Math.max(0, Math.min(100, scores.supplyScore + scores.concentrationScore + behaviorScore)));
+                rollingTotals.push(Math.max(0, Math.min(100,
+                    scores.supplyScore + absorptionScore + pnlScore + scores.concentrationScore + behaviorScore
+                )));
             }
             const avg7 = rollingTotals.length
                 ? rollingTotals.reduce((s, n) => s + n, 0) / rollingTotals.length
@@ -3744,9 +3850,11 @@ function applyWhaleMarkers() {
 
             // Narrative
             const parts = [];
-            if (supplyScore >= 15) parts.push(supplyExplanation);
-            if (concentrationScore >= 10) parts.push(concExplanation);
-            if (behaviorScore >= 10 && !calibrating) parts.push(behaviorExplanation);
+            if (supplyScore >= 10) parts.push(supplyExplanation);
+            if (absorptionScore >= 8) parts.push(absorptionExplanation);
+            if (pnlScore >= 5) parts.push(pnlExplanation);
+            if (concentrationScore >= 7) parts.push(concExplanation);
+            if (behaviorScore >= 5 && numFlowDays >= 3) parts.push(behaviorExplanation);
             const narrative = parts.length > 0
                 ? parts.join(' · ')
                 : 'normal unlock schedule with no concerning signals';
@@ -3758,9 +3866,11 @@ function applyWhaleMarkers() {
                 updatedAt: new Date().toISOString(),
                 window: { start: windowStart, end: windowEnd },
                 delta: { day: deltaVsYesterday, avg7: deltaVs7Avg },
-                supply: { score: supplyScore, max: 40 },
-                concentration: { score: concentrationScore, max: 20 },
-                behavior: { score: behaviorScore, max: 40, calibrating, numDays: numFlowDays },
+                supply: { score: supplyScore, max: 25 },
+                absorption: { score: absorptionScore, max: 25 },
+                pnl: { score: pnlScore, max: 15 },
+                concentration: { score: concentrationScore, max: 15 },
+                behavior: { score: behaviorScore, max: 20, calibrating, numDays: numFlowDays },
             };
         }
 
@@ -3849,9 +3959,11 @@ function applyWhaleMarkers() {
                 bar.style.background = color;
             }
 
-            renderComp('gaugeSupplyBar', 'gaugeSupplyScore', result.supply, 40);
-            renderComp('gaugeConcBar', 'gaugeConcScore', result.concentration, 20);
-            renderComp('gaugeBehaviorBar', 'gaugeBehaviorScore', result.behavior, 40);
+            renderComp('gaugeSupplyBar', 'gaugeSupplyScore', result.supply, 25);
+            renderComp('gaugeAbsorptionBar', 'gaugeAbsorptionScore', result.absorption, 25);
+            renderComp('gaugePnlBar', 'gaugePnlScore', result.pnl, 15);
+            renderComp('gaugeConcBar', 'gaugeConcScore', result.concentration, 15);
+            renderComp('gaugeBehaviorBar', 'gaugeBehaviorScore', result.behavior, 20);
 
             // Calibrating badge
             const behaviorComp = document.getElementById('gaugeCompBehavior');
@@ -3957,11 +4069,13 @@ function applyWhaleMarkers() {
             fetchChart(15, 96);  // Default: 1D with 15min candles
             fetchStakingData();
             fetchCoinGeckoMarketStats();
+            fetchDailyPriceHistory();
 
             // 9) Refresh intervals
             setInterval(fetchPrice, 60000);           // Price every 60s
             setInterval(fetchStakingData, 300000);    // Staking every 5min
             setInterval(fetchCoinGeckoMarketStats, 600000); // Circulating supply + volume every 10min
+            setInterval(fetchDailyPriceHistory, 600000);    // Daily price history every 10min
             setInterval(loadDelegationSnapshot, 300000);  // Delegations every 5min
             setInterval(fetchDelegationFeed, 300000);       // Feed every 5min
             setInterval(loadPendingUndelegations, 300000);   // Unbonding every 5min

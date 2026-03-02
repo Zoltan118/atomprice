@@ -1,0 +1,125 @@
+name: v2 whale analytics
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Whale transfers: every 15 min
+    - cron: "5,20,35,50 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  whale-transfers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: atomprice-v2-whale-transfers
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Monitor whale transfers
+        env:
+          BLOCKS_PER_SCAN: "200"
+        run: |
+          for i in 1 2 3; do
+            echo "Monitor attempt $i/3..."
+            if node scripts/monitor-whale-transfers.mjs; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Monitor failed after retries"
+          exit 1
+
+      - name: Commit and push whale transfers
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/whale-transfers.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "v2 whale transfers refresh"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Push failed"
+          exit 1
+
+  reward-patterns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: atomprice-v2-whale-rewards
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check if reward analysis is due
+        id: check
+        run: |
+          M=$(date -u +%M)
+          H=$(date -u +%H)
+          if [ "$M" = "05" ] && ( [ "$H" = "00" ] || [ "$H" = "06" ] || [ "$H" = "12" ] || [ "$H" = "18" ] ); then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+            echo "Skip reward analysis (only runs at 00:05, 06:05, 12:05, 18:05 UTC)"
+          fi
+
+      - name: Analyze whale reward patterns
+        if: steps.check.outputs.run == 'true'
+        run: |
+          for i in 1 2 3; do
+            echo "Analysis attempt $i/3..."
+            if node scripts/analyze-whale-rewards.mjs; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Analysis failed after retries"
+          exit 1
+
+      - name: Commit and push reward patterns
+        if: steps.check.outputs.run == 'true'
+        run: |
+          git config user.name "atomprice-bot"
+          git config user.email "actions@github.com"
+          git add data/whale-reward-patterns.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "v2 whale reward patterns refresh"
+          for i in 1 2 3; do
+            echo "Push attempt $i/3..."
+            git pull --rebase origin main && git push && exit 0
+            git rebase --abort || true
+            sleep 2
+          done
+          echo "Push failed"
+          exit 1

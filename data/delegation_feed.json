@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-03-01T23:54:25.169Z",
+  "generated_at": "2026-03-02T00:01:01.878Z",
   "min_atom": 1,
   "total": 1020,
-  "delegates": 929,
-  "undelegates": 91,
+  "delegates": 930,
+  "undelegates": 90,
   "ingestion_health": {
-    "generated_at": "2026-03-01T23:46:28.493Z",
+    "generated_at": "2026-03-01T23:58:09.115Z",
     "status": "ok",
     "overlap_hours": 6,
     "quorum": {
@@ -26,14 +26,14 @@
       "rpc.cosmos.directory": {
         "rpc_base": "https://rpc.cosmos.directory/cosmoshub",
         "ok": false,
-        "error": "node:internal/deps/undici/undici:14902\n      Error.captureStackTrace(err);\n            ^\nDOMException [AbortError]: This operation was aborted\n    at node:internal/deps/undici/undici:14902:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:68:17)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.0",
+        "error": "file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74\n      throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : \"\"}`);\n            ^\n\nError: HTTP 502 for https://rpc.cosmos.directory/cosmoshub/tx_search?query=%22message.action%3D%27%2Fcosmos.staking.v1beta1.MsgDelegate%27%22&prove=false&page=1&per_page=100&order_by=%22desc%22 :: <!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 8]>    <html class=\"no-\n    at fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.0",
         "events": 0
       },
       "rpc.silknodes.io": {
         "rpc_base": "https://rpc.silknodes.io/cosmos",
         "ok": true,
         "error": null,
-        "events": 1167
+        "events": 1166
       },
       "cosmos.drpc.org": {
         "rpc_base": "https://cosmos.drpc.org",
@@ -43,12 +43,42 @@
       }
     },
     "ledger": {
-      "appended": 17,
-      "skipped_existing": 1150,
+      "appended": 3,
+      "skipped_existing": 1163,
       "partitions_touched": 1
     }
   },
   "items": [
+    {
+      "type": "delegate",
+      "amount_atom": 25.281361,
+      "delegator": "cosmos1rcp29q3hpd246n6qak7jluqep4v006cd4v7r6v",
+      "validator_addr": "cosmosvaloper1rcp29q3hpd246n6qak7jluqep4v006cdsc2kkl",
+      "validator_name": "Skip",
+      "height": 30008016,
+      "txhash": "91A98C870C356505210C7209BF29D5E51D42E60356A2A6E510605073EA0605AD",
+      "timestamp": "2026-03-01T23:57:29.988Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.6,
+      "delegator": "cosmos1ycu0xkx62dtargpn753me9unf2r6w4rl7uj5vf",
+      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
+      "validator_name": "SG-1",
+      "height": 30007965,
+      "txhash": "5F2B00FB53E4184D774CD02CA388686B5FF336771AD20CA8EBEB3F8D0C4C6CCF",
+      "timestamp": "2026-03-01T23:52:36.962Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.751841,
+      "delegator": "cosmos102q5fn35sedv456sdq8djsa8jzeuyn7nwlu8rp",
+      "validator_addr": "cosmosvaloper1y0us8xvsvfvqkk9c6nt5cfyu5au5tww2ztve7q",
+      "validator_name": "Swiss Staking",
+      "height": 30007953,
+      "txhash": "7D6C5AB9F4C45B88849830A19B6F9E93AAF1ED5CC66B1C1C87D7920CD0EA318A",
+      "timestamp": "2026-03-01T23:51:25.895Z"
+    },
     {
       "type": "delegate",
       "amount_atom": 12.268418,
@@ -10018,36 +10048,6 @@
       "height": 30001512,
       "txhash": "B156F37A8B9D0878BD9E61BB910F628C17517FE84D7B5BFFD3DD32790B870527",
       "timestamp": "2026-03-01T13:29:48.717Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 1987.576239,
-      "delegator": "cosmos1njh3z7r4eq99as3unlaqyr5uqrvy6p7ke47vez",
-      "validator_addr": "cosmosvaloper157v7tczs40axfgejp2m43kwuzqe0wsy0rv8puv",
-      "validator_name": "POSTHUMAN 🧬 StakeDrop",
-      "height": 30001510,
-      "txhash": "CDEF748117404609CDC7CD5121D568B0D19C7CDEDA5BBF773460C9CD63FF0DD2",
-      "timestamp": "2026-03-01T13:29:36.902Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 10.058,
-      "delegator": "cosmos1lhwjm0j2gdzegjrmdaqj6skmna46ue7067u4an",
-      "validator_addr": "cosmosvaloper1fun809ksxh87nzf88yashp9ynjz6xkscrtvzvw",
-      "validator_name": "Tessellated",
-      "height": 30001508,
-      "txhash": "47B8A5FE0C99C8A91065E45F340333BE450AAB983638BDF5867CAF812E854BB0",
-      "timestamp": "2026-03-01T13:29:25.019Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 33.941712,
-      "delegator": "cosmos1wkratsurqawn5d7shww293xk96cn8ylqwv2h98",
-      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
-      "validator_name": "Keplr",
-      "height": 30001506,
-      "txhash": "0CFFD08044E35F259F518738E33C0128D5D6C0FAEC94E99A2789487844D69440",
-      "timestamp": "2026-03-01T13:29:13.335Z"
     },
     {
       "type": "delegate",

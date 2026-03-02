@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATOM Analytics — atomprice.com</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 50px 20px 80px;
+    }
+
+    /* ── NAV ── */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 32px;
+    }
+    .top-nav-brand {
+      font-size: 16px;
+      font-weight: 500;
+      color: #666;
+      letter-spacing: 0.5px;
+      transition: color 0.2s;
+    }
+    .top-nav-brand:hover { color: #fff; }
+    .top-nav-link {
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+      letter-spacing: 0.3px;
+      transition: color 0.2s;
+    }
+    .top-nav-link:hover { color: #fff; }
+
+    /* ── HERO ── */
+    .hero-label {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 500;
+      color: #888;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .hero-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .hero-title {
+      font-size: 64px;
+      font-weight: 600;
+      letter-spacing: -1.8px;
+      line-height: 1;
+    }
+    .hero-badge {
+      font-size: 22px;
+      font-weight: 500;
+      color: #22c55e;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+    }
+    .hero-price-row {
+      text-align: center;
+      margin-bottom: 34px;
+    }
+    .hero-price {
+      font-size: 28px;
+      font-weight: 600;
+      color: #d1d5db;
+      letter-spacing: -0.5px;
+    }
+    .hero-change {
+      font-size: 16px;
+      margin-left: 10px;
+      letter-spacing: 0.5px;
+    }
+    .hero-change.pos { color: #22c55e; }
+    .hero-change.neg { color: #ef4444; }
+
+    /* ── SECTIONS ── */
+    .section { margin-bottom: 32px; }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 11px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-weight: 500;
+    }
+    .section-meta {
+      font-size: 10px;
+      color: #333;
+    }
+    .divider { height: 1px; background: #111; margin: 32px 0; }
+
+    /* ── METRIC CARDS ── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .metric-card {
+      background: #080808;
+      border: 1px solid #151515;
+      border-radius: 10px;
+      padding: 14px 14px 12px;
+    }
+    .metric-label {
+      font-size: 9px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+    .metric-value {
+      font-size: 22px;
+      font-weight: 600;
+      color: #e5e7eb;
+      letter-spacing: -0.3px;
+    }
+    .metric-sub {
+      font-size: 10px;
+      color: #333;
+      margin-top: 4px;
+    }
+
+    /* ── LIVE FEED ── */
+    .feed-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .feed-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+    .feed-dot.offline { background: #ef4444; animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .feed-status-text {
+      font-size: 10px;
+      color: #444;
+    }
+
+    .feed-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .feed-item {
+      background: #080808;
+      border: 1px solid #151515;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 14px;
+      align-items: center;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .feed-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .feed-icon.send { background: rgba(239,68,68,0.1); }
+    .feed-icon.receive { background: rgba(34,197,94,0.1); }
+    .feed-icon.delegate { background: rgba(59,130,246,0.1); }
+    .feed-icon.undelegate { background: rgba(249,115,22,0.1); }
+    .feed-icon.claim { background: rgba(139,92,246,0.1); }
+    .feed-body {
+      min-width: 0;
+    }
+    .feed-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #d1d5db;
+      margin-bottom: 3px;
+    }
+    .feed-detail {
+      font-size: 10px;
+      color: #555;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .feed-detail a {
+      color: #666;
+      text-decoration: underline;
+      text-decoration-color: #333;
+    }
+    .feed-detail a:hover { color: #8b5cf6; }
+    .feed-right {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .feed-amount {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e5e7eb;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .feed-usd {
+      font-size: 10px;
+      color: #444;
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+    .feed-time {
+      font-size: 9px;
+      color: #333;
+      margin-top: 2px;
+    }
+    .feed-empty {
+      text-align: center;
+      color: #333;
+      font-size: 11px;
+      padding: 40px 20px;
+      background: #080808;
+      border: 1px solid #151515;
+      border-radius: 10px;
+    }
+
+    /* ── REWARD PATTERNS ── */
+    .rp-headline {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .rp-big-stat {
+      font-size: 42px;
+      font-weight: 700;
+      color: #22c55e;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+    .rp-big-label {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.5;
+    }
+    .rp-summary-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .rp-stat-card {
+      background: #080808;
+      border: 1px solid #151515;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+    .rp-stat-val {
+      font-size: 20px;
+      font-weight: 600;
+      color: #d1d5db;
+      margin-bottom: 2px;
+    }
+    .rp-stat-label {
+      font-size: 9px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .heatmap {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .heatmap-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .heatmap-cell {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 4px;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .heatmap-cell-count {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+    }
+    .heatmap-label {
+      font-size: 9px;
+      color: #444;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .heatmap-legend {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .heatmap-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9px;
+      color: #444;
+    }
+    .heatmap-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    .rp-table {
+      background: #080808;
+      border: 1px solid #151515;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .rp-table-head,
+    .rp-table-row {
+      display: grid;
+      grid-template-columns: 1fr 70px 70px 70px 80px;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 11px;
+      align-items: center;
+    }
+    .rp-table-head {
+      color: #444;
+      border-bottom: 1px solid #111;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 9px;
+    }
+    .rp-table-row {
+      color: #777;
+      border-bottom: 1px solid #0a0a0a;
+    }
+    .rp-table-row:last-child { border-bottom: none; }
+    .rp-tag {
+      font-size: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .rp-tag.diamond { color: #22c55e; background: rgba(34,197,94,0.1); }
+    .rp-tag.seller { color: #ef4444; background: rgba(239,68,68,0.1); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 700px) {
+      .container { padding: 24px 14px 60px; }
+      .hero-title { font-size: 42px; }
+      .hero-badge { font-size: 16px; }
+      .hero-price { font-size: 22px; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .metric-value { font-size: 18px; }
+      .feed-item { grid-template-columns: auto 1fr auto; gap: 10px; padding: 12px; }
+      .feed-icon { width: 30px; height: 30px; font-size: 14px; }
+      .feed-amount { font-size: 12px; }
+      .rp-summary-row { grid-template-columns: repeat(2, 1fr); }
+      .rp-big-stat { font-size: 32px; }
+      .rp-table-head, .rp-table-row {
+        grid-template-columns: 1fr 60px 60px 60px;
+        font-size: 10px;
+      }
+      .rp-table-head > :nth-child(5),
+      .rp-table-row > :nth-child(5) { display: none; }
+    }
+
+    .loading-text {
+      font-size: 11px;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- NAV -->
+    <nav class="top-nav">
+      <a href="/" class="top-nav-brand">atomprice.com</a>
+      <a href="/" class="top-nav-link">Back to Price →</a>
+    </nav>
+
+    <!-- HERO -->
+    <div class="hero-label">ATOM</div>
+    <div class="hero-row">
+      <div class="hero-title">ANALYTICS</div>
+      <span class="hero-badge">BETA</span>
+    </div>
+    <div class="hero-price-row">
+      <span class="hero-price" id="heroPrice">$—</span>
+      <span class="hero-change" id="heroChange">—</span>
+    </div>
+
+    <!-- ═══════════ 1. STAKING OVERVIEW ═══════════ -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Staking Overview</div>
+        <div class="section-meta" id="stakingMeta">—</div>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Staking Ratio</div>
+          <div class="metric-value" id="mRatio">—</div>
+          <div class="metric-sub" id="mRatioSub"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">APR</div>
+          <div class="metric-value" id="mApr">—</div>
+          <div class="metric-sub" id="mAprSub"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Total Staked</div>
+          <div class="metric-value" id="mStaked">—</div>
+          <div class="metric-sub" id="mStakedSub"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Volume 24H</div>
+          <div class="metric-value" id="mVolume">—</div>
+          <div class="metric-sub" id="mVolumeSub"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ═══════════ 2. LIVE WHALE FEED ═══════════ -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Whale Transfer Feed</div>
+        <div class="feed-status">
+          <div class="feed-dot" id="feedDot"></div>
+          <div class="feed-status-text" id="feedStatus">connecting...</div>
+        </div>
+      </div>
+      <div class="feed-list" id="feedList">
+        <div class="feed-empty">Scanning for whale transfers...</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ═══════════ 3. REWARD SELL PATTERNS ═══════════ -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Whale Reward Sell Patterns</div>
+        <div class="section-meta" id="rpMeta">—</div>
+      </div>
+
+      <div class="rp-headline">
+        <div class="rp-big-stat" id="rpDiamondPct">—</div>
+        <div class="rp-big-label">of whale stakers hold<br>their staking rewards</div>
+      </div>
+
+      <div class="rp-summary-row">
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpClaims">—</div><div class="rp-stat-label">Total Claims</div></div>
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpClaimAtom">—</div><div class="rp-stat-label">ATOM Claimed</div></div>
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpSellRate">—</div><div class="rp-stat-label">Sell Rate</div></div>
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpSellAtom">—</div><div class="rp-stat-label">ATOM Sold</div></div>
+      </div>
+
+      <div class="section-header" style="margin-top: 16px">
+        <div class="section-title" style="font-size:10px">Claim Activity by Day of Week</div>
+      </div>
+      <div class="heatmap" id="rpHeatmap"></div>
+      <div class="heatmap-legend">
+        <div class="heatmap-legend-item"><div class="heatmap-legend-dot" style="background:#0f2e1a"></div> Low</div>
+        <div class="heatmap-legend-item"><div class="heatmap-legend-dot" style="background:#166534"></div> Medium</div>
+        <div class="heatmap-legend-item"><div class="heatmap-legend-dot" style="background:#22c55e"></div> High</div>
+      </div>
+
+      <div class="section-header" style="margin-top: 20px">
+        <div class="section-title" style="font-size:10px">Whale Behavior Breakdown</div>
+      </div>
+      <div class="rp-table">
+        <div class="rp-table-head">
+          <div>Whale</div>
+          <div>Claims</div>
+          <div>Sells</div>
+          <div>Rate</div>
+          <div>Status</div>
+        </div>
+        <div id="rpTableBody">
+          <div class="loading-text">Loading reward patterns...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- FOOTER -->
+    <div style="text-align:center; padding: 20px 0;">
+      <div style="font-size:10px; color:#333; letter-spacing:1px; text-transform:uppercase;">atomprice.com analytics</div>
+      <div style="font-size:9px; color:#222; margin-top:6px;">Data refreshes automatically. Not financial advice.</div>
+    </div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════
+    //  HELPERS
+    // ═══════════════════════════════════════════════
+
+    const fmtAtom = (v) => {
+      if (!Number.isFinite(v)) return '—';
+      const abs = Math.abs(v);
+      if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+      if (abs >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+      return `${Math.round(v)}`;
+    };
+    const fmtUsd = (v) => {
+      if (!Number.isFinite(v)) return '';
+      if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
+      if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
+      return `$${v.toFixed(0)}`;
+    };
+    const relTime = (ts) => {
+      const ms = Date.now() - new Date(ts).getTime();
+      const secs = Math.floor(ms / 1000);
+      if (secs < 60) return `${secs}s ago`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      return `${Math.floor(hrs / 24)}d ago`;
+    };
+
+    let atomPrice = 0;
+
+    const cache = (url) => url + (url.includes('?') ? '&' : '?') + 't=' + Math.floor(Date.now() / 60000);
+    const fetchJson = async (path) => {
+      try {
+        const res = await fetch(cache(path), { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch { return null; }
+    };
+
+    // ═══════════════════════════════════════════════
+    //  PRICE
+    // ═══════════════════════════════════════════════
+
+    async function fetchPrice() {
+      try {
+        const res = await fetch('https://api.kraken.com/0/public/Ticker?pair=ATOMUSD');
+        const json = await res.json();
+        const key = Object.keys(json.result || {})[0];
+        if (!key) return;
+        const d = json.result[key];
+        atomPrice = parseFloat(d.c[0]);
+        const open = parseFloat(d.o);
+        const change = ((atomPrice - open) / open) * 100;
+        document.getElementById('heroPrice').textContent = `$${atomPrice.toFixed(2)}`;
+        const el = document.getElementById('heroChange');
+        el.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+        el.className = `hero-change ${change >= 0 ? 'pos' : 'neg'}`;
+      } catch {}
+    }
+
+    // ═══════════════════════════════════════════════
+    //  1. STAKING OVERVIEW
+    // ═══════════════════════════════════════════════
+
+    async function renderStaking() {
+      const [ratio, metrics] = await Promise.all([
+        fetchJson('../data/staking_ratio.json'),
+        fetchJson('../data/daily-metrics.json')
+      ]);
+
+      if (ratio) {
+        const pct = (ratio.staking_ratio_vs_supply * 100).toFixed(1);
+        document.getElementById('mRatio').textContent = `${pct}%`;
+        document.getElementById('mRatioSub').textContent = 'of total supply';
+
+        const bondedAtom = parseInt(ratio.bonded_uatom) / 1e6;
+        document.getElementById('mStaked').textContent = fmtAtom(bondedAtom);
+        document.getElementById('mStakedSub').textContent = 'ATOM bonded';
+
+        document.getElementById('stakingMeta').textContent = ratio.generated_at
+          ? `Updated ${relTime(ratio.generated_at)}` : '';
+      }
+
+      if (metrics && metrics.length > 0) {
+        const latest = metrics[metrics.length - 1];
+        document.getElementById('mApr').textContent = `${Number(latest.apr).toFixed(1)}%`;
+        document.getElementById('mAprSub').textContent = 'annual yield';
+      }
+
+      // Volume from CoinGecko
+      try {
+        const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd&include_24hr_vol=true');
+        const cg = await cgRes.json();
+        const vol = cg?.cosmos?.usd_24h_vol;
+        if (Number.isFinite(vol)) {
+          document.getElementById('mVolume').textContent = fmtUsd(vol);
+          document.getElementById('mVolumeSub').textContent = '24h trading vol';
+        }
+      } catch {}
+    }
+
+    // ═══════════════════════════════════════════════
+    //  2. LIVE WHALE FEED
+    // ═══════════════════════════════════════════════
+
+    const FEED_ICONS = {
+      send: '💸', receive: '📥', delegate: '🔒',
+      undelegate: '🔓', claim: '🎁', redelegate: '🔄',
+    };
+
+    function renderFeedItem(tx) {
+      const icon = FEED_ICONS[tx.type] || '💸';
+      const iconClass = tx.type || 'send';
+      const usdVal = atomPrice > 0 ? fmtUsd(tx.atom * atomPrice) : '';
+      const shortHash = tx.txhash ? tx.txhash.slice(0, 10) + '...' : '';
+      const link = tx.txhash ? `https://www.mintscan.io/cosmos/txs/${tx.txhash}` : '#';
+
+      let title = '';
+      const label = tx.from_label || tx.to_label || '';
+      switch (tx.type) {
+        case 'send':
+          title = `Transfer ${tx.from_label ? 'from ' + tx.from_label : ''} ${tx.to_label ? '→ ' + tx.to_label : ''}`.trim();
+          if (!title || title === 'Transfer') title = 'Whale Transfer';
+          break;
+        case 'delegate':
+          title = `Delegation ${tx.validator_name ? '→ ' + tx.validator_name : ''}`.trim();
+          break;
+        case 'undelegate':
+          title = `Undelegation ${tx.validator_name ? 'from ' + tx.validator_name : ''}`.trim();
+          break;
+        case 'redelegate':
+          title = 'Redelegation';
+          break;
+        case 'claim':
+          title = `Reward Claim ${label ? '· ' + label : ''}`.trim();
+          break;
+        default:
+          title = 'Whale Activity';
+      }
+
+      const detail = tx.height
+        ? `Block ${tx.height.toLocaleString()} · <a href="${link}" target="_blank">${shortHash}</a>`
+        : `<a href="${link}" target="_blank">${shortHash}</a>`;
+
+      return `<div class="feed-item">
+        <div class="feed-icon ${iconClass}">${icon}</div>
+        <div class="feed-body">
+          <div class="feed-title">${title}</div>
+          <div class="feed-detail">${detail}</div>
+        </div>
+        <div class="feed-right">
+          <div class="feed-amount">${fmtAtom(tx.atom)} ATOM</div>
+          ${usdVal ? `<div class="feed-usd">${usdVal}</div>` : ''}
+          <div class="feed-time">${relTime(tx.timestamp)}</div>
+        </div>
+      </div>`;
+    }
+
+    async function renderFeed() {
+      const data = await fetchJson('../data/whale-transfers.json');
+      const container = document.getElementById('feedList');
+      const dot = document.getElementById('feedDot');
+      const status = document.getElementById('feedStatus');
+
+      if (!data || !data.transfers || data.transfers.length === 0) {
+        dot.classList.add('offline');
+        status.textContent = 'no data yet — run monitor script';
+        container.innerHTML = '<div class="feed-empty">No whale transfers detected yet.<br><span style="color:#444;font-size:10px">Run scripts/monitor-whale-transfers.mjs to start scanning</span></div>';
+        return;
+      }
+
+      // Check freshness
+      const lastScan = data.last_scan ? new Date(data.last_scan).getTime() : 0;
+      const staleMs = Date.now() - lastScan;
+      if (staleMs > 5 * 60 * 1000) {
+        dot.classList.add('offline');
+        status.textContent = `last scan ${relTime(data.last_scan)}`;
+      } else {
+        dot.classList.remove('offline');
+        status.textContent = `live · ${data.transfers.length} events · block ${(data.last_height || 0).toLocaleString()}`;
+      }
+
+      // Render latest 20 transfers
+      const sorted = data.transfers
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 20);
+
+      container.innerHTML = sorted.map(renderFeedItem).join('');
+    }
+
+    // ═══════════════════════════════════════════════
+    //  3. REWARD SELL PATTERNS
+    // ═══════════════════════════════════════════════
+
+    async function renderRewardPatterns() {
+      const data = await fetchJson('../data/whale-reward-patterns.json');
+      if (!data || !data.summary) return;
+
+      const s = data.summary;
+
+      const diamondPct = s.whales_who_hold > 0 && (s.whales_who_hold + s.whales_who_sell) > 0
+        ? Math.round((s.whales_who_hold / (s.whales_who_hold + s.whales_who_sell)) * 100)
+        : 0;
+      const el = document.getElementById('rpDiamondPct');
+      el.textContent = `${diamondPct}%`;
+      el.style.color = diamondPct >= 80 ? '#22c55e' : diamondPct >= 50 ? '#f59e0b' : '#ef4444';
+
+      document.getElementById('rpClaims').textContent = s.total_claims.toLocaleString();
+      document.getElementById('rpClaimAtom').textContent = fmtAtom(s.total_claim_atom);
+      document.getElementById('rpSellRate').textContent = `${(s.overall_sell_rate * 100).toFixed(1)}%`;
+      document.getElementById('rpSellRate').style.color = s.overall_sell_rate > 0.1 ? '#ef4444' : '#22c55e';
+      document.getElementById('rpSellAtom').textContent = fmtAtom(s.total_sell_atom);
+
+      document.getElementById('rpMeta').textContent =
+        `${data.config?.whales_analyzed || '?'} whales · Updated ${relTime(data.generated_at)}`;
+
+      // Heatmap
+      if (data.day_of_week) {
+        const max = Math.max(...data.day_of_week.map(d => d.claims));
+        document.getElementById('rpHeatmap').innerHTML = data.day_of_week.map(d => {
+          const t = max > 0 ? d.claims / max : 0;
+          const bg = `rgb(${Math.round(15 + t * 19)},${Math.round(46 + t * 151)},${Math.round(26 + t * 68)})`;
+          return `<div class="heatmap-col">
+            <div class="heatmap-cell" style="background:${bg}"><span class="heatmap-cell-count">${d.claims}</span></div>
+            <div class="heatmap-label">${d.day_short}</div>
+          </div>`;
+        }).join('');
+      }
+
+      // Table
+      const whales = data.all_whales || [];
+      document.getElementById('rpTableBody').innerHTML = whales.slice(0, 12).map(w => {
+        const addr = w.label || `${w.address.slice(0, 12)}...${w.address.slice(-4)}`;
+        const isSeller = w.sells > 0;
+        const tag = isSeller
+          ? '<span class="rp-tag seller">Seller</span>'
+          : '<span class="rp-tag diamond">Diamond</span>';
+        const rate = w.claims > 0 ? `${(w.sell_rate * 100).toFixed(0)}%` : '—';
+        const rc = w.sell_rate > 0.1 ? '#ef4444' : w.sell_rate > 0 ? '#f59e0b' : '#22c55e';
+        return `<div class="rp-table-row">
+          <div style="font-family:monospace;font-size:10px;color:${isSeller ? '#ef4444' : '#555'}">${addr}</div>
+          <div style="font-variant-numeric:tabular-nums">${w.claims}</div>
+          <div style="font-variant-numeric:tabular-nums;color:${isSeller ? '#ef4444' : '#333'}">${w.sells}</div>
+          <div style="color:${rc};font-weight:600">${rate}</div>
+          <div>${tag}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ═══════════════════════════════════════════════
+    //  INIT
+    // ═══════════════════════════════════════════════
+
+    async function init() {
+      await Promise.allSettled([
+        fetchPrice(),
+        renderStaking(),
+        renderFeed(),
+        renderRewardPatterns(),
+      ]);
+    }
+
+    init();
+    setInterval(() => { fetchPrice(); renderFeed(); }, 30000);   // price + feed every 30s
+    setInterval(renderStaking, 300000);                           // staking every 5m
+    setInterval(renderRewardPatterns, 600000);                    // patterns every 10m
+  </script>
+</body>
+</html>

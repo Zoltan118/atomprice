@@ -151,110 +151,151 @@
       align-items: center;
       gap: 6px;
     }
-    .feed-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #22c55e;
-      animation: pulse 2s infinite;
-    }
-    .feed-dot.offline { background: #ef4444; animation: none; }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
     .feed-status-text {
       font-size: 10px;
-      color: #444;
+      color: #333;
+      letter-spacing: 0.5px;
     }
 
-    .feed-list {
+    .feed-container {
+      max-height: 420px;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 3px;
+      scrollbar-width: thin;
+      scrollbar-color: #222 transparent;
     }
-    .feed-item {
-      background: #080808;
-      border: 1px solid #151515;
-      border-radius: 10px;
-      padding: 14px 16px;
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 14px;
-      align-items: center;
-      animation: slideIn 0.3s ease;
+    .feed-container::-webkit-scrollbar { width: 4px; }
+    .feed-container::-webkit-scrollbar-track { background: transparent; }
+    .feed-container::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+    .feed-msg {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 12px;
+      background: #0a0a0a;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-size: 13px;
+      line-height: 1.4;
     }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(-8px); }
+    .feed-msg:hover { background: #111; }
+    .feed-msg.new-item { animation: feedFadeIn 0.4s ease; }
+    @keyframes feedFadeIn {
+      from { opacity: 0; transform: translateY(-6px); }
       to { opacity: 1; transform: translateY(0); }
     }
     .feed-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
-      flex-shrink: 0;
-    }
-    .feed-icon.send { background: rgba(239,68,68,0.1); }
-    .feed-icon.receive { background: rgba(34,197,94,0.1); }
-    .feed-icon.delegate { background: rgba(59,130,246,0.1); }
-    .feed-icon.undelegate { background: rgba(249,115,22,0.1); }
-    .feed-icon.claim { background: rgba(139,92,246,0.1); }
-    .feed-body {
-      min-width: 0;
-    }
-    .feed-title {
-      font-size: 13px;
-      font-weight: 500;
-      color: #d1d5db;
-      margin-bottom: 3px;
-    }
-    .feed-detail {
-      font-size: 10px;
-      color: #555;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .feed-detail a {
-      color: #666;
-      text-decoration: underline;
-      text-decoration-color: #333;
-    }
-    .feed-detail a:hover { color: #8b5cf6; }
-    .feed-right {
-      text-align: right;
-      flex-shrink: 0;
-    }
-    .feed-amount {
-      font-size: 14px;
-      font-weight: 600;
-      color: #e5e7eb;
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-    .feed-usd {
-      font-size: 10px;
-      color: #444;
-      margin-top: 2px;
-      font-variant-numeric: tabular-nums;
-    }
-    .feed-time {
-      font-size: 9px;
-      color: #333;
-      margin-top: 2px;
-    }
-    .feed-empty {
-      text-align: center;
-      color: #333;
       font-size: 11px;
-      padding: 40px 20px;
-      background: #080808;
-      border: 1px solid #151515;
-      border-radius: 10px;
+      margin-top: 1px;
+      background: rgba(239,68,68,0.12);
+      color: #ef4444;
+    }
+    .feed-icon.exchange { background: rgba(249,115,22,0.12); color: #f97316; }
+    .feed-body { flex: 1; min-width: 0; }
+    .feed-text { color: #999; }
+    .feed-text .feed-amount { color: #e0e0e0; font-weight: 500; }
+    .feed-text .feed-label { color: #666; }
+    .feed-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 9px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      border: 1px solid transparent;
+    }
+    .feed-pill.exchange {
+      color: #f7c48b;
+      border-color: rgba(245,158,11,0.35);
+      background: rgba(245,158,11,0.10);
+    }
+    .feed-meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 2px;
+      font-size: 10px;
+      color: #333;
+    }
+    .feed-meta a { color: #333; text-decoration: none; transition: color 0.15s; }
+    .feed-meta a:hover { color: #888; }
+    .feed-empty {
+      color: #333;
+      font-size: 12px;
+      padding: 30px 0;
+      text-align: center;
+    }
+
+    /* ── MINTSCAN SIDE PANEL ── */
+    .side-panel-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 999;
+      backdrop-filter: blur(2px);
+    }
+    .side-panel-overlay.open { display: block; }
+    .side-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(520px, 90vw);
+      height: 100vh;
+      background: #0a0a0a;
+      border-left: 1px solid #1a1a1a;
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .side-panel.open { transform: translateX(0); }
+    .side-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    .side-panel-title {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .side-panel-close {
+      background: none;
+      border: 1px solid #222;
+      color: #666;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .side-panel-close:hover { color: #fff; border-color: #444; }
+    .side-panel-body {
+      flex: 1;
+      overflow: hidden;
+    }
+    .side-panel-body iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
     }
 
     /* ── REWARD PATTERNS ── */
@@ -400,9 +441,9 @@
       .hero-price { font-size: 22px; }
       .metrics-grid { grid-template-columns: repeat(2, 1fr); }
       .metric-value { font-size: 18px; }
-      .feed-item { grid-template-columns: auto 1fr auto; gap: 10px; padding: 12px; }
-      .feed-icon { width: 30px; height: 30px; font-size: 14px; }
-      .feed-amount { font-size: 12px; }
+      .feed-container { max-height: 360px; }
+      .feed-msg { font-size: 12px; padding: 7px 10px; }
+      .side-panel { width: 100vw; }
       .rp-summary-row { grid-template-columns: repeat(2, 1fr); }
       .rp-big-stat { font-size: 32px; }
       .rp-table-head, .rp-table-row {
@@ -473,18 +514,27 @@
 
     <div class="divider"></div>
 
-    <!-- ═══════════ 2. LIVE WHALE FEED ═══════════ -->
+    <!-- ═══════════ 2. WHALE TRANSFER FEED ═══════════ -->
     <div class="section">
       <div class="section-header">
         <div class="section-title">Whale Transfer Feed</div>
         <div class="feed-status">
-          <div class="feed-dot" id="feedDot"></div>
-          <div class="feed-status-text" id="feedStatus">connecting...</div>
+          <div class="feed-status-text" id="feedStatus">loading...</div>
         </div>
       </div>
-      <div class="feed-list" id="feedList">
-        <div class="feed-empty">Scanning for whale transfers...</div>
+      <div class="feed-container" id="feedContainer">
+        <div class="feed-empty">Loading whale transfers...</div>
       </div>
+    </div>
+
+    <!-- Mintscan Side Panel -->
+    <div class="side-panel-overlay" id="panelOverlay"></div>
+    <div class="side-panel" id="sidePanel">
+      <div class="side-panel-header">
+        <div class="side-panel-title">Mintscan</div>
+        <button class="side-panel-close" id="panelClose">Close</button>
+      </div>
+      <div class="side-panel-body" id="panelBody"></div>
     </div>
 
     <div class="divider"></div>
@@ -647,92 +697,106 @@
     }
 
     // ═══════════════════════════════════════════════
-    //  2. LIVE WHALE FEED
+    //  2. WHALE TRANSFER FEED (sends only)
     // ═══════════════════════════════════════════════
 
-    const FEED_ICONS = {
-      send: '💸', receive: '📥', delegate: '🔒',
-      undelegate: '🔓', claim: '🎁', redelegate: '🔄',
-    };
+    function renderFeedMsg(tx) {
+      const amtStr = fmtAtom(tx.atom);
+      const isExchange = tx.is_exchange_send;
+      const iconClass = isExchange ? 'exchange' : '';
 
-    function renderFeedItem(tx) {
-      const icon = FEED_ICONS[tx.type] || '💸';
-      const iconClass = tx.type || 'send';
-      const usdVal = atomPrice > 0 ? fmtUsd(tx.atom * atomPrice) : '';
-      const shortHash = tx.txhash ? tx.txhash.slice(0, 10) + '...' : '';
-      const link = tx.txhash ? `https://www.mintscan.io/cosmos/txs/${tx.txhash}` : '#';
-
-      let title = '';
-      const label = tx.from_label || tx.to_label || '';
-      switch (tx.type) {
-        case 'send':
-          title = `Transfer ${tx.from_label ? 'from ' + tx.from_label : ''} ${tx.to_label ? '→ ' + tx.to_label : ''}`.trim();
-          if (!title || title === 'Transfer') title = 'Whale Transfer';
-          break;
-        case 'delegate':
-          title = `Delegation ${tx.validator_name ? '→ ' + tx.validator_name : ''}`.trim();
-          break;
-        case 'undelegate':
-          title = `Undelegation ${tx.validator_name ? 'from ' + tx.validator_name : ''}`.trim();
-          break;
-        case 'redelegate':
-          title = 'Redelegation';
-          break;
-        case 'claim':
-          title = `Reward Claim ${label ? '· ' + label : ''}`.trim();
-          break;
-        default:
-          title = 'Whale Activity';
+      let desc = '';
+      if (tx.from_label && tx.to_label) {
+        desc = `${tx.from_label} <span class="feed-label">\u2192 ${tx.to_label}</span>`;
+      } else if (tx.from_label) {
+        desc = `from ${tx.from_label}`;
+      } else if (tx.to_label) {
+        desc = `<span class="feed-label">\u2192 ${tx.to_label}</span>`;
       }
 
-      const detail = tx.height
-        ? `Block ${tx.height.toLocaleString()} · <a href="${link}" target="_blank">${shortHash}</a>`
-        : `<a href="${link}" target="_blank">${shortHash}</a>`;
+      const exchangePill = isExchange ? '<span class="feed-pill exchange">exchange</span>' : '';
+      const shortHash = tx.txhash ? tx.txhash.slice(0, 8) + '\u2026' : '';
+      const timeStr = tx.timestamp ? relTime(tx.timestamp) : '';
+      const blockStr = tx.height ? `block ${Number(tx.height).toLocaleString()}` : '';
 
-      return `<div class="feed-item">
-        <div class="feed-icon ${iconClass}">${icon}</div>
+      return `<div class="feed-msg" data-txhash="${tx.txhash || ''}">
+        <div class="feed-icon ${iconClass}">\u2192</div>
         <div class="feed-body">
-          <div class="feed-title">${title}</div>
-          <div class="feed-detail">${detail}</div>
-        </div>
-        <div class="feed-right">
-          <div class="feed-amount">${fmtAtom(tx.atom)} ATOM</div>
-          ${usdVal ? `<div class="feed-usd">${usdVal}</div>` : ''}
-          <div class="feed-time">${relTime(tx.timestamp)}</div>
+          <div class="feed-text">
+            <span class="feed-amount">${amtStr} ATOM</span>
+            ${desc ? `<span>${desc}</span>` : ''}${exchangePill}
+          </div>
+          <div class="feed-meta">
+            ${timeStr ? `<span>${timeStr}</span>` : ''}
+            ${blockStr ? `<span>${blockStr}</span>` : ''}
+            ${shortHash ? `<span>${shortHash}</span>` : ''}
+          </div>
         </div>
       </div>`;
     }
 
+    // Side panel
+    function openPanel(txhash) {
+      if (!txhash) return;
+      const overlay = document.getElementById('panelOverlay');
+      const panel = document.getElementById('sidePanel');
+      const body = document.getElementById('panelBody');
+      body.innerHTML = `<iframe src="https://www.mintscan.io/cosmos/tx/${txhash}" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>`;
+      overlay.classList.add('open');
+      panel.classList.add('open');
+    }
+
+    function closePanel() {
+      document.getElementById('panelOverlay').classList.remove('open');
+      document.getElementById('sidePanel').classList.remove('open');
+      document.getElementById('panelBody').innerHTML = '';
+    }
+
+    // Panel event listeners
+    document.getElementById('panelClose').addEventListener('click', closePanel);
+    document.getElementById('panelOverlay').addEventListener('click', closePanel);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
+
     async function renderFeed() {
       const data = await fetchJson('../data/whale-transfers.json');
-      const container = document.getElementById('feedList');
-      const dot = document.getElementById('feedDot');
+      const container = document.getElementById('feedContainer');
       const status = document.getElementById('feedStatus');
 
       if (!data || !data.transfers || data.transfers.length === 0) {
-        dot.classList.add('offline');
-        status.textContent = 'no data yet — run monitor script';
-        container.innerHTML = '<div class="feed-empty">No whale transfers detected yet.<br><span style="color:#444;font-size:10px">Run scripts/monitor-whale-transfers.mjs to start scanning</span></div>';
+        status.textContent = 'no data';
+        container.innerHTML = '<div class="feed-empty">No whale transfers detected yet</div>';
         return;
       }
 
-      // Check freshness
-      const lastScan = data.last_scan ? new Date(data.last_scan).getTime() : 0;
-      const staleMs = Date.now() - lastScan;
-      if (staleMs > 5 * 60 * 1000) {
-        dot.classList.add('offline');
-        status.textContent = `last scan ${relTime(data.last_scan)}`;
-      } else {
-        dot.classList.remove('offline');
-        status.textContent = `live · ${data.transfers.length} events · block ${(data.last_height || 0).toLocaleString()}`;
+      // Filter to sends only
+      const sends = data.transfers
+        .filter(t => t.type === 'send')
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 30);
+
+      if (sends.length === 0) {
+        status.textContent = `${data.transfers.length} events scanned`;
+        container.innerHTML = '<div class="feed-empty">No whale transfers in recent blocks</div>';
+        return;
       }
 
-      // Render latest 20 transfers
-      const sorted = data.transfers
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 20);
+      // Status
+      const lastScan = data.last_scan ? new Date(data.last_scan).getTime() : 0;
+      const staleMs = Date.now() - lastScan;
+      const exchangeSends = sends.filter(t => t.is_exchange_send).length;
+      status.textContent = staleMs < 5 * 60 * 1000
+        ? `${sends.length} transfers${exchangeSends ? ` \u00b7 ${exchangeSends} to exchanges` : ''}`
+        : `last scan ${relTime(data.last_scan)}`;
 
-      container.innerHTML = sorted.map(renderFeedItem).join('');
+      container.innerHTML = sends.map(renderFeedMsg).join('');
+
+      // Click handler for side panel
+      container.querySelectorAll('.feed-msg').forEach(el => {
+        el.addEventListener('click', () => {
+          const hash = el.dataset.txhash;
+          if (hash) openPanel(hash);
+        });
+      });
     }
 
     // ═══════════════════════════════════════════════

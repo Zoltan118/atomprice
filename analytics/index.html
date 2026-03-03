@@ -430,8 +430,50 @@
       border-radius: 3px;
       display: inline-block;
     }
-    .rp-tag.diamond { color: #22c55e; background: rgba(34,197,94,0.1); }
-    .rp-tag.seller { color: #ef4444; background: rgba(239,68,68,0.1); }
+    .rp-tag.accumulator { color: #22c55e; background: rgba(34,197,94,0.1); }
+    .rp-tag.holder { color: #60a5fa; background: rgba(96,165,250,0.1); }
+    .rp-tag.dormant { color: #666; background: rgba(102,102,102,0.1); }
+    .rp-tag.distributor { color: #ef4444; background: rgba(239,68,68,0.1); }
+    .rp-tag.trader { color: #f59e0b; background: rgba(245,158,11,0.1); }
+
+    .profile-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .profile-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+    }
+    .profile-bar-label {
+      width: 90px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+    .profile-bar-track {
+      flex: 1;
+      height: 14px;
+      background: #111;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .profile-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    .profile-bar-count {
+      width: 40px;
+      text-align: right;
+      color: #666;
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+    }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 700px) {
@@ -539,10 +581,10 @@
 
     <div class="divider"></div>
 
-    <!-- ═══════════ 3. REWARD SELL PATTERNS ═══════════ -->
+    <!-- ═══════════ 3. WHALE BEHAVIOR PROFILES ═══════════ -->
     <div class="section">
       <div class="section-header">
-        <div class="section-title">Whale Reward Sell Patterns</div>
+        <div class="section-title">Whale Behavior Profiles</div>
         <div class="section-meta" id="rpMeta">—</div>
       </div>
 
@@ -552,14 +594,19 @@
       </div>
 
       <div class="rp-summary-row">
-        <div class="rp-stat-card"><div class="rp-stat-val" id="rpClaims">—</div><div class="rp-stat-label">Total Claims</div></div>
-        <div class="rp-stat-card"><div class="rp-stat-val" id="rpClaimAtom">—</div><div class="rp-stat-label">ATOM Claimed</div></div>
-        <div class="rp-stat-card"><div class="rp-stat-val" id="rpSellRate">—</div><div class="rp-stat-label">Sell Rate</div></div>
-        <div class="rp-stat-card"><div class="rp-stat-val" id="rpSellAtom">—</div><div class="rp-stat-label">ATOM Sold</div></div>
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpWhales">—</div><div class="rp-stat-label">Whales (100K+)</div></div>
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpStaked">—</div><div class="rp-stat-label">ATOM Staked</div></div>
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpExFlow">—</div><div class="rp-stat-label">To Exchanges</div></div>
+        <div class="rp-stat-card"><div class="rp-stat-val" id="rpSellRate">—</div><div class="rp-stat-label">Reward Sell Rate</div></div>
       </div>
 
       <div class="section-header" style="margin-top: 16px">
-        <div class="section-title" style="font-size:10px">Claim Activity by Day of Week</div>
+        <div class="section-title" style="font-size:10px">Profile Distribution</div>
+      </div>
+      <div class="profile-bars" id="profileBars"></div>
+
+      <div class="section-header" style="margin-top: 16px">
+        <div class="section-title" style="font-size:10px">Activity by Day of Week</div>
       </div>
       <div class="heatmap" id="rpHeatmap"></div>
       <div class="heatmap-legend">
@@ -569,18 +616,18 @@
       </div>
 
       <div class="section-header" style="margin-top: 20px">
-        <div class="section-title" style="font-size:10px">Whale Behavior Breakdown</div>
+        <div class="section-title" style="font-size:10px">Top Whales</div>
       </div>
       <div class="rp-table">
         <div class="rp-table-head">
           <div>Whale</div>
-          <div>Claims</div>
-          <div>Sells</div>
-          <div>Rate</div>
-          <div>Status</div>
+          <div>Staked</div>
+          <div>Txs</div>
+          <div>Exchange</div>
+          <div>Profile</div>
         </div>
         <div id="rpTableBody">
-          <div class="loading-text">Loading reward patterns...</div>
+          <div class="loading-text">Loading whale profiles...</div>
         </div>
       </div>
     </div>
@@ -800,59 +847,90 @@
     }
 
     // ═══════════════════════════════════════════════
-    //  3. REWARD SELL PATTERNS
+    //  3. WHALE BEHAVIOR PROFILES
     // ═══════════════════════════════════════════════
 
+    const PROFILE_COLORS = {
+      accumulator: '#22c55e',
+      holder: '#60a5fa',
+      dormant: '#555',
+      distributor: '#ef4444',
+      trader: '#f59e0b',
+    };
+
     async function renderRewardPatterns() {
-      const data = await fetchJson('../data/whale-reward-patterns.json');
-      if (!data || !data.summary) return;
+      const data = await fetchJson('../data/whale-profiles.json');
+      if (!data || !data.aggregate) return;
 
-      const s = data.summary;
+      const agg = data.aggregate;
+      const rewards = agg.rewards || {};
 
-      const diamondPct = s.whales_who_hold > 0 && (s.whales_who_hold + s.whales_who_sell) > 0
-        ? Math.round((s.whales_who_hold / (s.whales_who_hold + s.whales_who_sell)) * 100)
-        : 0;
+      // Diamond hands %
+      const totalWithClaims = data.whales ? data.whales.filter(w => w.rewards.claim_count > 0).length : 0;
+      const diamondCount = rewards.diamond_hands_pct || 0;
+      const diamondPct = totalWithClaims > 0 ? Math.round((diamondCount / totalWithClaims) * 100) : 0;
       const el = document.getElementById('rpDiamondPct');
       el.textContent = `${diamondPct}%`;
       el.style.color = diamondPct >= 80 ? '#22c55e' : diamondPct >= 50 ? '#f59e0b' : '#ef4444';
 
-      document.getElementById('rpClaims').textContent = s.total_claims.toLocaleString();
-      document.getElementById('rpClaimAtom').textContent = fmtAtom(s.total_claim_atom);
-      document.getElementById('rpSellRate').textContent = `${(s.overall_sell_rate * 100).toFixed(1)}%`;
-      document.getElementById('rpSellRate').style.color = s.overall_sell_rate > 0.1 ? '#ef4444' : '#22c55e';
-      document.getElementById('rpSellAtom').textContent = fmtAtom(s.total_sell_atom);
+      // Summary cards
+      document.getElementById('rpWhales').textContent = agg.total_whales;
+      document.getElementById('rpStaked').textContent = fmtAtom(agg.total_staked_by_whales);
+      document.getElementById('rpExFlow').textContent = fmtAtom(agg.exchange_flow?.total_atom_to_exchange || 0);
+      const sellRateEl = document.getElementById('rpSellRate');
+      sellRateEl.textContent = `${(rewards.overall_sell_rate * 100).toFixed(1)}%`;
+      sellRateEl.style.color = rewards.overall_sell_rate > 0.1 ? '#ef4444' : '#22c55e';
 
       document.getElementById('rpMeta').textContent =
-        `${data.config?.whales_analyzed || '?'} whales · Updated ${relTime(data.generated_at)}`;
+        `${agg.total_whales} whales \u00b7 Updated ${relTime(data.generated_at)}`;
 
-      // Heatmap
-      if (data.day_of_week) {
-        const max = Math.max(...data.day_of_week.map(d => d.claims));
-        document.getElementById('rpHeatmap').innerHTML = data.day_of_week.map(d => {
-          const t = max > 0 ? d.claims / max : 0;
+      // Profile distribution bars
+      const profiles = agg.profiles || {};
+      const maxProfile = Math.max(...Object.values(profiles));
+      const barContainer = document.getElementById('profileBars');
+      barContainer.innerHTML = ['accumulator', 'holder', 'dormant', 'distributor', 'trader']
+        .filter(p => (profiles[p] || 0) > 0)
+        .map(p => {
+          const count = profiles[p] || 0;
+          const pct = maxProfile > 0 ? (count / maxProfile) * 100 : 0;
+          const color = PROFILE_COLORS[p];
+          return `<div class="profile-bar-row">
+            <div class="profile-bar-label">${p}</div>
+            <div class="profile-bar-track">
+              <div class="profile-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+            <div class="profile-bar-count">${count}</div>
+          </div>`;
+        }).join('');
+
+      // Heatmap (day of week)
+      if (agg.timing?.day_of_week) {
+        const dow = agg.timing.day_of_week;
+        const max = Math.max(...dow.map(d => d.txs));
+        document.getElementById('rpHeatmap').innerHTML = dow.map(d => {
+          const t = max > 0 ? d.txs / max : 0;
           const bg = `rgb(${Math.round(15 + t * 19)},${Math.round(46 + t * 151)},${Math.round(26 + t * 68)})`;
           return `<div class="heatmap-col">
-            <div class="heatmap-cell" style="background:${bg}"><span class="heatmap-cell-count">${d.claims}</span></div>
+            <div class="heatmap-cell" style="background:${bg}"><span class="heatmap-cell-count">${d.txs}</span></div>
             <div class="heatmap-label">${d.day_short}</div>
           </div>`;
         }).join('');
       }
 
-      // Table
-      const whales = data.all_whales || [];
-      document.getElementById('rpTableBody').innerHTML = whales.slice(0, 12).map(w => {
+      // Whale table
+      const whales = data.whales || [];
+      document.getElementById('rpTableBody').innerHTML = whales.slice(0, 15).map(w => {
         const addr = w.label || `${w.address.slice(0, 12)}...${w.address.slice(-4)}`;
-        const isSeller = w.sells > 0;
-        const tag = isSeller
-          ? '<span class="rp-tag seller">Seller</span>'
-          : '<span class="rp-tag diamond">Diamond</span>';
-        const rate = w.claims > 0 ? `${(w.sell_rate * 100).toFixed(0)}%` : '—';
-        const rc = w.sell_rate > 0.1 ? '#ef4444' : w.sell_rate > 0 ? '#f59e0b' : '#22c55e';
+        const profile = w.profile || 'holder';
+        const color = PROFILE_COLORS[profile] || '#666';
+        const tag = `<span class="rp-tag ${profile}">${profile}</span>`;
+        const exAtom = w.exchange_flow?.atom_to_exchange || 0;
+        const exColor = exAtom > 0 ? '#f59e0b' : '#333';
         return `<div class="rp-table-row">
-          <div style="font-family:monospace;font-size:10px;color:${isSeller ? '#ef4444' : '#555'}">${addr}</div>
-          <div style="font-variant-numeric:tabular-nums">${w.claims}</div>
-          <div style="font-variant-numeric:tabular-nums;color:${isSeller ? '#ef4444' : '#333'}">${w.sells}</div>
-          <div style="color:${rc};font-weight:600">${rate}</div>
+          <div style="font-family:monospace;font-size:10px;color:${color}">${addr}</div>
+          <div style="font-variant-numeric:tabular-nums">${fmtAtom(w.staked)}</div>
+          <div style="font-variant-numeric:tabular-nums">${w.activity.total_txs}</div>
+          <div style="font-variant-numeric:tabular-nums;color:${exColor}">${exAtom > 0 ? fmtAtom(exAtom) : '0'}</div>
           <div>${tag}</div>
         </div>`;
       }).join('');

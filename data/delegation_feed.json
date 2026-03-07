@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-03-07T11:49:39.415Z",
+  "generated_at": "2026-03-07T11:55:32.944Z",
   "min_atom": 1,
   "total": 1036,
-  "delegates": 914,
-  "undelegates": 122,
+  "delegates": 913,
+  "undelegates": 123,
   "ingestion_health": {
-    "generated_at": "2026-03-07T11:42:45.780Z",
+    "generated_at": "2026-03-07T11:53:35.694Z",
     "status": "ok",
     "overlap_hours": 6,
     "quorum": {
@@ -26,14 +26,14 @@
       "rpc.cosmos.directory": {
         "rpc_base": "https://rpc.cosmos.directory/cosmoshub",
         "ok": false,
-        "error": "node:internal/deps/undici/undici:14902\n      Error.captureStackTrace(err);\n            ^\nDOMException [AbortError]: This operation was aborted\n    at node:internal/deps/undici/undici:14902:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:68:17)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.0",
+        "error": "file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74\n      throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : \"\"}`);\n            ^\n\nError: HTTP 401 for https://rpc.cosmos.directory/cosmoshub/tx_search?query=%22message.action%3D%27%2Fcosmos.staking.v1beta1.MsgDelegate%27%22&prove=false&page=5&per_page=100&order_by=%22desc%22 :: <html>\r\n<head><title>401 Authorization Required</title></head>\r\n<body>\r\n<center><h1>401 Authorization Required</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n\n    at fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.0",
         "events": 0
       },
       "rpc.silknodes.io": {
         "rpc_base": "https://rpc.silknodes.io/cosmos",
         "ok": true,
         "error": null,
-        "events": 547
+        "events": 553
       },
       "cosmos.drpc.org": {
         "rpc_base": "https://cosmos.drpc.org",
@@ -43,12 +43,72 @@
       }
     },
     "ledger": {
-      "appended": 27,
-      "skipped_existing": 520,
+      "appended": 6,
+      "skipped_existing": 547,
       "partitions_touched": 1
     }
   },
   "items": [
+    {
+      "type": "delegate",
+      "amount_atom": 37.229434,
+      "delegator": "cosmos102rrjzs6dfkma2ptsqxcqwh5uktq4cxmcq7x79",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30090100,
+      "txhash": "6263E2BF612195046C4C5774F6447F4F160743363BFB4E5DBE3D2D332E2EE11B",
+      "timestamp": "2026-03-07T11:52:24.107Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 3.031938,
+      "delegator": "cosmos1s452pd3vr0mpllckw02gan83nxuu6msp3faqpa",
+      "validator_addr": "cosmosvaloper1k2d9ed9vgfuk2m58a2d80q9u6qljkh4vfaqjfq",
+      "validator_name": "Stakecito",
+      "height": 30090100,
+      "txhash": "A63A9E2CCB4993FBB9AC33E67DEF2640E4ABCD83C81ADC583009CDB3E3EB5452",
+      "timestamp": "2026-03-07T11:52:24.107Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.410262,
+      "delegator": "cosmos199nmskdqn84qhuyjd6v6dsv38pdesdz7cqsfhw",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30090080,
+      "txhash": "D0A8B36D9D67E8BB8FD1C289E33D60720E9C0CB355FAF23757E40A66EBF16E0F",
+      "timestamp": "2026-03-07T11:50:31.556Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1,
+      "delegator": "cosmos1mqfw0pcwyvfkzy6zsc2lc44zx69nz4379cgnwq",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30090068,
+      "txhash": "4916F4502D6D044F2191205343ED95B853B2E9940ABF3C3D62F4636CE6F455EA",
+      "timestamp": "2026-03-07T11:49:19.400Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 4.820942,
+      "delegator": "cosmos1wckl9z0hm6d2dylcddjlufa2r0gccyk6w9kvw8",
+      "validator_addr": "cosmosvaloper1y0us8xvsvfvqkk9c6nt5cfyu5au5tww2ztve7q",
+      "validator_name": "Swiss Staking",
+      "height": 30090061,
+      "txhash": "08A3654EAC2E63DBB8194D737E2FF846D33D641C6949A55DE46D16C889E7CAE4",
+      "timestamp": "2026-03-07T11:48:38.001Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 17.218268,
+      "delegator": "cosmos1cfqlua43ca28083n70w276lqq5937rdxep2acz",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30090051,
+      "txhash": "CCCDB2E63C4445EA9C8BE4CB36248B926581ABF1E81D51252B601523BA27E4B2",
+      "timestamp": "2026-03-07T11:47:40.114Z"
+    },
     {
       "type": "delegate",
       "amount_atom": 2.321405,
@@ -9988,66 +10048,6 @@
       "height": 30081898,
       "txhash": "1ABE506D76E3B58ED83AF173B119507DF5AABE95F4561E8A516BC4BFF91B1318",
       "timestamp": "2026-03-06T22:41:22.617Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 15.279009,
-      "delegator": "cosmos19zd6pz5lnqg9pqnc52avvg0mqel5gxn5nqslfs",
-      "validator_addr": "cosmosvaloper1we6knm8qartmmh2r0qfpsz6pq0s7emv3e0meuw",
-      "validator_name": "Kraken01",
-      "height": 30081897,
-      "txhash": "C69C47423D6E92DA24FDCB044339E97746F7A184E566C6B023A8FB73189882A4",
-      "timestamp": "2026-03-06T22:41:16.769Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 5.270776,
-      "delegator": "cosmos1y92gn4mslnl7tmml722egtu573glkdfsavnqzw",
-      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
-      "validator_name": "Meria",
-      "height": 30081896,
-      "txhash": "BAF483B1148A4C8D701E8DB33EF1201D369C510F2C06FCC67B49739EF5EED7E6",
-      "timestamp": "2026-03-06T22:41:10.771Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3,
-      "delegator": "cosmos1nja2f4shn46l0ks90tq7d0tpc772puumlm583r",
-      "validator_addr": "cosmosvaloper1k2d9ed9vgfuk2m58a2d80q9u6qljkh4vfaqjfq",
-      "validator_name": "Stakecito",
-      "height": 30081886,
-      "txhash": "309CBE814E34E9CC52E74A483B0550D6A0ABB7146A54F2F4CE3D318E46CA7283",
-      "timestamp": "2026-03-06T22:40:11.531Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3.793516,
-      "delegator": "cosmos1llj464k30gc6wzk5gn4rvjt04jn6nrvn5smpq0",
-      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
-      "validator_name": "SG-1",
-      "height": 30081876,
-      "txhash": "ADA2AF3D2CDF6E905812219E4C3CD6AD5603FD29907DF829C951EB91113F9AB8",
-      "timestamp": "2026-03-06T22:39:12.373Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.3,
-      "delegator": "cosmos1en0qzvutst4g5aze9hx9j3dclxx9qzgqkmel9t",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30081869,
-      "txhash": "6639EA96E3B171139F22D4463E4BEDEC9B113E7859F939AF8DD6F2F2EB3310C8",
-      "timestamp": "2026-03-06T22:38:32.753Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 27,
-      "delegator": "cosmos1nkwvhqxl8qhfr0u35lt936sypyl8tq795yj4uv",
-      "validator_addr": "cosmosvaloper103agss48504gkk3la5xcg5kxplaf6ttnuv234h",
-      "validator_name": "MANTRA",
-      "height": 30081861,
-      "txhash": "B368C23696A578000C567F56E47BE0364695D42D689594A94AA0BB345A517189",
-      "timestamp": "2026-03-06T22:37:45.357Z"
     },
     {
       "type": "undelegate",

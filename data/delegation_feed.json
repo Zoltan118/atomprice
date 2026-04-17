@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-17T19:43:44.616Z",
+  "generated_at": "2026-04-17T20:05:56.393Z",
   "min_atom": 1,
   "total": 1137,
-  "delegates": 908,
-  "undelegates": 229,
+  "delegates": 916,
+  "undelegates": 221,
   "ingestion_health": {
-    "generated_at": "2026-04-17T19:01:06.788Z",
+    "generated_at": "2026-04-17T20:00:57.629Z",
     "status": "ok",
     "overlap_hours": 6,
     "quorum": {
@@ -26,14 +26,14 @@
       "rpc.cosmos.directory": {
         "rpc_base": "https://rpc.cosmos.directory/cosmoshub",
         "ok": false,
-        "error": "node:internal/deps/undici/undici:14976\n      Error.captureStackTrace(err);\n            ^\nDOMException [AbortError]: This operation was aborted\n    at node:internal/deps/undici/undici:14976:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:68:17)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.2",
+        "error": "file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74\n      throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : \"\"}`);\n            ^\n\nError: HTTP 502 for https://rpc.cosmos.directory/cosmoshub/tx_search?query=%22message.action%3D%27%2Fcosmos.staking.v1beta1.MsgDelegate%27%22&prove=false&page=5&per_page=100&order_by=%22desc%22 :: <!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 8]>    <html class=\"no-\n    at fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.2",
         "events": 0
       },
       "rpc.silknodes.io": {
         "rpc_base": "https://rpc.silknodes.io/cosmos",
         "ok": true,
         "error": null,
-        "events": 1197
+        "events": 1228
       },
       "cosmos.drpc.org": {
         "rpc_base": "https://cosmos.drpc.org",
@@ -43,12 +43,902 @@
       }
     },
     "ledger": {
-      "appended": 112,
-      "skipped_existing": 1085,
+      "appended": 89,
+      "skipped_existing": 1139,
       "partitions_touched": 1
     }
   },
   "items": [
+    {
+      "type": "delegate",
+      "amount_atom": 12.349425,
+      "delegator": "cosmos1l6eah5y3d6h856nlswmh5pnp8uxar9tut05l68",
+      "validator_addr": "cosmosvaloper1k6e7l0lz497l8njqjxpd3g4wlkdfwe93uqf03k",
+      "validator_name": "Trust Nodes",
+      "height": 30708788,
+      "txhash": "191D7A06B16DA70CE2E4E37917C66536E47CC2CC27BB31640B84E64288909625",
+      "timestamp": "2026-04-17T20:01:17.658Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 40.11,
+      "delegator": "cosmos1a5z74emu2ags4dene5y9su7wpt4mnl5wht32mj",
+      "validator_addr": "cosmosvaloper1vvwtk805lxehwle9l4yudmq6mn0g32px9xtkhc",
+      "validator_name": "Imperator.co",
+      "height": 30708788,
+      "txhash": "EB36D6A41062154AB90FA3163D69A51CE480130057641E4E6404AC3690CA4585",
+      "timestamp": "2026-04-17T20:01:17.658Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 287.479921,
+      "delegator": "cosmos1y8m3wdycznx74drhntmjpd58cvmnchq2rytrl3",
+      "validator_addr": "cosmosvaloper10sjr8xv2yr83agmzw7acf6xxqrw8e3q6wvh5ne",
+      "validator_name": "Coinbase01",
+      "height": 30708785,
+      "txhash": "2AF2D456A50065EBB76C33F4D3061C97B98B1CF1453463E787E7E9410214AAF9",
+      "timestamp": "2026-04-17T20:01:00.077Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 6216.922855,
+      "delegator": "cosmos1wrfqdwrjt5y2xg2mmahcuktpjdkfu6grqc0ry4",
+      "validator_addr": "cosmosvaloper10sjr8xv2yr83agmzw7acf6xxqrw8e3q6wvh5ne",
+      "validator_name": "Coinbase01",
+      "height": 30708785,
+      "txhash": "7BFC9579BFCF5C4DEFB03F16F2DCB8599D1ADF7F41B4031E45FB0B8ECEDE7A9A",
+      "timestamp": "2026-04-17T20:01:00.077Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 11.965345,
+      "delegator": "cosmos1rtv7sac5zuzp582swgamcvkc3weh3nnzwpxlcx",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708757,
+      "txhash": "3F526D58CEB392C9A66ACDACA9181858E9D331B32CCA658BD91AA38062F95FD7",
+      "timestamp": "2026-04-17T19:58:19.958Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 37.08065,
+      "delegator": "cosmos1q6ezc3whm0yhnjc0qp2j4lz2wmq30ntkd8d0z9",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708744,
+      "txhash": "3E3BCFB4C1B653B9009D4C287993364C70FC623DEE247F8F424E7CAF668615F6",
+      "timestamp": "2026-04-17T19:57:03.403Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 9.399409,
+      "delegator": "cosmos1267evhvy4f5pvyvnlj8prmag4qcqcmnmj9rvk8",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708737,
+      "txhash": "7E8D635E142F28B6BE99A6D803E52C846AAAEC4DB7C0F654667D18AD53F399B6",
+      "timestamp": "2026-04-17T19:56:22.208Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 6.7,
+      "delegator": "cosmos1cm2kv9v8ucw7c5sj62m9c2uy9zpn7e2eq0ml36",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708728,
+      "txhash": "37E35A54273280991E37E3D89B170B595B2604741AE08DA498B3B3E6A389562D",
+      "timestamp": "2026-04-17T19:55:34.236Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 15,
+      "delegator": "cosmos1y2s3hwg5vgwek5jeqj3f5ks0yshxhr3066vujf",
+      "validator_addr": "cosmosvaloper13x4pynlp86prhcmtns742kgsgu7pjtzj4djh7s",
+      "validator_name": "CryptoDungeon",
+      "height": 30708718,
+      "txhash": "635B633305BCE12C379DB5C01D63E3CB16191B2465EBAA7E673355E82001D36E",
+      "timestamp": "2026-04-17T19:54:36.511Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 14.21351,
+      "delegator": "cosmos1e94xazy9n20nu587a8v3l4gau5549czrk568st",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708715,
+      "txhash": "63334A25AE4B3684C55E08066EE6751005ED8054901B4105552F5927A61F6738",
+      "timestamp": "2026-04-17T19:54:18.792Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 8.11514,
+      "delegator": "cosmos18qczajpnes03tsrnxfgm49wq2wqvdnkkaq8e0u",
+      "validator_addr": "cosmosvaloper1vvwtk805lxehwle9l4yudmq6mn0g32px9xtkhc",
+      "validator_name": "Imperator.co",
+      "height": 30708712,
+      "txhash": "19FAF56D3C07C124CECBF9B6531617A4C8A1D1B0E5AADB97477778EED3CDFF48",
+      "timestamp": "2026-04-17T19:54:01.076Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 3.86263,
+      "delegator": "cosmos1uwy8dqc2l7d8ktr6575n2fdzpcr4d4u9wu3cxy",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708651,
+      "txhash": "1A1DBCD24072B6ADE8F8E2E2DF35B3E71E2AC58EFCA1931FC3C570793CA1DAC2",
+      "timestamp": "2026-04-17T19:48:14.934Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.267449,
+      "delegator": "cosmos13vsc9zr52pt4kfp53q3lh8vfx5nsuutzf7hw4d",
+      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
+      "validator_name": "Ledger by Chorus One",
+      "height": 30708647,
+      "txhash": "72D9B88B8F7AA36B677C71F75981E0A93EDD42F44B7DD84E7C5B56F8E4A488EF",
+      "timestamp": "2026-04-17T19:47:50.848Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 80.950034,
+      "delegator": "cosmos102p8jygt7rdxmq6z7wps2xrpck36yn3rnlllse",
+      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
+      "validator_name": "SG-1",
+      "height": 30708646,
+      "txhash": "DFCAD6A57868F20C493A2F04632F93F659407383A7CDD5834029CBFE10354456",
+      "timestamp": "2026-04-17T19:47:44.944Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 87.320608,
+      "delegator": "cosmos102p8jygt7rdxmq6z7wps2xrpck36yn3rnlllse",
+      "validator_addr": "cosmosvaloper1c4k24jzduc365kywrsvf5ujz4ya6mwympnc4en",
+      "validator_name": "Coinbase Custody - Shutting down, delegate to coinbase01/02",
+      "height": 30708644,
+      "txhash": "E19085199EA7EFB35B06C87D97344925ABF9D901BE58C09F8158316703C6D31C",
+      "timestamp": "2026-04-17T19:47:33.076Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 2.875203,
+      "delegator": "cosmos1mtqaarshj4zc9s24qy9ydtyaxwp4g9cl4y9tm8",
+      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
+      "validator_name": "Meria",
+      "height": 30708642,
+      "txhash": "15D79BA55FD940D97A85ACC5A31CE46C6786849AE03BEC695EF4082ED849FB57",
+      "timestamp": "2026-04-17T19:47:21.366Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 2.54777,
+      "delegator": "cosmos13l8d5j3mvkhrxxxe6xs9zmyjecyzvcg05v7vv8",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708638,
+      "txhash": "17D1C6C6DA6BF28C9D2B395AF812F0EA24B422EC9D836E9D18F3D0CCDECF23DC",
+      "timestamp": "2026-04-17T19:46:57.066Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 13,
+      "delegator": "cosmos195d7tdwds4us2h2aujj4c9kvxqyk7rjnz0sxjw",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708631,
+      "txhash": "65D0A255DA767E759E9AB8360B39A48672B4D2C006337C982AF4E4151FA08850",
+      "timestamp": "2026-04-17T19:46:15.764Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 13.916634,
+      "delegator": "cosmos1dq6s08u8csdqel6nwy0euq5s2cuhdw9w7sungx",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708622,
+      "txhash": "97B3F46E94ABB5034B146323B16FDE45AE6D6F37C0025C2F4A6D49AB8802D809",
+      "timestamp": "2026-04-17T19:45:26.530Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 318.604618,
+      "delegator": "cosmos1khyc289s2k4k522xdpfwpqkl540f7x43m2yyas",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708599,
+      "txhash": "87C3C4F9EDF09E5D382D870D46E365DA9EBB73DB5286DCB4566066928F28C1B8",
+      "timestamp": "2026-04-17T19:43:12.116Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 4,
+      "delegator": "cosmos1rsclp0xzz35txtlxmvjaj8ztu9zwu8clflc0u2",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708586,
+      "txhash": "7A7A87E31EC5D709D4C58ADBE0AE53A1F666A3A571772BF9709CC2747011B2D4",
+      "timestamp": "2026-04-17T19:41:55.520Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.333294,
+      "delegator": "cosmos1v6zurl05sxxavtejhfmfnmegq67fm8pc8j6pm4",
+      "validator_addr": "cosmosvaloper18sqvyf4ss84qree7gndph5chmm82fglsqfylwn",
+      "validator_name": "PRO Delegators",
+      "height": 30708558,
+      "txhash": "B23A291307AEC8695D91E2BD95E5B2474B36FBB9DCE6A1DD1A65FE9047E2F28D",
+      "timestamp": "2026-04-17T19:39:17.053Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.595433,
+      "delegator": "cosmos177h5g6har2ne9rhn5ekwlpgv7dtkjxp20s95na",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708549,
+      "txhash": "AF3291D98AB4E4E58053A8DC71ADF2F145DD42FBB8F929915A606349B0EA9581",
+      "timestamp": "2026-04-17T19:38:22.916Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 117,
+      "delegator": "cosmos1ex4sly0j5c7m26xa4lwkpwmjrm7706nyqrzn3w",
+      "validator_addr": "cosmosvaloper1nesedjyngslkvgg8jxy6nuy6r4g6ty0fdk3yky",
+      "validator_name": "[SHUTTING DOWN ON 28TH MAY 2026]",
+      "height": 30708544,
+      "txhash": "C396837160B9DA20E29A7818C969352711E6BFC4FB27C0F253FCA01A534125B1",
+      "timestamp": "2026-04-17T19:37:53.775Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 47.538728,
+      "delegator": "cosmos13nt4p75l8es4arhuftgaz46ckpse3dy7e7yk0j",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708516,
+      "txhash": "87590954A6D0D0AE3799E0D30C822FB03306B5CF8656845127D076398D0E462B",
+      "timestamp": "2026-04-17T19:35:12.927Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 4.095444,
+      "delegator": "cosmos1v4jpl4xudzap26zwhftht5dra8jzk4t8tathej",
+      "validator_addr": "cosmosvaloper1k6e7l0lz497l8njqjxpd3g4wlkdfwe93uqf03k",
+      "validator_name": "Trust Nodes",
+      "height": 30708515,
+      "txhash": "C549453DC9216A90182A75F842A15A31EC3FFBBCBE61520D8AA5314B97E5A1E8",
+      "timestamp": "2026-04-17T19:35:07.086Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.696866,
+      "delegator": "cosmos1v4jpl4xudzap26zwhftht5dra8jzk4t8tathej",
+      "validator_addr": "cosmosvaloper1k6e7l0lz497l8njqjxpd3g4wlkdfwe93uqf03k",
+      "validator_name": "Trust Nodes",
+      "height": 30708501,
+      "txhash": "8DF200E3F296C33DB5BA6DC2BD3787E1C956A73D6B354BB2961CF99BAEE58F71",
+      "timestamp": "2026-04-17T19:33:46.640Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.696866,
+      "delegator": "cosmos1v4jpl4xudzap26zwhftht5dra8jzk4t8tathej",
+      "validator_addr": "cosmosvaloper1k6e7l0lz497l8njqjxpd3g4wlkdfwe93uqf03k",
+      "validator_name": "Trust Nodes",
+      "height": 30708498,
+      "txhash": "FDC04FF5EEFA3EE7173B3BD857FF6A21B386DFBBCA0EA58D9FDFDEE05DFB2EF9",
+      "timestamp": "2026-04-17T19:33:30.492Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 1269,
+      "delegator": "cosmos1fgn76ucqsmuru8g6f8a09zy3gmxgvxfe45330c",
+      "validator_addr": "cosmosvaloper18sqvyf4ss84qree7gndph5chmm82fglsqfylwn",
+      "validator_name": "PRO Delegators",
+      "height": 30708478,
+      "txhash": "AE8BC57E2350358AA5392089617E6BFC8563E10D4820DBE92DD76AB7D847B932",
+      "timestamp": "2026-04-17T19:31:31.683Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 13,
+      "delegator": "cosmos1v79s9uesr8kzjq9tj8t3q7xa5a5h4sgwqt89a4",
+      "validator_addr": "cosmosvaloper13x4pynlp86prhcmtns742kgsgu7pjtzj4djh7s",
+      "validator_name": "CryptoDungeon",
+      "height": 30708475,
+      "txhash": "1A708FC3384924890E7564DD1B72DE96F4D36874BB94AFD455D458CD83FF4E3A",
+      "timestamp": "2026-04-17T19:31:13.740Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.141667,
+      "delegator": "cosmos14r3xuezeru3j7w2hqekfpcha94tt8ystgay6k5",
+      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
+      "validator_name": "Meria",
+      "height": 30708474,
+      "txhash": "E71A241354642F0F0801DDA152472553B280AEEA0FBEE136DD74966DBA36A0C1",
+      "timestamp": "2026-04-17T19:31:07.450Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 446,
+      "delegator": "cosmos12r8dehvrwf67lv3qkdkyegtyasng7vg8pvnqf4",
+      "validator_addr": "cosmosvaloper18sqvyf4ss84qree7gndph5chmm82fglsqfylwn",
+      "validator_name": "PRO Delegators",
+      "height": 30708460,
+      "txhash": "3FB33470B8A8C51556E518460974B960CE4BEE85EFC04733699F1E16814215EF",
+      "timestamp": "2026-04-17T19:29:48.720Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 25,
+      "delegator": "cosmos1qswdhqynhw2tkl0gm43xmnnnngn8y43a493vdf",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708459,
+      "txhash": "6EF500CA6F0A3620EBB11E26BA4DA2E2960CAA9D180515E2FD954EAE72DD537A",
+      "timestamp": "2026-04-17T19:29:44.923Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 11,
+      "delegator": "cosmos190jqtkddz70n909fjmp7d30vhsnup5sr8fpdq4",
+      "validator_addr": "cosmosvaloper13x4pynlp86prhcmtns742kgsgu7pjtzj4djh7s",
+      "validator_name": "CryptoDungeon",
+      "height": 30708457,
+      "txhash": "18560EED472030C8648AB184C963F0B6A07FCDB1BB002C542544B32642E0F516",
+      "timestamp": "2026-04-17T19:29:33.222Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5,
+      "delegator": "cosmos1wwh26k2fayldlx8f6746dwl948j4rvajv99sm2",
+      "validator_addr": "cosmosvaloper1hjadhj9nqzpye2vkmkz4thahhd0z8dh3udhq74",
+      "validator_name": "Stake Shark",
+      "height": 30708455,
+      "txhash": "105E6A6AA22858AA698A77ABD6D65B1D8F034183E1351C612CDE2BE9BA385BA3",
+      "timestamp": "2026-04-17T19:29:21.400Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.822532,
+      "delegator": "cosmos1r03ajunm9ep4cumdyd3her62wwznjg58padkju",
+      "validator_addr": "cosmosvaloper1nuhls0wyf8slhmuasha5pz0u89jrf9nnugq8ak",
+      "validator_name": "Golden Ratio Staking",
+      "height": 30708451,
+      "txhash": "3374FCD60A669735DBA92AFBF29359FD0B66C45162843BA0EAA7580CAAF32A22",
+      "timestamp": "2026-04-17T19:28:56.904Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.665971,
+      "delegator": "cosmos18yf72w70tn3dmr03g0angcgn53dtn76ytufegr",
+      "validator_addr": "cosmosvaloper1nuhls0wyf8slhmuasha5pz0u89jrf9nnugq8ak",
+      "validator_name": "Golden Ratio Staking",
+      "height": 30708451,
+      "txhash": "3374FCD60A669735DBA92AFBF29359FD0B66C45162843BA0EAA7580CAAF32A22",
+      "timestamp": "2026-04-17T19:28:56.904Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.621612,
+      "delegator": "cosmos14t8y6agw28wyeflvqdjd3thkazkta6uxjelgvs",
+      "validator_addr": "cosmosvaloper1nuhls0wyf8slhmuasha5pz0u89jrf9nnugq8ak",
+      "validator_name": "Golden Ratio Staking",
+      "height": 30708451,
+      "txhash": "3374FCD60A669735DBA92AFBF29359FD0B66C45162843BA0EAA7580CAAF32A22",
+      "timestamp": "2026-04-17T19:28:56.904Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 465,
+      "delegator": "cosmos1xs6hmlklrzej3xy87jm0sl95m50yhvn02367ms",
+      "validator_addr": "cosmosvaloper18sqvyf4ss84qree7gndph5chmm82fglsqfylwn",
+      "validator_name": "PRO Delegators",
+      "height": 30708450,
+      "txhash": "DBD5A057B63B2125E51E5F7B443642EFB5BCAB9BB7E07C99DF2C5BC9FCD64696",
+      "timestamp": "2026-04-17T19:28:50.484Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 14,
+      "delegator": "cosmos1w7vpz09pujg0nfq9m5jf569krx566ez4y9m7r8",
+      "validator_addr": "cosmosvaloper1qaa9zej9a0ge3ugpx3pxyx602lxh3ztqgfnp42",
+      "validator_name": "GAME",
+      "height": 30708446,
+      "txhash": "3805696EC7AD9CA4AA8D503F4A5C28A98E46D4B4ED1414CB9CAEC6DE36CE6679",
+      "timestamp": "2026-04-17T19:28:27.142Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 10.091053,
+      "delegator": "cosmos14ezfh94czkrjq674ry0s4m3mavcaaswwtku5xd",
+      "validator_addr": "cosmosvaloper1hmd535f69t3x262m6s9wc6jd0dmel2zevhyuhm",
+      "validator_name": "PRYZM | StakeDrop",
+      "height": 30708431,
+      "txhash": "3C4387A9B918F6A09B89E5819ACA74BA7D5CB71FBB752A3EBBFE99AFF054294A",
+      "timestamp": "2026-04-17T19:27:00.562Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 489,
+      "delegator": "cosmos1na746zlnxalxdhuwz6a9nnnne2y9waa83w30lm",
+      "validator_addr": "cosmosvaloper18sqvyf4ss84qree7gndph5chmm82fglsqfylwn",
+      "validator_name": "PRO Delegators",
+      "height": 30708408,
+      "txhash": "7CAC7A968982FAFC247B09DBAAF3BDCDFF7C8D6F473BAA4210C13623EA5D13CB",
+      "timestamp": "2026-04-17T19:24:49.941Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 168,
+      "delegator": "cosmos1rj3qxyt6lkg05z9k2hgfgc59zq6t05r3jssadz",
+      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
+      "validator_name": "Meria",
+      "height": 30708406,
+      "txhash": "415F228E6202066CCC6701C4FE5AED25BE6EAB41BC4CF9BBAB1962AC372AC8A4",
+      "timestamp": "2026-04-17T19:24:38.198Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 8.5,
+      "delegator": "cosmos1akvpc777swtk09asunakfdyhf5fnh4ff92gtx9",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708404,
+      "txhash": "C765882F0C299149B4549A01EA8BFE3E4F50519EAFA2029D0E043A9DAEAFBFB8",
+      "timestamp": "2026-04-17T19:24:26.461Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5.843111,
+      "delegator": "cosmos1xf7gwgsrw4e9xghqhgk4xz80j2d4tdp9atpqve",
+      "validator_addr": "cosmosvaloper1qaa9zej9a0ge3ugpx3pxyx602lxh3ztqgfnp42",
+      "validator_name": "GAME",
+      "height": 30708401,
+      "txhash": "AAB803525A7990B6349CD8DB5A872FEA1F22647DC665273CD76CFF092D3B7354",
+      "timestamp": "2026-04-17T19:24:08.821Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5.350508,
+      "delegator": "cosmos1xf7gwgsrw4e9xghqhgk4xz80j2d4tdp9atpqve",
+      "validator_addr": "cosmosvaloper1zqgheeawp7cmqk27dgyctd80rd8ryhqs6la9wc",
+      "validator_name": "NO! Fee to 2025 💸 | melea.xyz",
+      "height": 30708401,
+      "txhash": "AAB803525A7990B6349CD8DB5A872FEA1F22647DC665273CD76CFF092D3B7354",
+      "timestamp": "2026-04-17T19:24:08.821Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5.396117,
+      "delegator": "cosmos1xf7gwgsrw4e9xghqhgk4xz80j2d4tdp9atpqve",
+      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
+      "validator_name": "SG-1",
+      "height": 30708401,
+      "txhash": "AAB803525A7990B6349CD8DB5A872FEA1F22647DC665273CD76CFF092D3B7354",
+      "timestamp": "2026-04-17T19:24:08.821Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 4.814903,
+      "delegator": "cosmos1xf7gwgsrw4e9xghqhgk4xz80j2d4tdp9atpqve",
+      "validator_addr": "cosmosvaloper1vf44d85es37hwl9f4h9gv0e064m0lla60j9luj",
+      "validator_name": "MultiChain ventures",
+      "height": 30708401,
+      "txhash": "AAB803525A7990B6349CD8DB5A872FEA1F22647DC665273CD76CFF092D3B7354",
+      "timestamp": "2026-04-17T19:24:08.821Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 6.049575,
+      "delegator": "cosmos1xf7gwgsrw4e9xghqhgk4xz80j2d4tdp9atpqve",
+      "validator_addr": "cosmosvaloper1ey69r37gfxvxg62sh4r0ktpuc46pzjrm873ae8",
+      "validator_name": "Sikka",
+      "height": 30708401,
+      "txhash": "AAB803525A7990B6349CD8DB5A872FEA1F22647DC665273CD76CFF092D3B7354",
+      "timestamp": "2026-04-17T19:24:08.821Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5.967364,
+      "delegator": "cosmos1xf7gwgsrw4e9xghqhgk4xz80j2d4tdp9atpqve",
+      "validator_addr": "cosmosvaloper1aewyh4gtvayx6v7w592jdfylawk4rsu9tfvfgm",
+      "validator_name": "Silk Nodes",
+      "height": 30708401,
+      "txhash": "AAB803525A7990B6349CD8DB5A872FEA1F22647DC665273CD76CFF092D3B7354",
+      "timestamp": "2026-04-17T19:24:08.821Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 28,
+      "delegator": "cosmos1lf2plp5ulpm2wqe0qkkwctthdyawyuxyduca6a",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708399,
+      "txhash": "8BD514BE699F2572C8E16610A844F2452BDA5C2BD50518CF433671AEB4C7FA48",
+      "timestamp": "2026-04-17T19:23:56.946Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 6.25199,
+      "delegator": "cosmos1gm465jswvwh5rmhrj25wjnwxqlz3kltq5sr86r",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708398,
+      "txhash": "71215A3EF5B8CBC50F3FE81DB4266DB61E8133EC7D7700FDB398F55E63AB1196",
+      "timestamp": "2026-04-17T19:23:51.089Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 135.789443,
+      "delegator": "cosmos1j0am94cuk7q9ps4hs06gdcwgmfsty0kqfeewn2",
+      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
+      "validator_name": "Ledger by Chorus One",
+      "height": 30708386,
+      "txhash": "F0207FB6C200A91CD10B98F150875AB631E7412AC18BD06C95CC478A94847A50",
+      "timestamp": "2026-04-17T19:22:42.286Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 27.051626,
+      "delegator": "cosmos1l0hgkr8fcqnkxr94kfsr6py3w6jyuafjff7qnl",
+      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
+      "validator_name": "Ledger by Chorus One",
+      "height": 30708385,
+      "txhash": "DE1946A3125E687365F9F9118D11BBF18CE64F81DDDB3B6CF21B6C0785AA932C",
+      "timestamp": "2026-04-17T19:22:36.391Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 50.999998,
+      "delegator": "cosmos1y4nmyvk7dxj8m85ypzcfcj8r9ngd0sgck4y40v",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708382,
+      "txhash": "88A72B0F75097094A8757B8A40697CF1933ABFA1509238B835C3AB814F059EB6",
+      "timestamp": "2026-04-17T19:22:18.598Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 63,
+      "delegator": "cosmos1dlvlz6k6mnu3yug4f6yn9rwxj2wsce3n5mlv6f",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708380,
+      "txhash": "B02E707D8CC072F070D27ACB5BBD20006D055545CE0A4C1A559FAED1FF630A13",
+      "timestamp": "2026-04-17T19:22:06.504Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 25.8,
+      "delegator": "cosmos1atm8eda3tvt34wsaclja59fptutcm2fg9u3a0j",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708367,
+      "txhash": "0C16E5E1D2BE2A60B592D4296D8A482ACCCB4EFFE92E56B65AF7BD319345D4C8",
+      "timestamp": "2026-04-17T19:20:50.930Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 37.85138,
+      "delegator": "cosmos17k5memx8u04nzzhvfem8x02p5y38wvefrvrgll",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708355,
+      "txhash": "109183A478607AD3A9A05229DC713C9E84D5C7DCB3E410C866936641E19C7B72",
+      "timestamp": "2026-04-17T19:19:39.558Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 8,
+      "delegator": "cosmos1qnqvzn7snylkhj2xmfyzsnw3qwsu8zfgt9lw8t",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708347,
+      "txhash": "32FE8990FFDCFEC1F40BF06E1D6A7008F7931FADC9DFC07F1F9E5E73A3AF1868",
+      "timestamp": "2026-04-17T19:18:54.572Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 98.841335,
+      "delegator": "cosmos1xdnzm686xc92tjeuepwsvj23dw2wp7qcx6mxhq",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708346,
+      "txhash": "4A985B39D1A11BE5DEF90DEA4E472E04629447C5B0DE8F7342D59166F0CFFB44",
+      "timestamp": "2026-04-17T19:18:48.648Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 27.853147,
+      "delegator": "cosmos15rwzvj45wqlar9mqhxtjg4rg3pfud8e39wl8lu",
+      "validator_addr": "cosmosvaloper1qaa9zej9a0ge3ugpx3pxyx602lxh3ztqgfnp42",
+      "validator_name": "GAME",
+      "height": 30708321,
+      "txhash": "18227D242942F1BFD00759D60B0A7D5D35DBBBA1D7C362376A54FA9F422A431A",
+      "timestamp": "2026-04-17T19:16:19.838Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5,
+      "delegator": "cosmos1ggeht37dcgwzjjduem3q4h3k9fvxkmjwtsvncy",
+      "validator_addr": "cosmosvaloper1k6e7l0lz497l8njqjxpd3g4wlkdfwe93uqf03k",
+      "validator_name": "Trust Nodes",
+      "height": 30708319,
+      "txhash": "A670E49EE3BB88F8E01063C038C70871B69A781EDDF0D1FB7EB9039A42B02325",
+      "timestamp": "2026-04-17T19:16:11.984Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.452576,
+      "delegator": "cosmos147vfzgnu3lk3z90latt6pjtcu79aurxc2jz02h",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708318,
+      "txhash": "D9964C7485B98C3541A1EA2A2DE4F1A7B15B2AE338486EF6708E8BFAF32BA5EF",
+      "timestamp": "2026-04-17T19:16:06.230Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 28.802494,
+      "delegator": "cosmos1g0aqtxqapa3c2xcelp44hmfyqteu30l68kal89",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708313,
+      "txhash": "A7652DFE59AD4E46632E91786B49D1A6594E5EBB6C57890E601569B03C562732",
+      "timestamp": "2026-04-17T19:15:38.638Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 8.012958,
+      "delegator": "cosmos1xykgs39p9sn4y5yh8cjsamczdlupcftehs4pl4",
+      "validator_addr": "cosmosvaloper1sjllsnramtg3ewxqwwrwjxfgc4n4ef9u2lcnj0",
+      "validator_name": "🐠stake.fish",
+      "height": 30708310,
+      "txhash": "4250F9FE6AEC88596BC0C697091A3DB4F0645DB171B87C1C2364368A0D33C627",
+      "timestamp": "2026-04-17T19:15:20.975Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 17.596479,
+      "delegator": "cosmos18hdl37j0qkktlux93jf3etq2gk30qtnrsrnxld",
+      "validator_addr": "cosmosvaloper1gpx52r9h3zeul45amvcy2pysgvcwddxrgx6cnv",
+      "validator_name": "StakeLab.zone",
+      "height": 30708305,
+      "txhash": "89BCA87827AC817440C0A2C4905489D2C82326BF5739C6CC65EB1C87F5D84AAF",
+      "timestamp": "2026-04-17T19:14:55.315Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 9.5,
+      "delegator": "cosmos1vvaaghfmw4ht9xvk4lagupeunvw7f6qq9tj7fr",
+      "validator_addr": "cosmosvaloper1hmd535f69t3x262m6s9wc6jd0dmel2zevhyuhm",
+      "validator_name": "PRYZM | StakeDrop",
+      "height": 30708300,
+      "txhash": "1EFBDE428F9C06E4946466EDE4066D0358BE30074246D0EF9CA78B9D27A12C90",
+      "timestamp": "2026-04-17T19:14:26.044Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 38.9,
+      "delegator": "cosmos17fa0umja3ruw72m86txmg3fpcfvf0d43z00xev",
+      "validator_addr": "cosmosvaloper1qaa9zej9a0ge3ugpx3pxyx602lxh3ztqgfnp42",
+      "validator_name": "GAME",
+      "height": 30708294,
+      "txhash": "4DD38CE1CC85181D6426A389046626A51F77A4E918642EAC026EC84765405009",
+      "timestamp": "2026-04-17T19:13:49.278Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5,
+      "delegator": "cosmos1lmqjfxc5u44x9sht3w8am5gxshhj9d6rrp3zhx",
+      "validator_addr": "cosmosvaloper15gyzcp2kas2yntv9k3p0zm4k8y6e89ecmkeqee",
+      "validator_name": "Kiln",
+      "height": 30708284,
+      "txhash": "6A2744813EF530DB383C4CAE5197A42708409C41A49E1F21DA9ACB51C83C76ED",
+      "timestamp": "2026-04-17T19:12:51.892Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 6,
+      "delegator": "cosmos1pv29j6xfgspv0cl8wqh0qyea24dt5yga7f3evv",
+      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
+      "validator_name": "Keplr",
+      "height": 30708281,
+      "txhash": "D75F58EA7EDDD94978D62032C3605E7BA8F5A4120616657842C434FD4B5F0B25",
+      "timestamp": "2026-04-17T19:12:33.434Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 101,
+      "delegator": "cosmos1hkes543pvzl5vuyvahykfgarqxmd6etgz4ydyh",
+      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
+      "validator_name": "SG-1",
+      "height": 30708278,
+      "txhash": "7CC74E7AD324D52FC9EA30E9C34214E1DDB63A6866960FC2C51BE720DD480D6B",
+      "timestamp": "2026-04-17T19:12:15.537Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 3,
+      "delegator": "cosmos1yh7c2ztua8yl0phpwcs8pag93kc23ad93kpc8a",
+      "validator_addr": "cosmosvaloper157v7tczs40axfgejp2m43kwuzqe0wsy0rv8puv",
+      "validator_name": "POSTHUMAN 🧬 StakeDrop",
+      "height": 30708276,
+      "txhash": "B63D715B4D9BB4741AFBA27E48EFCD0C866EB58F91A8675AB881BDD6939957EC",
+      "timestamp": "2026-04-17T19:12:05.777Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 4.36,
+      "delegator": "cosmos1rr4dfwmeafd4xrsyd9208nrvg7764enqepmywd",
+      "validator_addr": "cosmosvaloper1sjllsnramtg3ewxqwwrwjxfgc4n4ef9u2lcnj0",
+      "validator_name": "🐠stake.fish",
+      "height": 30708275,
+      "txhash": "B1B38B7FDDBD8D66E76E734F78696825CC3ED9FEFCFB9BF0AF90DF51BF891D3B",
+      "timestamp": "2026-04-17T19:11:59.467Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 50.999999,
+      "delegator": "cosmos1y4nmyvk7dxj8m85ypzcfcj8r9ngd0sgck4y40v",
+      "validator_addr": "cosmosvaloper140l6y2gp3gxvay6qtn70re7z2s0gn57zfd832j",
+      "validator_name": " Lavender.Five Nodes 🐝",
+      "height": 30708274,
+      "txhash": "FA508FDCFD8CB5416135CEBC353E52046CB00CE6621783A3B469CA045853B0AF",
+      "timestamp": "2026-04-17T19:11:53.506Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 34,
+      "delegator": "cosmos1y4nmyvk7dxj8m85ypzcfcj8r9ngd0sgck4y40v",
+      "validator_addr": "cosmosvaloper1gp957czryfgyvxwn3tfnyy2f0t9g2p4pqeemx8",
+      "validator_name": " polkachu.com",
+      "height": 30708270,
+      "txhash": "90C3208A3066D703CA3C7A1830C321B2CD000B1C80C6A9EC35A2CC2F7B3EA032",
+      "timestamp": "2026-04-17T19:11:34.013Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1599.528063,
+      "delegator": "cosmos1r0zau5j5ps806sqrvvng3vwg0t8xl4hyfxzmzq",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708268,
+      "txhash": "BDA6EAE1FC268605EE7905445EE5FC6598E030E2775040A69C7AAE7F21D43335",
+      "timestamp": "2026-04-17T19:11:21.944Z"
+    },
+    {
+      "type": "undelegate",
+      "amount_atom": 51,
+      "delegator": "cosmos1y4nmyvk7dxj8m85ypzcfcj8r9ngd0sgck4y40v",
+      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
+      "validator_name": "SG-1",
+      "height": 30708266,
+      "txhash": "B5D6E6741AC383DD6168DD3EB0284B89126FA4B61B1AAE840680FF97A0EFFA82",
+      "timestamp": "2026-04-17T19:11:10.052Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 54.13519,
+      "delegator": "cosmos1yqla2r7wyfk7tlr38wslpxqxfjde86csv6y4hv",
+      "validator_addr": "cosmosvaloper15gyzcp2kas2yntv9k3p0zm4k8y6e89ecmkeqee",
+      "validator_name": "Kiln",
+      "height": 30708263,
+      "txhash": "CE49D06E266CDC025DC38946D9AF8DC19566973264397E83D102AC866AAEA191",
+      "timestamp": "2026-04-17T19:10:52.471Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1027.45,
+      "delegator": "cosmos1pw4ggdkkv5dugalrkae35mdu2exuu0dnc6ghyn",
+      "validator_addr": "cosmosvaloper1n229vhepft6wnkt5tjpwmxdmcnfz55jv3vp77d",
+      "validator_name": "Allnodes",
+      "height": 30708249,
+      "txhash": "F093720BEA4E9204DEBF7C3709EADAC950FD459BBDA814FE0F7F693DDC5E7472",
+      "timestamp": "2026-04-17T19:09:28.936Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 8.169531,
+      "delegator": "cosmos19p83jdsmtjxk3z09deywd6ycs2m2x5tnfdccu8",
+      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
+      "validator_name": "Ledger by Chorus One",
+      "height": 30708248,
+      "txhash": "A9D0CC6B5B3B4E26791EFB28D2A911F84758E9F17849FE0340F7A767A2050884",
+      "timestamp": "2026-04-17T19:09:22.981Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 7.568392,
+      "delegator": "cosmos1hxp5fwaw7gq7j6zrw9d7em8hudue4khen0thjd",
+      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
+      "validator_name": "Cosmostation",
+      "height": 30708247,
+      "txhash": "C4E635A7C3631DEF97B5F31ECBE87E407C0D7338B5B81066E94606E0DBCE9272",
+      "timestamp": "2026-04-17T19:09:17.028Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.044464,
+      "delegator": "cosmos1fqczm6tv2k4cjxfakfxgjm9acstnc2jv9eef4c",
+      "validator_addr": "cosmosvaloper1gf4wlkutql95j7wwsxz490s6fahlvk2s9xpwax",
+      "validator_name": "Stakewolle.com |100% Insurance",
+      "height": 30708238,
+      "txhash": "8E8F656A9D88CAC052EBA6081A2B4485CB2930A16C001A1F348C95CAB873327D",
+      "timestamp": "2026-04-17T19:08:23.906Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 32,
+      "delegator": "cosmos1mhhqyqsz0qkhtfn8n9s3m40p09v4x6vrzm5zt4",
+      "validator_addr": "cosmosvaloper1y0us8xvsvfvqkk9c6nt5cfyu5au5tww2ztve7q",
+      "validator_name": "Swiss Staking",
+      "height": 30708237,
+      "txhash": "4ACFB5A4188F4BC5D7F474169123A820FCACBC78402E3C37948DA0E7CB26478B",
+      "timestamp": "2026-04-17T19:08:20.129Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1.103745,
+      "delegator": "cosmos1hujck5zvct2plxjeg5hzgszz8qscs4jn8ncncq",
+      "validator_addr": "cosmosvaloper1vvwtk805lxehwle9l4yudmq6mn0g32px9xtkhc",
+      "validator_name": "Imperator.co",
+      "height": 30708214,
+      "txhash": "ED1812FC89573C79B9636EC8F1A8F09F553C31E185BD519B73663A6919E56611",
+      "timestamp": "2026-04-17T19:06:10.902Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 2,
+      "delegator": "cosmos1n2nm5cdhsxckgtwct94lfrv60lhmusy439de06",
+      "validator_addr": "cosmosvaloper157v7tczs40axfgejp2m43kwuzqe0wsy0rv8puv",
+      "validator_name": "POSTHUMAN 🧬 StakeDrop",
+      "height": 30708213,
+      "txhash": "0706A214628063FED1965FCACCDF7BA12EA5B24D107AB7643BD658C8A67DF401",
+      "timestamp": "2026-04-17T19:06:04.774Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 266.141612,
+      "delegator": "cosmos1y7t53q8uv0swehxz3ulaertr77em2949eq8a2k",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708203,
+      "txhash": "212D2F75CB0AFCAB9650029485DB1D180EB6D062B57F9F315D338FD2742BCA2B",
+      "timestamp": "2026-04-17T19:05:05.949Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 1,
+      "delegator": "cosmos1ypwnrk5us3phde8lsta7g56suf90m2e3ejfuvf",
+      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
+      "validator_name": "Meria",
+      "height": 30708198,
+      "txhash": "D3CCC7642AEEADD4ED1FA44DD791A871DDC1BEA67AEFF12211883F41E9493933",
+      "timestamp": "2026-04-17T19:04:38.201Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 25.9,
+      "delegator": "cosmos1md3kwq8m3f8adukpwrnphgehr6ru77mk6pykdz",
+      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
+      "validator_name": "Everstake",
+      "height": 30708195,
+      "txhash": "231F3B9B8C981E08EC784A41B71EC5F3EC6D9AF5E596B319318A7494F42A6B61",
+      "timestamp": "2026-04-17T19:04:20.533Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 4.2,
+      "delegator": "cosmos1ys6wp6g3drdk209e22g98yesq0lwhnuxl5k422",
+      "validator_addr": "cosmosvaloper18sqvyf4ss84qree7gndph5chmm82fglsqfylwn",
+      "validator_name": "PRO Delegators",
+      "height": 30708185,
+      "txhash": "553CB0723A41306BDC022CE915AF97C317860960FED23E8FA702D449682F8D9B",
+      "timestamp": "2026-04-17T19:03:20.906Z"
+    },
     {
       "type": "delegate",
       "amount_atom": 9,
@@ -9158,896 +10048,6 @@
       "height": 30702684,
       "txhash": "F3D9D6967C10FD9B670CDB2ABAEF2976C13C9C7479153993A8E4D5A07BF26A4E",
       "timestamp": "2026-04-17T10:13:49.315Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 27,
-      "delegator": "cosmos1y626ufdwxw4pfcst9nt82882zru6nhlvuvvj6t",
-      "validator_addr": "cosmosvaloper1jmykcq8gylmy5tgqtel4xj4q62fdt49sl584xd",
-      "validator_name": "Blocks United | blocksunited.com",
-      "height": 30702681,
-      "txhash": "7AE750C2890565845C36A2667F72CD075995C4B75D5C2BEBE48D306F65973CF6",
-      "timestamp": "2026-04-17T10:13:31.171Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 7.926609,
-      "delegator": "cosmos16kqch397ywl74mzt6k0jt9dl0nlur74w7kf4xs",
-      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
-      "validator_name": "Ledger by Chorus One",
-      "height": 30702677,
-      "txhash": "492ED96783029443A313E6E24437E633DCE4C7235C99DE60094B8D0B4383C9B0",
-      "timestamp": "2026-04-17T10:13:11.593Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.0907,
-      "delegator": "cosmos1dptnjjd0tzcrp2q0gx30lf9jzq6j8r2e5kcfrm",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702674,
-      "txhash": "A082A429FEBDF67C3604D7258977E721670CA21D60557299FA4B2F89CF7FD847",
-      "timestamp": "2026-04-17T10:12:56.766Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.050294,
-      "delegator": "cosmos16kqch397ywl74mzt6k0jt9dl0nlur74w7kf4xs",
-      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
-      "validator_name": "Ledger by Chorus One",
-      "height": 30702669,
-      "txhash": "E893ECB8BC981FC786D30D1CED12E41F7F94F03F8D39F7DC22F844043E54F508",
-      "timestamp": "2026-04-17T10:12:31.075Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090796,
-      "delegator": "cosmos1el8wyx0ka46nu00k69m46p86gagxrtkgwrycda",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702664,
-      "txhash": "64B3B6404EDE34D69365B60DAC261061F755C2C103E144F6A86C2FC3DBA5E831",
-      "timestamp": "2026-04-17T10:12:01.168Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090699,
-      "delegator": "cosmos1yjmeqn8ejucxnh8rk9308smjj9e3sqrc45dvdz",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702655,
-      "txhash": "87A04DABBD91E74A21A47344DF13DAC1934976BE7000B8B125BEB1199939F66D",
-      "timestamp": "2026-04-17T10:11:07.348Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.423097,
-      "delegator": "cosmos1pkrpgf7jjq0dqnvtgdvj9qgnvgjkrlq0085d7h",
-      "validator_addr": "cosmosvaloper1yfnaup5wa3vdzx3wx9auhvzl85saqj37tqxqnu",
-      "validator_name": "Moonlet",
-      "height": 30702649,
-      "txhash": "229992128F47118B50E023633385D6B3F491D8D60D1ACFDE1623696E5C514F35",
-      "timestamp": "2026-04-17T10:10:31.167Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090799,
-      "delegator": "cosmos17kz6z048p63asyve7wgzt4auqv7l5vyk9g79gj",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702646,
-      "txhash": "BFBF3C001D65F2D1DF901F597F20E787A4A71259BADDC300453AD72A74828400",
-      "timestamp": "2026-04-17T10:10:15.625Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 26.3,
-      "delegator": "cosmos1qtapzv04rs6uduhxa44k6dpxv3s349seyv0a2j",
-      "validator_addr": "cosmosvaloper16qnr6snzq49l6grkyu39lzchnfv3ajfdvejx55",
-      "validator_name": "Stake&Relax 🦥",
-      "height": 30702645,
-      "txhash": "4F39E04131F89F41B960BFA333F7057038C180279791BD14E0E2E290C42BB062",
-      "timestamp": "2026-04-17T10:10:09.874Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.0907,
-      "delegator": "cosmos13lh5t8659dxcth62l9wf82kzpnx2p083wzqv2p",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702636,
-      "txhash": "A4EC67BD7A25A19650672922455FDC9024BB938F3E9569AECC9B177099D3C04D",
-      "timestamp": "2026-04-17T10:09:16.206Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.0907,
-      "delegator": "cosmos1czyr5t30q398n5dgn07d23lvmefhg3tr7we7j5",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702626,
-      "txhash": "77F6C5D0D29C42E0383D7C5BC62C8D7F5E2127BD981D9C7DDBC34A0B7C546DFC",
-      "timestamp": "2026-04-17T10:08:17.329Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2,
-      "delegator": "cosmos1dppgfueh7a05qppyv676q6z7jjuqxadsp3j6yt",
-      "validator_addr": "cosmosvaloper156gqf9837u7d4c4678yt3rl4ls9c5vuursrrzf",
-      "validator_name": "Binance Staking",
-      "height": 30702623,
-      "txhash": "9739F8201E45002C482B19C10B9D3F273D178D4385A49B0CF6A23A0C12CD7F16",
-      "timestamp": "2026-04-17T10:08:03.671Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.089999,
-      "delegator": "cosmos1fmmm23qktlv3dee8zvawlus3skh6yp7j02qysw",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702615,
-      "txhash": "A18B3C0EF244040E3A98CE590E398BFCDD37F2C0F4AD34CA103AA672FE7A654A",
-      "timestamp": "2026-04-17T10:07:18.380Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090699,
-      "delegator": "cosmos1q8tsp0jc2pjksdpp96q5t2la2a4djev250px4t",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702604,
-      "txhash": "6F65B3B89189309E19618FAD5DFC5528F205955BD9E3B28B9A95630D7F912F11",
-      "timestamp": "2026-04-17T10:06:15.248Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3.3,
-      "delegator": "cosmos1e6s9au2w992pah5yt6gtcz8jk9sc6mzgegm0er",
-      "validator_addr": "cosmosvaloper1lzhlnpahvznwfv4jmay2tgaha5kmz5qxerarrl",
-      "validator_name": "Citadel.one",
-      "height": 30702601,
-      "txhash": "54C37412F0CD66D122998A66BBAD15DACA07E740C3D85D68CF5EA599C1EAA6B5",
-      "timestamp": "2026-04-17T10:05:57.792Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090698,
-      "delegator": "cosmos1408luectm6tlh2dme4tamwr023pu93c7sqj3kx",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702595,
-      "txhash": "E6348BA286080D00C82FB449D5D62C6253C7B087F47AC80822CC1FDE42CF047F",
-      "timestamp": "2026-04-17T10:05:22.309Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090799,
-      "delegator": "cosmos1a09v7vpca9u2uduhvv4u00msmnzsh8qeertaqu",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702586,
-      "txhash": "57B8495A347B4CB8A273966CEA7E7C6ED24151AA80BD203D0A3E5CE96481594E",
-      "timestamp": "2026-04-17T10:04:28.766Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 999.987115,
-      "delegator": "cosmos13hxm8sw4d3834kkufzhckxc45565sfkdcn8ysd",
-      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
-      "validator_name": "Meria",
-      "height": 30702584,
-      "txhash": "0CE192FDF76D2C444CBA882A13D9FFD15438461F9071ABEB838AB95537D64C79",
-      "timestamp": "2026-04-17T10:04:16.769Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3,
-      "delegator": "cosmos1thvgkh8zy46fh7mc357dnm8n9j0v8yan99l50s",
-      "validator_addr": "cosmosvaloper1fsg635n5vgc7jazz9sx5725wnc3xqgr7awxaag",
-      "validator_name": "Crosnest",
-      "height": 30702582,
-      "txhash": "1DE1414C222B00EBE0A1072888F88A42D315DBB67724353FFF3A7A1975B6206E",
-      "timestamp": "2026-04-17T10:04:05.111Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 20,
-      "delegator": "cosmos1pzu40znmxatuuvsfg2scnzudrjp7kwg249zy33",
-      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
-      "validator_name": "Everstake",
-      "height": 30702575,
-      "txhash": "F360231084A62E9E25FFB9C9CB9547C8EB2147D594CE2469A734507C87FD20BF",
-      "timestamp": "2026-04-17T10:03:23.834Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2.706948,
-      "delegator": "cosmos1kwd5tjclvevlsgpmas57pe6c6j46zens9a774f",
-      "validator_addr": "cosmosvaloper1am8wmhwta4swx8f4quvffu7hqw48aujwypp0ew",
-      "validator_name": "Huginn",
-      "height": 30702561,
-      "txhash": "41BCA45FF891852649A35C37722CCFB3C7D6CE85BDB09F56752F3F5D77567D48",
-      "timestamp": "2026-04-17T10:02:05.810Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.0907,
-      "delegator": "cosmos13npfp6l5wuqst5n29gljzwsztck2u2ypzn490v",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702558,
-      "txhash": "8967BE1DBF45BE1DAC56D3C20C75F058AC7EC62AC2FB35DA2FD512BEB08D54AD",
-      "timestamp": "2026-04-17T10:01:48.295Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.723948,
-      "delegator": "cosmos1k4wwatjx8ht4raaaud97p6w6ll8m5u3unuvpkt",
-      "validator_addr": "cosmosvaloper188l6kl0k9dujfd9y3la6w5ykvxzechd8a06z55",
-      "validator_name": "Inter Blockchain Services",
-      "height": 30702552,
-      "txhash": "9E1885BAAB031467F26B623F89FCEC9DB3B79F95FB70DAA7500EE4505C98E0C4",
-      "timestamp": "2026-04-17T10:01:13.032Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2.012944,
-      "delegator": "cosmos1kwd5tjclvevlsgpmas57pe6c6j46zens9a774f",
-      "validator_addr": "cosmosvaloper188l6kl0k9dujfd9y3la6w5ykvxzechd8a06z55",
-      "validator_name": "Inter Blockchain Services",
-      "height": 30702552,
-      "txhash": "9E1885BAAB031467F26B623F89FCEC9DB3B79F95FB70DAA7500EE4505C98E0C4",
-      "timestamp": "2026-04-17T10:01:13.032Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 18.583629,
-      "delegator": "cosmos1hut3gtse7mvczqaqm7pxl0htvy8f4dl97l4t9l",
-      "validator_addr": "cosmosvaloper132juzk0gdmwuxvx4phug7m3ymyatxlh9734g4w",
-      "validator_name": "P2P.org",
-      "height": 30702542,
-      "txhash": "7B83793134542D77E8DEB3C1DC28C5A45CAF12B95DBDCF42FF842C75DB455B80",
-      "timestamp": "2026-04-17T10:00:15.528Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.05048,
-      "delegator": "cosmos1k4wwatjx8ht4raaaud97p6w6ll8m5u3unuvpkt",
-      "validator_addr": "cosmosvaloper1n3mhyp9fvcmuu8l0q8qvjy07x0rql8q46fe2xk",
-      "validator_name": "0base.vc",
-      "height": 30702541,
-      "txhash": "5A59A9CAE97986FE70E0FCACFB05E1794BF519091F2EA7B97A944354C68E9F12",
-      "timestamp": "2026-04-17T10:00:09.408Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.616506,
-      "delegator": "cosmos1727rdhg6m63xeemxrzhtmtxngmwse7um3pkqsd",
-      "validator_addr": "cosmosvaloper1vyg0fjqxkgwz70vnkzz9y6z3t64grxr3jd69tl",
-      "validator_name": "EthicalNode (new)",
-      "height": 30702541,
-      "txhash": "FA5B2E38C9C38F8AB2408C2875E8831B23A76E49BEF6106E77014EAD2B77AFA8",
-      "timestamp": "2026-04-17T10:00:09.408Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.324629,
-      "delegator": "cosmos1usqzj6gnft6czcsta206n545acrfhqfejjvsd2",
-      "validator_addr": "cosmosvaloper1vyg0fjqxkgwz70vnkzz9y6z3t64grxr3jd69tl",
-      "validator_name": "EthicalNode (new)",
-      "height": 30702541,
-      "txhash": "FA5B2E38C9C38F8AB2408C2875E8831B23A76E49BEF6106E77014EAD2B77AFA8",
-      "timestamp": "2026-04-17T10:00:09.408Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090699,
-      "delegator": "cosmos1js32wa60rtldty4d4vwusuc98weclsy4jsz6pk",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702538,
-      "txhash": "9362646130F47449D1769DF50FD730D1CF263B109AB2B53E1257B4CE028DCF57",
-      "timestamp": "2026-04-17T09:59:51.867Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 55,
-      "delegator": "cosmos1cp6kut6cus7ed82mztc3r3cc7pndefz6slywhc",
-      "validator_addr": "cosmosvaloper18sqvyf4ss84qree7gndph5chmm82fglsqfylwn",
-      "validator_name": "PRO Delegators",
-      "height": 30702534,
-      "txhash": "730FD414BBE8E358817DC5D43C16FA1F03BD1B61BEEE5A33A25290207B192711",
-      "timestamp": "2026-04-17T09:59:33.319Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.0908,
-      "delegator": "cosmos14p72hcd0rmmd4judjfvkzn8ee0aznevv4k2gyt",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702526,
-      "txhash": "CFFAD70807085CDF88ADDF451AF99039EAAEFBD6226DA865E148D50AEFC96646",
-      "timestamp": "2026-04-17T09:58:45.698Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.057127,
-      "delegator": "cosmos1fqczm6tv2k4cjxfakfxgjm9acstnc2jv9eef4c",
-      "validator_addr": "cosmosvaloper1gf4wlkutql95j7wwsxz490s6fahlvk2s9xpwax",
-      "validator_name": "Stakewolle.com |100% Insurance",
-      "height": 30702525,
-      "txhash": "81A6E0680CBE473D8F8C5405352058A3BDA2D3A20321CB13DB24848C407B3F1B",
-      "timestamp": "2026-04-17T09:58:39.781Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 30.568406,
-      "delegator": "cosmos1s7m8z2fygh2w0hqadlwl4h5fnhfjt5h3pj56tq",
-      "validator_addr": "cosmosvaloper15urq2dtp9qce4fyc85m6upwm9xul3049e02707",
-      "validator_name": "Chorus One",
-      "height": 30702520,
-      "txhash": "47BA29D6BF0537DD3066A7F309EDFC0DBF2D5CCC609D709EF1D1EED71AC8B99F",
-      "timestamp": "2026-04-17T09:58:14.216Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090087,
-      "delegator": "cosmos1hcpveu2v0y5ennuvmljvrj9umfurzgy7e547ak",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702509,
-      "txhash": "A2D2E4DC9914129547649CB76D334734267ECEA4E50C4543B21BDBAB6D154C0B",
-      "timestamp": "2026-04-17T09:57:09.201Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 25,
-      "delegator": "cosmos1s7m8z2fygh2w0hqadlwl4h5fnhfjt5h3pj56tq",
-      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
-      "validator_name": "SG-1",
-      "height": 30702503,
-      "txhash": "AFC8C075E1395762DC990141F02ED7B03423EB0FFBEAAA115E88B61594F04BFD",
-      "timestamp": "2026-04-17T09:56:33.166Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 14.415384,
-      "delegator": "cosmos1vjsznvuvxlhgy7429nxap60x2e9rj7u4za6aar",
-      "validator_addr": "cosmosvaloper1q6d3d089hg59x6gcx92uumx70s5y5wadklue8s",
-      "validator_name": "Ubik Capital",
-      "height": 30702499,
-      "txhash": "34A02A0F55D58556F4480BE9E4643410475AE9336F52C825322EF51C933C41AA",
-      "timestamp": "2026-04-17T09:56:09.451Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.0907,
-      "delegator": "cosmos1fnnpt069wks84d2afhvj8l6xk2jemzzatq3hqy",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702497,
-      "txhash": "47E8B2A5B6B18B6250FA4F889345EF2ED231FACD5139B42D4E02CDD890FF6A76",
-      "timestamp": "2026-04-17T09:55:59.761Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 9.4,
-      "delegator": "cosmos1ntyq098tly7ffvsu3nnzd0rxypsz7rq44u9jtl",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702495,
-      "txhash": "ACE3D71E2B95449B74188CD7CD3690F71784850128A1906D00A7E61AE08CE9D7",
-      "timestamp": "2026-04-17T09:55:47.892Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 300,
-      "delegator": "cosmos1gw9n62cpmukfxkc09ehs3mmtj4myqwgc27texu",
-      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
-      "validator_name": "Keplr",
-      "height": 30702494,
-      "txhash": "0C60E9A38476725EFD4753507106BE8F03280EB08D9CC300D818F63BA8A50110",
-      "timestamp": "2026-04-17T09:55:41.853Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 206.287108,
-      "delegator": "cosmos1zrejhhsjjzt36ke74sarrag30m54p799xg86qp",
-      "validator_addr": "cosmosvaloper1wvt5zugk97mrl5rm9c3m573f9gj03w2gyh8m5v",
-      "validator_name": "CloudByte",
-      "height": 30702492,
-      "txhash": "E93F4F11CE6A0603C810B6E3B7895543FA22175B76906A123E32D54887525BA5",
-      "timestamp": "2026-04-17T09:55:30.135Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 22,
-      "delegator": "cosmos1ntyq098tly7ffvsu3nnzd0rxypsz7rq44u9jtl",
-      "validator_addr": "cosmosvaloper1hmd535f69t3x262m6s9wc6jd0dmel2zevhyuhm",
-      "validator_name": "PRYZM | StakeDrop",
-      "height": 30702492,
-      "txhash": "A4DD606220D3A1202876C99224C11B6295694108AC2243ADAB7E7790398A470B",
-      "timestamp": "2026-04-17T09:55:30.135Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 7.1,
-      "delegator": "cosmos1ntyq098tly7ffvsu3nnzd0rxypsz7rq44u9jtl",
-      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
-      "validator_name": "Keplr",
-      "height": 30702487,
-      "txhash": "3658F5BFD161F7DB2EF9465569A0634D5304F63F25BA0FCF19642CDD47D170AE",
-      "timestamp": "2026-04-17T09:54:59.711Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090699,
-      "delegator": "cosmos1e8nulayrxw3m7pasnx809sjmsc9xxlkpzm0zmp",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702486,
-      "txhash": "68DEBD2998FFCB59922EF2FDED5B72E5C975BDFC30E1D7D8B93314425274A994",
-      "timestamp": "2026-04-17T09:54:53.654Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 43,
-      "delegator": "cosmos15er722f4na8nxg5pfw3aej80gc6hfavdpmmyvm",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702469,
-      "txhash": "219B4A8FE314DB3C5F970EFD7C95AAA0A2F1198057CC3C51DC9C606AFB336976",
-      "timestamp": "2026-04-17T09:53:19.056Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 6,
-      "delegator": "cosmos1l52kasynlszqffxst8ajlgj50l6cw9gr7h7rmg",
-      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
-      "validator_name": "Everstake",
-      "height": 30702466,
-      "txhash": "97D279531F309C6F05AF6234516BF765EF1DC80250AE42F435B6B957F32C99BC",
-      "timestamp": "2026-04-17T09:53:01.642Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.090798,
-      "delegator": "cosmos17u9m4p9ch692mhccv3llq4mg5fhq7llv2srafn",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702465,
-      "txhash": "2E50E0A9721508C333E14D2E7A567C3A26B454CE4864DAD126D74EF061F9F37F",
-      "timestamp": "2026-04-17T09:52:55.719Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 67.035956,
-      "delegator": "cosmos1tqezln82r4gt6rjsl6xl7sv5qfzhwekq40z2w6",
-      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
-      "validator_name": "Everstake",
-      "height": 30702457,
-      "txhash": "87135FD8B4EEEED02991698A6DF3BA5D19ECE81E2B0F4A8DFC2E39C85ED43A15",
-      "timestamp": "2026-04-17T09:52:11.031Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3240,
-      "delegator": "cosmos1lj752xpxj0e5hp66w3s5q78zn0l5fml57upeky",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702454,
-      "txhash": "8C11BC045FFE81BF70B9B19E897EC398256488B09B66A5D4A1ADB487AC792089",
-      "timestamp": "2026-04-17T09:51:53.074Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 151.722743,
-      "delegator": "cosmos1yl0kzq8yz3sv5guyryk6tpmdxpchkgvphkhhqj",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702449,
-      "txhash": "D6BB0329763D7B8D56490F827E7C7C68484C3F4C692F13FD3B51B4DE64B1B4AA",
-      "timestamp": "2026-04-17T09:51:23.313Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 50.0907,
-      "delegator": "cosmos1pehs6wzz67ss4etk25vhxg2yfvkx2jsj2p8wdj",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702449,
-      "txhash": "8E59D3E5F8172CB75E0D71FC542D5182047DBDD84BA6F863E6696E3683B8E0B5",
-      "timestamp": "2026-04-17T09:51:23.313Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1,
-      "delegator": "cosmos1cvujalweh2u4enpja3m0azx3fsnq3dy85y3y9k",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702448,
-      "txhash": "84EDDC81DB5423E5EAB6B312967E0B75369FBCF76C31DCFBC4F26167208DD7C7",
-      "timestamp": "2026-04-17T09:51:17.404Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.387685,
-      "delegator": "cosmos1uhcrwsavhak2k2ft74xdw6fm3axw9j7v2u8w83",
-      "validator_addr": "cosmosvaloper1n229vhepft6wnkt5tjpwmxdmcnfz55jv3vp77d",
-      "validator_name": "Allnodes",
-      "height": 30702448,
-      "txhash": "243DD87B2F65DAE48A9C8D1CC743E131130D3C1DA5AD39C51B38433FC66A12AA",
-      "timestamp": "2026-04-17T09:51:17.404Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2.493357,
-      "delegator": "cosmos106ecyuf59cytztnmy7ued38da968qdzaqac4tv",
-      "validator_addr": "cosmosvaloper18ruzecmqj9pv8ac0gvkgryuc7u004te9rh7w5s",
-      "validator_name": "Binance Node",
-      "height": 30702446,
-      "txhash": "C50AD0B766EB498EE28E9FC6014068A70EDDA9911C4AD51ABB95DFCBFC544DB0",
-      "timestamp": "2026-04-17T09:51:05.613Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 15,
-      "delegator": "cosmos1n59qzn8zzegqnpctrhmye8n2lm45006jpwpfvp",
-      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
-      "validator_name": "Meria",
-      "height": 30702444,
-      "txhash": "4CBA232C49B750467CEB2224BC99F0D7BD5A1C0F73F7F4079D0EA6A90222A58E",
-      "timestamp": "2026-04-17T09:50:53.535Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 78,
-      "delegator": "cosmos1uc3szzye3lfjnhmpkayf7lqcfje9w5qez53ydx",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702443,
-      "txhash": "881EC0E7A19A4998828FAD1A5CB8382DD55F401AE9D0EEADDB59A8E2246E10D3",
-      "timestamp": "2026-04-17T09:50:47.326Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 7.07,
-      "delegator": "cosmos15epg33jeuxeqrfg04runrspqypxwvju8cyumyn",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702436,
-      "txhash": "55BF2046962C1EE7F7917BC8BE6F932F19F6A5CFEB523C90860FCAA0814361A8",
-      "timestamp": "2026-04-17T09:50:05.798Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 12.5,
-      "delegator": "cosmos1q5lydukje5rtchwysnl4f2h9z3h3j875v38kcz",
-      "validator_addr": "cosmosvaloper1k2d9ed9vgfuk2m58a2d80q9u6qljkh4vfaqjfq",
-      "validator_name": "Stakecito",
-      "height": 30702433,
-      "txhash": "C87D7E08315B01416BF46B2902699C20B7A8F32A8B794B91638B3C5271553EB1",
-      "timestamp": "2026-04-17T09:49:47.903Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 5.765123,
-      "delegator": "cosmos13rpmcllcwz4hl44jm30rn78snu3yhhqxa0zw32",
-      "validator_addr": "cosmosvaloper1tflk30mq5vgqjdly92kkhhq3raev2hnz6eete3",
-      "validator_name": "Everstake",
-      "height": 30702425,
-      "txhash": "A5C38744E0EC9175F7FF48AA1E4E712E855A2D3A2946DB2FBF72732679BE49CB",
-      "timestamp": "2026-04-17T09:49:02.831Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 4.1,
-      "delegator": "cosmos1ma54vs7pz53ywmr0ralk4ayqk6zswsdjkqesaj",
-      "validator_addr": "cosmosvaloper1k6e7l0lz497l8njqjxpd3g4wlkdfwe93uqf03k",
-      "validator_name": "Trust Nodes",
-      "height": 30702410,
-      "txhash": "096CCA99BB47A082A297D85E5585C6C48B7D857BB67BF80816E8A919823B07DD",
-      "timestamp": "2026-04-17T09:47:38.116Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 4,
-      "delegator": "cosmos1a36kff4tzga6q7v8u382ady88jtwywpkt3alr8",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702408,
-      "txhash": "E2750BF15DCF008B2772F0AB299AE245924D9651DE10DEC68A4399F2231C721F",
-      "timestamp": "2026-04-17T09:47:26.299Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 4.215,
-      "delegator": "cosmos1gkz5rg235jhp6kxf6herjdgag4kh8du65kztyv",
-      "validator_addr": "cosmosvaloper157v7tczs40axfgejp2m43kwuzqe0wsy0rv8puv",
-      "validator_name": "POSTHUMAN 🧬 StakeDrop",
-      "height": 30702408,
-      "txhash": "8CE4646DAB9F0ACB5D62BBB0233D98102D2D679A0E6D03F1387C9857A5C265C6",
-      "timestamp": "2026-04-17T09:47:26.299Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.16,
-      "delegator": "cosmos15nrsueqfl93w30yur44cdafhjh6vretmnjggtp",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702384,
-      "txhash": "F085F9AB1E0399153A262FC478FCC31E734E95A2DB1A399509375AB3F4BEEE10",
-      "timestamp": "2026-04-17T09:45:05.486Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3,
-      "delegator": "cosmos1m54laper72re5y7lh5crn79njejsu7w20q6d6k",
-      "validator_addr": "cosmosvaloper1n229vhepft6wnkt5tjpwmxdmcnfz55jv3vp77d",
-      "validator_name": "Allnodes",
-      "height": 30702381,
-      "txhash": "79FD2BD91333981FDDC09D3DD22066556ED9FF43C0CAAD468245BF776507FB8F",
-      "timestamp": "2026-04-17T09:44:47.894Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 7,
-      "delegator": "cosmos1karnkuy57qtm4djyt20fu7cf9evue33jj8d44v",
-      "validator_addr": "cosmosvaloper1ptyzewnns2kn37ewtmv6ppsvhdnmeapvtfc9y5",
-      "validator_name": "WeStaking",
-      "height": 30702379,
-      "txhash": "F21D056668773B77A66EBED32245684873CA297881D6BA4985B2D4420A59D66E",
-      "timestamp": "2026-04-17T09:44:36.185Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2.3,
-      "delegator": "cosmos1w0s5t2vf9gzsjgpkf5pjn30e604wp2u2z46t7n",
-      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
-      "validator_name": "Meria",
-      "height": 30702369,
-      "txhash": "9331C1A4E8FD36F6B724A27143696D70D12624619E442EB10DA0E5E5CEA9BF83",
-      "timestamp": "2026-04-17T09:43:39.662Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 10.068321,
-      "delegator": "cosmos12u9t8cehghy6vqrpxv8p4f2sw8nmx3x8sgn7kk",
-      "validator_addr": "cosmosvaloper1a37ze3yrr2y9nn98l6frhjskmufvd40cpyd0gq",
-      "validator_name": "ECO Stake 🌱 | REStake.app",
-      "height": 30702355,
-      "txhash": "FD3A81E6AEC7B156AB42AC51D094E1850AE1C89591639CDD3B869862BBB72B27",
-      "timestamp": "2026-04-17T09:42:17.036Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 16.787759,
-      "delegator": "cosmos129yn5mf2w7fa6vntwx9lqnfzu9fzchz7zq49vt",
-      "validator_addr": "cosmosvaloper1qaa9zej9a0ge3ugpx3pxyx602lxh3ztqgfnp42",
-      "validator_name": "GAME",
-      "height": 30702345,
-      "txhash": "F5C5CB6190B64F0685BCDF23AE98FB9CEB4BF00C1D28AB06EE9693B1E8572EC0",
-      "timestamp": "2026-04-17T09:41:19.791Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.83368,
-      "delegator": "cosmos129yn5mf2w7fa6vntwx9lqnfzu9fzchz7zq49vt",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702345,
-      "txhash": "F5C5CB6190B64F0685BCDF23AE98FB9CEB4BF00C1D28AB06EE9693B1E8572EC0",
-      "timestamp": "2026-04-17T09:41:19.791Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 33.612004,
-      "delegator": "cosmos15pvqcqnedsrhvlvkjdg8vckr0te4nlj96y9e7s",
-      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
-      "validator_name": "Meria",
-      "height": 30702341,
-      "txhash": "D288EB0B867801C9EFB77402A4614DC8820D1C582E37545603D1F0C5065F1C93",
-      "timestamp": "2026-04-17T09:40:56.222Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 9.39906,
-      "delegator": "cosmos1l2uxcctqvps8ncrgggtlhc5pccuacy0zv0crl8",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702319,
-      "txhash": "5711091D16FEFC0A91974E6646DE2CF560534A9ADEB98EF2BA3FC8BDEF3238E8",
-      "timestamp": "2026-04-17T09:38:52.017Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 30,
-      "delegator": "cosmos18s9m6myunff0f5xurwaktvfjrasapp9u9xqrha",
-      "validator_addr": "cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn",
-      "validator_name": "Cosmostation",
-      "height": 30702309,
-      "txhash": "5CC7824F4F82955F314BE592216936EBC3611284CACF254E2B902F3B4E176308",
-      "timestamp": "2026-04-17T09:37:54.309Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2.49654,
-      "delegator": "cosmos1ej8xlezndtt8dej7watv6p3hc92v95jawfa3xv",
-      "validator_addr": "cosmosvaloper1a37ze3yrr2y9nn98l6frhjskmufvd40cpyd0gq",
-      "validator_name": "ECO Stake 🌱 | REStake.app",
-      "height": 30702307,
-      "txhash": "825537B3144C997521D11A53F40700DE5A12E269EFBBD61DCD18B6B5FA75A80A",
-      "timestamp": "2026-04-17T09:37:41.619Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.15,
-      "delegator": "cosmos12jmdphjuwj4k9tts4rlfdhgxuc5efhwl5qddpz",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 30702301,
-      "txhash": "C720B86BF844A567A365787CA78610EBEBEE2E3C394D6C884D2CD60B563C3B33",
-      "timestamp": "2026-04-17T09:37:05.812Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 336.700617,
-      "delegator": "cosmos1ka2kzc30cpav75mp7hae6jj7sankhqt2ujv6rp",
-      "validator_addr": "cosmosvaloper15gyzcp2kas2yntv9k3p0zm4k8y6e89ecmkeqee",
-      "validator_name": "Kiln",
-      "height": 30702300,
-      "txhash": "6079240C97FD6A52DBE6A44C609505A4E199096309E9B9B2CBD360CE0804CFBA",
-      "timestamp": "2026-04-17T09:37:00.020Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 7.699999,
-      "delegator": "cosmos1rn4ze4cjfd23zcakak9udrmk5lzu9wjjz2qrc9",
-      "validator_addr": "cosmosvaloper1lcwxu50rvvgf9v6jy6q5mrzyhlszwtjxhtscmp",
-      "validator_name": "stakezone",
-      "height": 30702296,
-      "txhash": "45519CBFA5C29FB5E879E29B02A3D7805E5AD3FA1D523563CE9EDDCF6EEEBB52",
-      "timestamp": "2026-04-17T09:36:36.269Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2,
-      "delegator": "cosmos14pmv8870ymqr7vp02fhnj56psjq2yjj238lmqs",
-      "validator_addr": "cosmosvaloper1sjllsnramtg3ewxqwwrwjxfgc4n4ef9u2lcnj0",
-      "validator_name": "🐠stake.fish",
-      "height": 30702294,
-      "txhash": "68A66BC49592911B9AB5F9834F478A25448E25894DA12D75A91450734894D90A",
-      "timestamp": "2026-04-17T09:36:24.022Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 4.395169,
-      "delegator": "cosmos1rn4ze4cjfd23zcakak9udrmk5lzu9wjjz2qrc9",
-      "validator_addr": "cosmosvaloper1gpx52r9h3zeul45amvcy2pysgvcwddxrgx6cnv",
-      "validator_name": "StakeLab.zone",
-      "height": 30702291,
-      "txhash": "03E949B2D7C31E667353EC8F8D46D8D02A2C4F60F7CA73FE98E8FA0A9362A55A",
-      "timestamp": "2026-04-17T09:36:06.301Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 360,
-      "delegator": "cosmos1lj752xpxj0e5hp66w3s5q78zn0l5fml57upeky",
-      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
-      "validator_name": "SG-1",
-      "height": 30702287,
-      "txhash": "AE716F7D1D4CF966166D75EE8194B78E32EEDF1CBAD486F626409446042EE673",
-      "timestamp": "2026-04-17T09:35:42.700Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3853.705398,
-      "delegator": "cosmos1phj5gw8nr9gcap9qx8ynxg6s7tdtw59walnuha",
-      "validator_addr": "cosmosvaloper1we6knm8qartmmh2r0qfpsz6pq0s7emv3e0meuw",
-      "validator_name": "Kraken01",
-      "height": 30702283,
-      "txhash": "8F26511CD845EDAAD83ABB6713EB3D029177608B870AD3ED5751AF3FD295FE05",
-      "timestamp": "2026-04-17T09:35:19.258Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3,
-      "delegator": "cosmos1qtvsayru5nkx856yy277u8y2cejc3jvrxtdnds",
-      "validator_addr": "cosmosvaloper1wrx0x9m9ykdhw9sg04v7uljme53wuj03aa5d4f",
-      "validator_name": "Meria",
-      "height": 30702266,
-      "txhash": "488CE481A9A56FB2F12E7758C6666D822305C01E19EF0DE215DCD51B2781D3C9",
-      "timestamp": "2026-04-17T09:33:45.464Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 14.5,
-      "delegator": "cosmos16uqgzhs4vul6h5ent23687yrc9yltdq68rcy27",
-      "validator_addr": "cosmosvaloper1gah0q9gqypnr7ufzg0dcda3k6v8qp4ceddn8fs",
-      "validator_name": "Enigma",
-      "height": 30702266,
-      "txhash": "FBA726146CD3597A1DF2C5836D4BC789D8568C49F5B7E756791FCA7C64E0538E",
-      "timestamp": "2026-04-17T09:33:45.464Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.63635,
-      "delegator": "cosmos1ma54zsrct5d3mazacxqpvl3lvcqef0wj9mvm44",
-      "validator_addr": "cosmosvaloper1gp957czryfgyvxwn3tfnyy2f0t9g2p4pqeemx8",
-      "validator_name": " polkachu.com",
-      "height": 30702232,
-      "txhash": "C761AE6BF4C5943D48CD97749C7718B841B4C45EB79C110C76141FA00AD3B256",
-      "timestamp": "2026-04-17T09:30:30.274Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2.094397,
-      "delegator": "cosmos1ma54zsrct5d3mazacxqpvl3lvcqef0wj9mvm44",
-      "validator_addr": "cosmosvaloper14qazscc80zgzx3m0m0aa30ths0p9hg8vdglqrc",
-      "validator_name": "Solva (CryptoCrew)",
-      "height": 30702232,
-      "txhash": "C761AE6BF4C5943D48CD97749C7718B841B4C45EB79C110C76141FA00AD3B256",
-      "timestamp": "2026-04-17T09:30:30.274Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 1.5,
-      "delegator": "cosmos1fj9jnurvqvnszh977nz08ny8qkfguspen0t06p",
-      "validator_addr": "cosmosvaloper1k2d9ed9vgfuk2m58a2d80q9u6qljkh4vfaqjfq",
-      "validator_name": "Stakecito",
-      "height": 30702224,
-      "txhash": "9F96810745DD340BCA8363F7B9BC9EF3046F9C314B468C2F9D140AC68EA5351D",
-      "timestamp": "2026-04-17T09:29:42.809Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 311.412687,
-      "delegator": "cosmos17pfke3lv4y5s9ak4xz6v3gw0jr45zxk4xdu5gs",
-      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
-      "validator_name": "Ledger by Chorus One",
-      "height": 30702223,
-      "txhash": "E9E3C44FD09B38C34A1579BD8C53132CF9BA71FF910EE893173D8A3D74076ECF",
-      "timestamp": "2026-04-17T09:29:37.004Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 10.732931,
-      "delegator": "cosmos1xzrusydnkvqntyez5szcdz2ufqr04r6048a434",
-      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
-      "validator_name": "Keplr",
-      "height": 30702201,
-      "txhash": "7B797F25D1B27C71A071C6E8AAD9D8B6E619C334D07760E82EAC73B7C7DE8895",
-      "timestamp": "2026-04-17T09:27:28.435Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 94.6,
-      "delegator": "cosmos1c3hjenrcw4akx68q2dlszl4ep3y47tpn23xady",
-      "validator_addr": "cosmosvaloper10wljxpl03053h9690apmyeakly3ylhejrucvtm",
-      "validator_name": "Ledger by Chorus One",
-      "height": 30702196,
-      "txhash": "ABE60F9665BF8054CC2BEA821BD43691D5B0D757D00DD4746342518D6BE69F10",
-      "timestamp": "2026-04-17T09:27:01.249Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 74.929714,
-      "delegator": "cosmos1umkzsxqhzxadt5j8anlfk6us763836gn29352p",
-      "validator_addr": "cosmosvaloper196ax4vc0lwpxndu9dyhvca7jhxp70rmcvrj90c",
-      "validator_name": "SG-1",
-      "height": 30702181,
-      "txhash": "E08D57AFA1C492D683FA98D79136DA16C0F3902DCA785D7A4D5B43B4FD04A8C0",
-      "timestamp": "2026-04-17T09:25:37.798Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 2,
-      "delegator": "cosmos1n5j6a75nkdev5rz47r0zjn4r90z68hqxrgrxf2",
-      "validator_addr": "cosmosvaloper1gf3dm2mvqhymts6ksrstlyuu2m8pw6dhfp9md2",
-      "validator_name": "Keplr",
-      "height": 30702151,
-      "txhash": "E616C6402E2DBE137D067C109F63A5E0A9EE78C911778E26B2643636559781E9",
-      "timestamp": "2026-04-17T09:22:48.734Z"
     },
     {
       "type": "delegate",

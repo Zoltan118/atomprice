@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-05-07T01:25:03.501Z",
+  "generated_at": "2026-05-07T04:51:51.662Z",
   "min_atom": 1,
-  "total": 1130,
-  "delegates": 876,
-  "undelegates": 254,
+  "total": 1128,
+  "delegates": 875,
+  "undelegates": 253,
   "ingestion_health": {
-    "generated_at": "2026-05-07T01:18:32.130Z",
-    "status": "ok",
+    "generated_at": "2026-05-07T04:47:41.384Z",
+    "status": "critical",
     "overlap_hours": 6,
     "quorum": {
       "configured_min": 2,
       "active_required": 1,
       "provider_count": 4,
-      "provider_success": 1,
-      "agreement_avg_supporters": 1,
+      "provider_success": 0,
+      "agreement_avg_supporters": 0,
       "dropped_by_quorum": 0
     },
     "providers": {
@@ -31,9 +31,9 @@
       },
       "rpc.silknodes.io": {
         "rpc_base": "https://rpc.silknodes.io/cosmos",
-        "ok": true,
-        "error": null,
-        "events": 1651
+        "ok": false,
+        "error": "file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74\n      throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : \"\"}`);\n            ^\n\nError: HTTP 503 for https://rpc.silknodes.io/cosmos/tx_search?query=%22message.action%3D%27%2Fcosmos.staking.v1beta1.MsgDelegate%27%22&prove=false&page=1&per_page=100&order_by=%22desc%22 :: <html><body><h1>503 Service Unavailable</h1>\nNo server is available to handle this request.\n</body></html>\n\n\n    at fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.2",
+        "events": 0
       },
       "cosmos.drpc.org": {
         "rpc_base": "https://cosmos.drpc.org",
@@ -43,9 +43,9 @@
       }
     },
     "ledger": {
-      "appended": 260,
-      "skipped_existing": 1391,
-      "partitions_touched": 1
+      "appended": 0,
+      "skipped_existing": 0,
+      "partitions_touched": 0
     }
   },
   "items": [
@@ -11328,26 +11328,6 @@
       "height": 30552239,
       "txhash": "E73CF08FBB649D0D1CEDEAA5A325D6ADCB6977995D9E8256ECBB370435E8823D",
       "timestamp": "2026-04-07T08:19:23.834Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 480000,
-      "delegator": "cosmos1sag65au2knlcdctyfkld476dalu5g6dtmd5jl6",
-      "validator_addr": "cosmosvaloper10nzaaeh2kq28t3nqsh5m8kmyv90vx7ym5mpakx",
-      "validator_name": "Blockdaemon",
-      "height": 30548310,
-      "txhash": "F5FB36A0C97D60E729E445AFBD6A8208F1391CDFFEF575D967EF12904ACA137F",
-      "timestamp": "2026-04-07T02:00:39.034Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 200000,
-      "delegator": "cosmos1x8efhljzvs52u5xa6m7crcwes7v9u0nlteumau",
-      "validator_addr": "cosmosvaloper1x8efhljzvs52u5xa6m7crcwes7v9u0nlwdgw30",
-      "validator_name": "Upbit Staking",
-      "height": 30548303,
-      "txhash": "1A398C066934CF36B41EA4F5F44252D254468B821D4F35DC8A271413D5B1F01F",
-      "timestamp": "2026-04-07T02:00:01.685Z"
     }
   ]
 }

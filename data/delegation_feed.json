@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-10T06:18:03.956Z",
+  "generated_at": "2026-05-10T06:25:32.203Z",
   "min_atom": 1,
   "total": 1131,
-  "delegates": 983,
-  "undelegates": 148,
+  "delegates": 984,
+  "undelegates": 147,
   "ingestion_health": {
-    "generated_at": "2026-05-10T06:14:01.446Z",
+    "generated_at": "2026-05-10T06:24:47.793Z",
     "status": "ok",
-    "overlap_hours": 6,
+    "overlap_hours": 168,
     "quorum": {
       "configured_min": 2,
       "active_required": 1,
@@ -26,14 +26,14 @@
       "rpc.cosmos.directory": {
         "rpc_base": "https://rpc.cosmos.directory/cosmoshub",
         "ok": false,
-        "error": "node:internal/deps/undici/undici:14976\n      Error.captureStackTrace(err);\n            ^\nDOMException [AbortError]: This operation was aborted\n    at node:internal/deps/undici/undici:14976:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:68:17)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.2",
+        "error": "file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74\n      throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : \"\"}`);\n            ^\n\nError: HTTP 500 for https://rpc.cosmos.directory/cosmoshub/tx_search?query=%22message.action%3D%27%2Fcosmos.staking.v1beta1.MsgDelegate%27%22&prove=false&page=1&per_page=100&order_by=%22desc%22 :: runtime error: invalid memory address or nil pointer dereference\n    at fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.2",
         "events": 0
       },
       "rpc.silknodes.io": {
         "rpc_base": "https://rpc.silknodes.io/cosmos",
         "ok": true,
         "error": null,
-        "events": 127
+        "events": 132
       },
       "cosmos.drpc.org": {
         "rpc_base": "https://cosmos.drpc.org",
@@ -43,12 +43,62 @@
       }
     },
     "ledger": {
-      "appended": 127,
-      "skipped_existing": 0,
+      "appended": 5,
+      "skipped_existing": 127,
       "partitions_touched": 1
     }
   },
   "items": [
+    {
+      "type": "delegate",
+      "amount_atom": 1.727594,
+      "delegator": "cosmos1wl7ktac50qff3a24pthy56nr5pnv62c8cgqhnl",
+      "validator_addr": "cosmosvaloper1gah0q9gqypnr7ufzg0dcda3k6v8qp4ceddn8fs",
+      "validator_name": "Enigma",
+      "height": 31045741,
+      "txhash": "AFC05919383BA9F119931CE822EA537AA9236FB65EC81763661935EAEF42FC29",
+      "timestamp": "2026-05-10T06:22:45.124Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5.051226,
+      "delegator": "cosmos1wl7ktac50qff3a24pthy56nr5pnv62c8cgqhnl",
+      "validator_addr": "cosmosvaloper1vvwtk805lxehwle9l4yudmq6mn0g32px9xtkhc",
+      "validator_name": "Imperator.co",
+      "height": 31045741,
+      "txhash": "AFC05919383BA9F119931CE822EA537AA9236FB65EC81763661935EAEF42FC29",
+      "timestamp": "2026-05-10T06:22:45.124Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 9.709291,
+      "delegator": "cosmos1wl7ktac50qff3a24pthy56nr5pnv62c8cgqhnl",
+      "validator_addr": "cosmosvaloper132juzk0gdmwuxvx4phug7m3ymyatxlh9734g4w",
+      "validator_name": "P2P.org",
+      "height": 31045741,
+      "txhash": "AFC05919383BA9F119931CE822EA537AA9236FB65EC81763661935EAEF42FC29",
+      "timestamp": "2026-05-10T06:22:45.124Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 5,
+      "delegator": "cosmos1xs7hps4auv5ksa9a2vuk90v07agx8nlxa65qs9",
+      "validator_addr": "cosmosvaloper106yp7zw35wftheyyv9f9pe69t8rteumjrx52jg",
+      "validator_name": "Bro_n_Bro 100% Slash-protected",
+      "height": 31045734,
+      "txhash": "5EAB279311A01DD513D7109D54725063A91D0F184724525B238A698BF9593D66",
+      "timestamp": "2026-05-10T06:22:10.165Z"
+    },
+    {
+      "type": "delegate",
+      "amount_atom": 2000,
+      "delegator": "cosmos1yxnyaca3qnwhjqytyhkle069r0lkuzttdhm6h8",
+      "validator_addr": "cosmosvaloper1x8efhljzvs52u5xa6m7crcwes7v9u0nlwdgw30",
+      "validator_name": "Upbit Staking",
+      "height": 31045665,
+      "txhash": "664537D47B864EC3F3E9F6688172AD8F3C474DF11B6A3BD573F9D0F8F98DFDBB",
+      "timestamp": "2026-05-10T06:15:31.338Z"
+    },
     {
       "type": "delegate",
       "amount_atom": 2001,
@@ -9998,56 +10048,6 @@
       "height": 31036478,
       "txhash": "8E90FEA18A8CB49E7906FCC61A4F63154779FEB427557557B13A9C8024C6AAE0",
       "timestamp": "2026-05-09T15:37:09.233Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 6589,
-      "delegator": "cosmos1lmdhlwtjas5383uzd80qj438ggu662nl7csyuh",
-      "validator_addr": "cosmosvaloper140kq2fts8ed9m73a6dch7sgdap6hnp2p95f92k",
-      "validator_name": "Chiter in Cosmos ⚛",
-      "height": 31036477,
-      "txhash": "625AEB32DAC41C6E21C9F24B37BB8293DFD5F97D21482404C9C3AF56995F6BF9",
-      "timestamp": "2026-05-09T15:37:03.463Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 4.3,
-      "delegator": "cosmos1a7qyvrmt6ag9udp8rlq4l2xs3kxsjk285zggjg",
-      "validator_addr": "cosmosvaloper19f0w9svr905fhefusyx4z8sf83j6et0g9l5yhl",
-      "validator_name": "NodeStake",
-      "height": 31036476,
-      "txhash": "83F36F5BF579849111438B0C27ADB9CF1BF0789AA88755F20CA6DC6FA796D300",
-      "timestamp": "2026-05-09T15:36:57.469Z"
-    },
-    {
-      "type": "undelegate",
-      "amount_atom": 28.573798,
-      "delegator": "cosmos1stl380texhhq6evmmyaaq8hsrureukv32mxsje",
-      "validator_addr": "cosmosvaloper1jlr62guqwrwkdt4m3y00zh2rrsamhjf9num5xr",
-      "validator_name": "Nansen | Stake to Stack Points",
-      "height": 31036472,
-      "txhash": "FE6351AB9D4F0CC9E4C431CDC74BD03005F7BBD57241800B256046F4F7D7DC13",
-      "timestamp": "2026-05-09T15:36:34.139Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3.4,
-      "delegator": "cosmos1zacgjp2gavxmdsg56dy3t3uhcyfjaem7z0pfkk",
-      "validator_addr": "cosmosvaloper19f0w9svr905fhefusyx4z8sf83j6et0g9l5yhl",
-      "validator_name": "NodeStake",
-      "height": 31036470,
-      "txhash": "5865EA97CFEE52DB8DC9F280698992EFCA09D6794CEBF78355D314D58BF4FC55",
-      "timestamp": "2026-05-09T15:36:22.348Z"
-    },
-    {
-      "type": "delegate",
-      "amount_atom": 3.5,
-      "delegator": "cosmos1jl255apq7mp8ae2cxswce7na8lsg2vwkplzhwk",
-      "validator_addr": "cosmosvaloper19f0w9svr905fhefusyx4z8sf83j6et0g9l5yhl",
-      "validator_name": "NodeStake",
-      "height": 31036465,
-      "txhash": "BEC04886A74CD4CC83B1FEDF2B970E5340E74877068A487D13DF49BDF56EAA8F",
-      "timestamp": "2026-05-09T15:35:52.804Z"
     },
     {
       "type": "undelegate",

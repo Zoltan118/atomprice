@@ -1,7 +1,7 @@
 {
-  "last_ingest_at": "2026-11-02T22:14:17.625Z",
+  "last_ingest_at": "2026-11-03T03:33:29.836Z",
   "cursors": {
-    "since": "2026-11-02T16:15:19.144Z"
+    "since": "2026-11-02T21:34:25.870Z"
   },
   "stats": {
     "providers_total": 4,
@@ -30,7 +30,7 @@
       "rpc.silknodes.io": {
         "rpc_base": "https://rpc.silknodes.io/cosmos",
         "ok": false,
-        "error": "node:internal/deps/undici/undici:14976\n      Error.captureStackTrace(err);\n            ^\n\nTypeError: fetch failed\n    at node:internal/deps/undici/undici:14976:13\n    at async fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:68:17)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23) {\n  [cause]: SocketError: other side closed\n      at TLSSocket.<anonymous> (node:internal/deps/undici/undici:6436:28)\n      at TLSSocket.emit (node:events:536:35)\n      at endReadableNT (node:internal/streams/readable:1698:12)\n      at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {\n    code: 'UND_ERR_SOCKET',\n    socket: {\n      localAddress: '10.1.0.188',\n      localPort: 38060,\n      remoteAddress: '136.38.221.58',\n      remotePort: 443,\n      remoteFamily: 'IPv4',\n      timeout: undefined,\n      bytesWritten: 329,\n      bytesRead: 0\n    },\n    [Symbol(undici.error.UND_ERR)]: true,\n    [Symbol(undici.error.UND_ERR_SOCKET)]: true\n  }\n}\n\nNode.js v20.20.2",
+        "error": "file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74\n      throw new Error(`HTTP ${res.status} for ${url}${msg ? ` :: ${msg}` : \"\"}`);\n            ^\n\nError: HTTP 502 for https://rpc.silknodes.io/cosmos/tx_search?query=%22message.action%3D%27%2Fcosmos.staking.v1beta1.MsgDelegate%27%22&prove=false&page=1&per_page=100&order_by=%22desc%22 :: <html><body><h1>502 Bad Gateway</h1>\nThe server returned an invalid or incomplete response.\n</body></html>\n\n\n    at fetchJson (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:74:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async fetchJsonFromRpcPath (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:89:20)\n    at async fetchTxsByAction (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:246:19)\n    at async main (file:///home/runner/work/atomprice/atomprice/scripts/fetch-delegation-feed.mjs:393:23)\n\nNode.js v20.20.2",
         "events": 0
       },
       "cosmos.drpc.org": {
